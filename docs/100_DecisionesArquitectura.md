@@ -1,0 +1,372 @@
+# 100_DecisionesArquitectura.md
+
+# Decisiones Arquitectónicas Chiri Platform v1.0
+
+## 1. Objetivo
+
+Registrar las decisiones arquitectónicas importantes tomadas durante el diseño de Chiri Platform v1.0.
+
+Este documento permite:
+
+* Conocer el motivo detrás de cada decisión.
+* Mantener consistencia durante la implementación.
+* Evitar cambios arquitectónicos no evaluados.
+* Facilitar la evolución futura de la plataforma.
+
+---
+
+# 2. Formato de Decisiones
+
+Cada decisión contiene:
+
+* Identificador.
+* Descripción.
+* Contexto.
+* Decisión tomada.
+* Justificación.
+* Impacto.
+
+---
+
+# ADR-001
+
+## Separación por Capas de la Arquitectura
+
+### Contexto
+
+El sistema requiere mantener separación clara entre:
+
+* Aplicación Android.
+* API.
+* Backend.
+* Base de Datos.
+
+### Decisión
+
+Se adopta una arquitectura por capas:
+
+```mermaid
+flowchart TD
+    Android --> API
+    API --> Backend
+    Backend --> BaseDatos
+
+    Android["Aplicación Android"]
+    API["API Chiri Platform"]
+    Backend["Backend"]
+    BaseDatos["Base de Datos"]
+```
+
+### Justificación
+
+Permite:
+
+* Independencia entre componentes.
+* Mantenimiento simplificado.
+* Evolución tecnológica.
+* Mejor control de responsabilidades.
+
+### Impacto
+
+Positivo:
+
+* Mayor escalabilidad.
+* Código organizado.
+
+---
+
+# ADR-002
+
+## Separación de Responsabilidades Backend
+
+### Contexto
+
+La lógica del sistema debe estar organizada y evitar acoplamiento.
+
+### Decisión
+
+Se establece separación:
+
+```mermaid
+flowchart TD
+    Controller --> Service
+    Service --> Repository
+    Repository --> BaseDatos
+
+    Controller["Controller"]
+    Service["Reglas Negocio"]
+    Repository["Acceso Datos"]
+    BaseDatos["Base de Datos"]
+```
+
+### Justificación
+
+Cada capa tiene una responsabilidad definida.
+
+### Impacto
+
+Facilita:
+
+* Pruebas.
+* Mantenimiento.
+* Reutilización.
+
+---
+
+# ADR-003
+
+## API como Punto Único de Comunicación
+
+### Contexto
+
+Los clientes externos no deben acceder directamente a la lógica interna.
+
+### Decisión
+
+Toda comunicación externa pasa por la API.
+
+```mermaid
+flowchart TD
+    Cliente --> API
+    API --> Backend
+
+    Cliente["Aplicación Cliente"]
+    API["API"]
+    Backend["Backend"]
+```
+
+### Justificación
+
+Permite:
+
+* Seguridad.
+* Control de acceso.
+* Validación centralizada.
+
+### Impacto
+
+Mayor control sobre integraciones futuras.
+
+---
+
+# ADR-004
+
+## Base de Datos como Capa Persistente Independiente
+
+### Contexto
+
+La información debe mantenerse independiente de los componentes consumidores.
+
+### Decisión
+
+El acceso a datos se realiza exclusivamente desde Backend.
+
+```mermaid
+flowchart TD
+    Backend --> BaseDatos
+
+    Backend["Backend"]
+    BaseDatos["Base de Datos"]
+```
+
+### Justificación
+
+Evita acceso directo desde clientes.
+
+### Impacto
+
+Mayor seguridad e integridad.
+
+---
+
+# ADR-005
+
+## Seguridad Integrada desde Arquitectura
+
+### Contexto
+
+La seguridad debe formar parte del diseño inicial.
+
+### Decisión
+
+Se incorporan:
+
+* Autenticación.
+* Autorización.
+* Tokens.
+* Auditoría.
+* Validaciones.
+
+```mermaid
+flowchart TD
+    Usuario --> Autenticacion
+    Autenticacion --> Autorizacion
+    Autorizacion --> Sistema
+
+    Usuario["Usuario"]
+    Autenticacion["Identidad"]
+    Autorizacion["Permisos"]
+    Sistema["Chiri Platform"]
+```
+
+### Justificación
+
+Evita implementar seguridad como una capa posterior.
+
+### Impacto
+
+Mayor protección del sistema.
+
+---
+
+# ADR-006
+
+## Mermaid como Estándar de Diagramación Arquitectónica
+
+### Contexto
+
+La documentación necesita diagramas versionables y mantenibles.
+
+### Decisión
+
+Todos los diagramas arquitectónicos utilizarán Mermaid.
+
+Ejemplo:
+
+```mermaid
+flowchart TD
+    A --> B
+```
+
+### Justificación
+
+Permite:
+
+* Versionamiento junto al Markdown.
+* Fácil mantenimiento.
+* Visualización independiente del editor.
+
+### Impacto
+
+Toda documentación arquitectónica seguirá un estándar único.
+
+---
+
+# ADR-007
+
+## Separación entre Arquitectura y Diseño UX/UI
+
+### Contexto
+
+La arquitectura debe permanecer independiente de decisiones visuales.
+
+### Decisión
+
+Los documentos arquitectónicos no incluyen:
+
+* Pantallas.
+* Mockups.
+* Diseños visuales.
+
+### Justificación
+
+Permite evolucionar la experiencia de usuario sin modificar la arquitectura base.
+
+### Impacto
+
+Mayor flexibilidad del proyecto.
+
+---
+
+# ADR-008
+
+## Guía de Programación como Estándar de Desarrollo
+
+### Contexto
+
+El crecimiento del proyecto requiere consistencia técnica.
+
+### Decisión
+
+Se establece:
+
+`090_GuiaProgramacion.md`
+
+como referencia obligatoria para desarrollo.
+
+### Justificación
+
+Mantiene:
+
+* Convenciones.
+* Organización.
+* Calidad del código.
+
+### Impacto
+
+Mayor mantenibilidad.
+
+---
+
+# ADR-009
+
+## Arquitectura de Despliegue Flexible
+
+### Contexto
+
+La plataforma debe permitir diferentes ambientes.
+
+### Decisión
+
+El despliegue se mantiene independiente de infraestructura específica.
+
+### Justificación
+
+Permite evolucionar hacia:
+
+* Servidores tradicionales.
+* Contenedores.
+* Cloud.
+* Alta disponibilidad.
+
+### Impacto
+
+Mayor capacidad de adaptación.
+
+---
+
+# 3. Resumen de Decisiones
+
+| ID      | Decisión                     | Estado   |
+| ------- | ---------------------------- | -------- |
+| ADR-001 | Arquitectura por capas       | Aprobada |
+| ADR-002 | Separación Backend           | Aprobada |
+| ADR-003 | API como punto único         | Aprobada |
+| ADR-004 | Base de Datos independiente  | Aprobada |
+| ADR-005 | Seguridad integrada          | Aprobada |
+| ADR-006 | Mermaid estándar             | Aprobada |
+| ADR-007 | Separación Arquitectura / UX | Aprobada |
+| ADR-008 | Guía programación            | Aprobada |
+| ADR-009 | Despliegue flexible          | Aprobada |
+
+---
+
+# 4. Estado del Documento
+
+Documento:
+
+```text
+100_DecisionesArquitectura.md
+```
+
+Versión:
+
+```text
+Chiri Platform v1.0
+```
+
+Estado:
+
+```text
+EN REVISIÓN
+```
