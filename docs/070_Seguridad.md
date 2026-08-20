@@ -186,10 +186,6 @@ Los componentes expuestos a redes externas deberán disponer de controles adicio
 
 ---
 
-Perfecto. Seguimos con **4.2**, manteniendo el mismo criterio: claro, compacto y arquitectónico.
-
----
-
 # 4.2 Principio de Mínimo Privilegio
 
 Chiri Platform deberá aplicar el principio de **mínimo privilegio** a usuarios, aplicaciones, servicios, procesos y componentes de infraestructura.
