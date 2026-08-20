@@ -459,7 +459,7 @@ app/
 
     └── main/
 
-        ├── java/com/chiri/
+        ├── java/com/chirihome/
 
         ├── res/
 
@@ -473,13 +473,13 @@ app/
 El paquete base será:
 
 ```text
-com.chiri
+com.chirihome
 ```
 
 Dentro de él se organizarán las responsabilidades:
 
 ```text
-com.chiri/
+com.chirihome/
 
 ├── ui/
 
@@ -2202,7 +2202,7 @@ Un nuevo módulo deberá crearse cuando:
 Ejemplo futuro:
 
 ```text id="4x7m9p"
-com.chiri
+com.chirihome
 
 ├── home/
 
