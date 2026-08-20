@@ -4,7 +4,7 @@
 
 ## 1. Objetivo
 
-Definir los estándares y reglas de programación que deben seguir todos los desarrollos de Chiri Platform v1.0.
+Definir los estándares y reglas de programación que deben seguir los desarrollos de Chiri Platform v1.0.
 
 El objetivo es garantizar:
 
@@ -31,8 +31,9 @@ El código debe priorizar:
 Debe evitarse:
 
 * Código duplicado.
-* Métodos demasiado extensos.
+* Métodos o funciones demasiado extensos.
 * Lógica mezclada entre capas.
+* Complejidad innecesaria.
 
 ---
 
@@ -40,71 +41,47 @@ Debe evitarse:
 
 Cada componente debe tener una función clara.
 
-Ejemplo:
+La implementación podrá utilizar diferentes patrones según la tecnología, siempre que mantenga la separación de responsabilidades.
+
+Como referencia:
 
 ```text
-Controller
-    ↓
-Recibe solicitudes
-
-Service
-    ↓
-Reglas de negocio
-
-Repository
-    ↓
+Entrada
+   ↓
+Lógica de negocio
+   ↓
 Acceso a datos
-```
+   ↓
+Base de Datos
+````
 
 ---
 
-# 3. Convenciones de Nombres
+# 3. Convenciones de Código
 
-## 3.1 Variables y métodos
+Las convenciones deberán respetar las prácticas recomendadas por cada tecnología utilizada en Chiri Platform.
 
-Se utilizará:
+La consistencia dentro de cada módulo tendrá prioridad sobre imponer una única convención para todas las tecnologías.
 
-```text
-camelCase
-```
+## 3.1 Variables y funciones
 
-Ejemplo:
+Deberán utilizarse nombres claros y descriptivos.
 
-```text
-usuarioActual
-obtenerUsuarios()
-validarPermiso()
-```
+Las convenciones específicas deberán respetar el lenguaje utilizado.
 
 ---
 
 ## 3.2 Clases
 
-Se utilizará:
-
-```text
-PascalCase
-```
-
-Ejemplo:
-
-```text
-UsuarioController
-UsuarioService
-UsuarioRepository
-```
+Las clases deberán utilizar nombres descriptivos y seguir las convenciones oficiales del lenguaje correspondiente.
 
 ---
 
 ## 3.3 Constantes
 
-Se utilizará:
+Las constantes deberán utilizar nombres descriptivos y seguir las convenciones oficiales de cada lenguaje.
 
-```text
-MAYUSCULAS_CON_GUION_BAJO
-```
-
-Ejemplo:
+Ejemplo conceptual:
 
 ```text
 MAX_INTENTOS_LOGIN
@@ -115,47 +92,54 @@ TOKEN_EXPIRATION_TIME
 
 # 4. Organización del Código
 
-La estructura debe respetar separación por capas:
+La estructura del código deberá respetar la separación de responsabilidades definida por la arquitectura de Chiri Platform.
+
+Como referencia:
 
 ```mermaid
 flowchart TD
-    Controller --> Service
-    Service --> Repository
-    Repository --> BaseDatos
 
-    Controller["Controller"]
-    Service["Servicio Negocio"]
-    Repository["Repositorio Datos"]
-    BaseDatos["Base de Datos"]
+    Entrada --> Negocio
+    Negocio --> Datos
+    Datos --> BaseDatos
+
+    Entrada["Entrada / API"]
+    Negocio["Lógica de Negocio"]
+    Datos["Acceso a Datos"]
+    BaseDatos["PostgreSQL"]
 ```
 
 Responsabilidades:
 
-| Capa       | Responsabilidad                 |
-| ---------- | ------------------------------- |
-| Controller | Entrada y salida de solicitudes |
-| Service    | Reglas de negocio               |
-| Repository | Persistencia de datos           |
-| Base Datos | Almacenamiento                  |
+| Componente | Responsabilidad                      |
+| ---------- | ------------------------------------ |
+| Entrada    | Recepción y respuesta de solicitudes |
+| Negocio    | Reglas y procesamiento de negocio    |
+| Datos      | Acceso y persistencia                |
+| PostgreSQL | Almacenamiento de información        |
+
+La implementación podrá utilizar estructuras como Controller, Service, Repository u otras equivalentes cuando sean apropiadas para la tecnología utilizada.
 
 ---
 
 # 5. Estructura de Módulos
 
-Cada módulo debe organizarse de forma independiente.
+Los módulos deberán organizarse de forma clara e independiente.
 
-Ejemplo:
+La estructura deberá adaptarse a la tecnología utilizada.
+
+Como referencia:
 
 ```text
-ModuloUsuario
-
-├── Controller
-├── Service
-├── Repository
+Modulo
 ├── Model
 ├── DTO
+├── Service
+├── Repository
 └── Test
 ```
+
+No todos los módulos deberán contener necesariamente todos estos componentes.
 
 ---
 
@@ -165,15 +149,16 @@ Los errores deben:
 
 * Ser controlados.
 * Tener mensajes claros.
-* Mantener códigos internos.
+* Mantener códigos internos cuando corresponda.
 * Evitar exposición de información sensible.
+* Permitir su registro y diagnóstico.
 
 Ejemplo:
 
 Incorrecto:
 
 ```text
-Error SQL Firebird conexión perdida
+Error de conexión con la Base de Datos: [detalles internos]
 ```
 
 Correcto:
@@ -182,11 +167,13 @@ Correcto:
 ERR_DATABASE_CONNECTION
 ```
 
+Los detalles técnicos deberán registrarse de forma segura en los logs cuando sean necesarios para diagnóstico.
+
 ---
 
 # 7. Validación de Datos
 
-Toda entrada externa debe validarse.
+Toda entrada externa deberá validarse antes de ser procesada.
 
 Fuentes:
 
@@ -194,31 +181,33 @@ Fuentes:
 * API.
 * Servicios externos.
 
-Regla:
+La validación deberá realizarse en el servidor independientemente de las validaciones realizadas por el cliente.
 
 ```mermaid
 flowchart TD
+
     Entrada --> Validacion
     Validacion --> Procesamiento
     Validacion --> Error
 
-    Entrada["Datos Entrada"]
+    Entrada["Datos de Entrada"]
     Validacion["Validación"]
     Procesamiento["Procesamiento"]
-    Error["Respuesta Error"]
+    Error["Respuesta de Error"]
 ```
 
 ---
 
 # 8. Comentarios en Código
 
-Los comentarios deben explicar:
+Los comentarios deberán explicar:
 
 * Motivo de una decisión.
 * Regla compleja.
 * Consideración importante.
+* Comportamiento que no sea evidente.
 
-Evitar comentarios que describen código evidente.
+Deberán evitarse comentarios que simplemente describan código evidente.
 
 Ejemplo incorrecto:
 
@@ -231,85 +220,121 @@ contador++;
 
 # 9. Logs
 
-Los registros deben ser:
+Los registros deberán ser:
 
 * Claros.
 * Clasificados por nivel.
+* Útiles para diagnóstico.
 * Sin información sensible.
 
-Niveles:
+Niveles de referencia:
 
 ```text
+DEBUG
 INFO
 WARN
 ERROR
-DEBUG
 ```
 
-Nunca registrar:
+Nunca deberán registrarse:
 
 * Contraseñas.
 * Tokens.
+* Secretos.
+* Credenciales.
 * Datos privados completos.
 
 ---
 
 # 10. Control de Versiones
 
+Chiri Platform utilizará Git para el control de versiones.
+
 Reglas:
 
-* Commits pequeños.
+* Commits pequeños y coherentes.
 * Mensajes descriptivos.
-* No subir credenciales.
-* Revisar cambios antes de integrar.
+* No subir credenciales ni secretos.
+* Revisar los cambios antes de integrarlos.
+* Mantener el repositorio en un estado coherente.
 
-Formato recomendado:
+Los mensajes de commit deberán seguir una convención consistente con el repositorio.
+
+Formato:
 
 ```text
-TIPO: descripción
+tipo: descripción
+```
 
-Ejemplo:
+Ejemplos:
 
-FEAT: agregar autenticación usuario
-FIX: corregir validación permisos
-DOC: actualizar arquitectura API
+```text
+feat: agregar autenticación de usuario
+fix: corregir validación de permisos
+docs: actualizar arquitectura de API
+chore: actualizar configuración
 ```
 
 ---
 
 # 11. Pruebas
 
-Todo módulo debe considerar:
+Los desarrollos deberán considerar, según corresponda:
 
 * Pruebas unitarias.
-* Validación funcional.
-* Pruebas de integración cuando aplique.
+* Pruebas funcionales.
+* Pruebas de integración.
+* Validación de errores.
+* Validación de seguridad.
+
+Las funcionalidades críticas deberán verificarse antes de incorporarse a producción.
 
 ---
 
 # 12. Seguridad en Desarrollo
 
-Reglas:
+El desarrollo deberá cumplir las reglas de seguridad definidas en `070_Seguridad.md`.
 
-* No almacenar secretos en código.
+Como mínimo:
+
+* No almacenar secretos en el código.
 * Validar entradas.
 * Aplicar mínimo privilegio.
+* Proteger información sensible.
 * Mantener dependencias actualizadas.
+* Evitar exposición de información interna mediante errores o logs.
 
 ---
 
 # 13. Compatibilidad con Arquitectura Chiri Platform
 
-Todo desarrollo debe respetar:
+Todo desarrollo deberá respetar:
 
 * Arquitectura definida.
-* Separación Backend/API/Android.
+* Separación entre Android, API y Backend.
 * Contratos establecidos.
 * Modelos de datos aprobados.
+* Reglas de seguridad.
+* Arquitectura de despliegue.
+* Responsabilidades definidas para cada componente.
+
+Los cambios de implementación no deberán modificar unilateralmente las decisiones arquitectónicas establecidas.
 
 ---
 
-# 14. Estado del Documento
+# 14. Decisiones Arquitectónicas
+
+Cuando un cambio de desarrollo modifique una decisión arquitectónica, deberá registrarse en:
+
+```text
+100_DecisionesArquitectura.md
+```
+
+Las decisiones deberán mantenerse alineadas con la versión vigente de la arquitectura de Chiri Platform.
+
+---
+
+# 15. Estado del Documento
 
 Documento:
 
