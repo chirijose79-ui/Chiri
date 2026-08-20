@@ -4,15 +4,16 @@
 
 ## 1. Objetivo
 
-Definir la arquitectura de despliegue de Chiri Platform v1.0, estableciendo cómo serán instalados, ejecutados y comunicados los componentes principales del sistema.
+Definir la arquitectura de despliegue de Chiri Platform v1.0, estableciendo cómo serán instalados, ejecutados, configurados y comunicados sus componentes principales.
 
 Este documento define:
 
 * Distribución de componentes.
-* Infraestructura requerida.
-* Ambientes de ejecución.
-* Dependencias entre servicios.
+* Infraestructura de ejecución.
+* Ambientes de despliegue.
+* Dependencias entre componentes.
 * Comunicación entre capas.
+* Persistencia de información.
 * Consideraciones operativas de despliegue.
 
 ---
@@ -24,15 +25,17 @@ La arquitectura de despliegue comprende:
 * Aplicación Android.
 * API Chiri Platform.
 * Backend.
-* Base de Datos.
+* Base de Datos PostgreSQL.
 * Servicios auxiliares.
+* Contenedores.
 * Infraestructura de ejecución.
 
 No incluye:
 
 * Diseño de pantallas.
 * Experiencia de usuario.
-* Proceso interno de desarrollo.
+* Implementación detallada del código.
+* Procedimientos específicos de administración de infraestructura.
 
 ---
 
@@ -41,22 +44,24 @@ No incluye:
 Chiri Platform v1.0 se despliega bajo una arquitectura distribuida donde:
 
 * Android funciona como cliente.
-* La API expone servicios.
-* El Backend procesa reglas de negocio.
-* La Base de Datos almacena información persistente.
+* La API constituye el punto de entrada de los clientes.
+* El Backend procesa las reglas de negocio.
+* PostgreSQL proporciona la persistencia de información.
+* Los servicios auxiliares se integran a través de los mecanismos definidos por la arquitectura.
 
 ```mermaid
 flowchart TD
+
     Usuario --> Android
     Android -->|HTTPS| API
     API --> Backend
-    Backend --> BaseDatos
+    Backend --> PostgreSQL
 
     Android["Aplicación Android"]
     API["API Chiri Platform"]
     Backend["Backend"]
-    BaseDatos["Base de Datos"]
-```
+    PostgreSQL["PostgreSQL"]
+````
 
 ---
 
@@ -68,14 +73,15 @@ Responsabilidad:
 
 * Interfaz cliente.
 * Captura de información.
-* Consumo de servicios API.
-* Gestión de sesión del usuario.
+* Consumo de servicios de la API.
+* Gestión de la sesión del usuario.
 
 Características:
 
 * Ejecuta en dispositivos Android.
-* No contiene lógica crítica del negocio.
-* Requiere conexión con la API.
+* No contiene la lógica crítica del negocio.
+* No accede directamente a la Base de Datos.
+* Requiere comunicación con la API para las operaciones de la plataforma.
 
 ---
 
@@ -83,16 +89,17 @@ Características:
 
 Responsabilidad:
 
-* Punto de entrada del sistema.
-* Comunicación con clientes.
-* Validación de solicitudes.
-* Control de seguridad.
+* Punto de entrada de los clientes.
+* Recepción y validación de solicitudes.
+* Autenticación.
+* Autorización.
+* Comunicación con el Backend.
 
 Características:
 
-* Expone endpoints.
-* Gestiona autenticación.
-* Controla autorización.
+* Expone los endpoints definidos por la arquitectura de la API.
+* Utiliza HTTPS para las comunicaciones externas.
+* No deberá contener lógica de negocio que corresponda al Backend.
 
 ---
 
@@ -100,45 +107,79 @@ Características:
 
 Responsabilidad:
 
-* Reglas de negocio.
+* Ejecución de reglas de negocio.
 * Procesamiento de información.
 * Orquestación de operaciones.
-* Comunicación con Base de Datos.
+* Comunicación con PostgreSQL.
+* Integración con servicios internos.
+
+El Backend deberá ejecutarse como un componente independiente de la aplicación Android.
 
 ---
 
-## 4.4 Base de Datos
+## 4.4 Base de Datos PostgreSQL
 
 Responsabilidad:
 
 * Persistencia de información.
 * Integridad de datos.
-* Consultas del sistema.
+* Consultas y operaciones de almacenamiento.
+* Soporte de las operaciones del Backend.
+
+La Base de Datos no deberá exponerse directamente a los clientes.
+
+El acceso deberá realizarse mediante los componentes autorizados de la plataforma.
+
+---
+
+## 4.5 Contenedores
+
+Los componentes de servidor de Chiri Platform podrán ejecutarse mediante contenedores.
+
+La contenerización deberá permitir:
+
+* Separación de componentes.
+* Reproducibilidad del entorno.
+* Control de versiones de las imágenes.
+* Administración independiente de servicios cuando corresponda.
+* Facilitar actualizaciones y recuperación.
+
+La utilización de contenedores no deberá modificar las reglas de seguridad ni las responsabilidades definidas para cada componente.
 
 ---
 
 # 5. Arquitectura Física de Despliegue
 
-La distribución física conceptual es:
+La distribución física de Chiri Platform es una representación conceptual.
+
+Los componentes podrán ejecutarse en uno o varios servidores dependiendo de las necesidades de infraestructura, seguridad, capacidad y disponibilidad.
+
+Una distribución posible es:
 
 ```mermaid
 flowchart TD
-    DispositivoAndroid --> ServidorAplicacion
-    ServidorAplicacion --> ServidorBD
+
+    DispositivoAndroid --> ServidorChiri
+    ServidorChiri --> PostgreSQL
 
     DispositivoAndroid["Dispositivo Android"]
-    ServidorAplicacion["Servidor Chiri Platform<br/>API + Backend"]
-    ServidorBD["Servidor Base de Datos"]
+    ServidorChiri["Infraestructura Chiri Platform<br/>API + Backend"]
+    PostgreSQL["PostgreSQL"]
 ```
+
+La distribución física no deberá modificar las responsabilidades lógicas establecidas en la arquitectura.
+
+Cuando sea necesario, PostgreSQL podrá ejecutarse en una infraestructura independiente del API y Backend.
 
 ---
 
 # 6. Ambientes de Despliegue
 
-Chiri Platform considera tres ambientes:
+Chiri Platform considera tres ambientes lógicos:
 
 ```mermaid
 flowchart TD
+
     Desarrollo --> Pruebas
     Pruebas --> Produccion
 
@@ -154,6 +195,9 @@ Uso:
 * Implementación.
 * Pruebas iniciales.
 * Validación técnica.
+* Desarrollo de nuevas funcionalidades.
+
+No deberá utilizar datos reales de producción salvo que exista una justificación y protección adecuada.
 
 ---
 
@@ -162,8 +206,11 @@ Uso:
 Uso:
 
 * Validación funcional.
-* Integración.
-* Certificación previa.
+* Pruebas de integración.
+* Validación de seguridad.
+* Verificación previa al despliegue en producción.
+
+El ambiente de pruebas deberá mantenerse separado de producción.
 
 ---
 
@@ -174,90 +221,181 @@ Uso:
 * Operación real.
 * Datos reales.
 * Usuarios finales.
+* Servicios oficiales de Chiri Platform.
+
+Los cambios en producción deberán realizarse mediante procedimientos controlados.
 
 ---
 
 # 7. Comunicación entre Componentes
 
-Todas las comunicaciones externas deben utilizar:
+Las comunicaciones entre los componentes deberán respetar las reglas de seguridad definidas en `070_Seguridad.md`.
+
+Las comunicaciones externas deberán utilizar:
 
 * HTTPS.
 * Autenticación.
-* Validación de permisos.
+* Autorización.
+* Validación de solicitudes.
+
+La comunicación entre servicios internos deberá limitarse a los componentes que necesiten comunicarse entre sí.
+
+La Base de Datos PostgreSQL no deberá estar expuesta directamente a Internet.
 
 ```mermaid
 flowchart TD
-    Android -->|HTTPS + Token| API
-    API -->|Servicios Internos| Backend
-    Backend -->|Conexión Segura| BaseDatos
+
+    Android -->|HTTPS + Autenticación| API
+    API -->|Comunicación Interna| Backend
+    Backend -->|Conexión Segura| PostgreSQL
 
     Android["Aplicación Android"]
     API["API"]
     Backend["Backend"]
-    BaseDatos["Base de Datos"]
+    PostgreSQL["PostgreSQL"]
 ```
 
 ---
 
 # 8. Configuración de Despliegue
 
-Cada ambiente debe mantener:
+Cada ambiente deberá mantener su propia configuración.
 
-* Configuración independiente.
-* Variables de entorno propias.
-* Credenciales separadas.
-* Parámetros controlados.
+Deberá existir separación entre:
 
-Nunca compartir:
+* Configuración.
+* Variables de entorno.
+* Credenciales.
+* Parámetros de ejecución.
+* Información específica de cada ambiente.
+
+Los secretos y credenciales no deberán almacenarse directamente en el código fuente.
+
+No deberán compartirse entre ambientes:
 
 * Claves.
 * Tokens.
-* Usuarios administrativos.
+* Credenciales administrativas.
+* Secretos de servicios.
 
 ---
 
 # 9. Dependencias de Ejecución
 
-Orden lógico de disponibilidad:
+Los componentes deberán iniciar y operar respetando sus dependencias.
+
+El orden lógico es:
 
 ```mermaid
 flowchart TD
-    BaseDatos --> Backend
+
+    PostgreSQL --> Backend
     Backend --> API
     API --> Android
 
-    BaseDatos["Base de Datos Disponible"]
+    PostgreSQL["PostgreSQL Disponible"]
     Backend["Backend Disponible"]
     API["API Disponible"]
     Android["Cliente Android"]
 ```
 
+La disponibilidad de un componente no deberá considerarse suficiente si sus dependencias críticas no están disponibles.
+
 ---
 
-# 10. Consideraciones de Disponibilidad
+# 10. Persistencia y Recuperación
 
-El despliegue debe permitir:
+La información persistente de Chiri Platform deberá almacenarse en PostgreSQL.
 
-* Reinicio independiente de componentes.
-* Actualización controlada.
+El despliegue deberá considerar:
+
+* Persistencia de los datos.
+* Protección de la información.
+* Copias de seguridad.
+* Recuperación ante fallos.
+* Integridad de los datos.
+
+Las copias de seguridad deberán mantenerse separadas de los componentes que contienen los datos originales cuando sea técnicamente posible.
+
+La recuperación deberá verificarse antes de considerarse completada.
+
+Los mecanismos específicos de respaldo y recuperación podrán definirse en documentación operativa posterior.
+
+---
+
+# 11. Actualización y Cambios de Despliegue
+
+Los cambios de despliegue deberán realizarse de forma controlada.
+
+Antes de actualizar componentes críticos deberá considerarse:
+
+* Compatibilidad.
+* Dependencias.
+* Impacto.
+* Respaldo.
+* Posibilidad de reversión.
+* Verificación posterior.
+
+Las actualizaciones deberán mantener la configuración y los controles de seguridad definidos para la plataforma.
+
+---
+
+# 12. Disponibilidad y Recuperación
+
+El despliegue deberá permitir:
+
+* Reinicio de servicios cuando sea necesario.
+* Actualizaciones controladas.
 * Recuperación ante fallos.
 * Monitoreo básico.
+* Verificación posterior a los cambios.
+
+La arquitectura deberá evitar dependencias innecesarias que puedan provocar la indisponibilidad completa de la plataforma ante el fallo de un único componente.
+
+Los mecanismos de alta disponibilidad podrán incorporarse cuando los requisitos de la plataforma lo justifiquen.
 
 ---
 
-# 11. Preparación para Futuras Versiones
+# 13. Preparación para Futuras Versiones
 
-La arquitectura permitirá incorporar:
+La arquitectura podrá evolucionar para incorporar:
 
-* Contenedores.
 * Balanceadores.
 * Escalamiento horizontal.
 * Automatización CI/CD.
 * Alta disponibilidad.
+* Separación física de componentes.
+* Infraestructura adicional para crecimiento.
+
+Estas capacidades no forman parte obligatoria del despliegue inicial de Chiri Platform v1.0.
 
 ---
 
-# 12. Estado del Documento
+# 14. Reglas Arquitectónicas
+
+Chiri Platform deberá cumplir las siguientes reglas:
+
+> **Los clientes deberán acceder a la plataforma mediante la API definida por la arquitectura.**
+
+> **El Backend deberá mantener la lógica crítica del negocio fuera de la aplicación Android.**
+
+> **PostgreSQL no deberá exponerse directamente a los clientes ni a Internet.**
+
+> **Los componentes de servidor deberán mantener responsabilidades separadas.**
+
+> **Los ambientes de Desarrollo, Pruebas y Producción deberán mantenerse separados lógicamente.**
+
+> **Las configuraciones, credenciales y secretos deberán mantenerse separados por ambiente.**
+
+> **Los cambios de despliegue deberán realizarse de forma controlada.**
+
+> **Los datos persistentes deberán disponer de mecanismos de respaldo y recuperación.**
+
+> **La arquitectura de despliegue deberá mantener los controles de seguridad definidos en `070_Seguridad.md`.**
+
+---
+
+# 15. Estado del Documento
 
 Documento:
 
@@ -276,3 +414,5 @@ Estado:
 ```text
 EN REVISIÓN
 ```
+
+````
