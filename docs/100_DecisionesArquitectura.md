@@ -73,6 +73,20 @@ Positivo:
 * Mayor escalabilidad.
 * Código organizado.
 
+Sí, **así está correcto**. ✅
+
+Ahora ADR-002 queda coherente con `090_GuiaProgramacion.md`:
+
+* No obliga a usar Controller/Service/Repository.
+* Permite esos patrones cuando sean apropiados.
+* Mantiene separadas las responsabilidades.
+* No contradice `020_Arquitectura.md` ni `030_Backend.md`.
+
+Solo haría **un pequeño ajuste de precisión** en el diagrama: `BaseDatos` debería llamarse **PostgreSQL**, porque ya es una decisión confirmada para Chiri Platform.
+
+Te recomiendo dejarlo así:
+
+````markdown
 ---
 
 # ADR-002
@@ -81,27 +95,34 @@ Positivo:
 
 ### Contexto
 
-La lógica del sistema debe estar organizada y evitar acoplamiento.
+El Backend deberá mantener separadas las responsabilidades de entrada, lógica de negocio y acceso a datos.
+
+La implementación podrá utilizar patrones como Controller, Service y Repository cuando sean apropiados.
 
 ### Decisión
 
-Se establece separación:
+Se establece la separación de responsabilidades:
 
 ```mermaid
 flowchart TD
+
     Controller --> Service
     Service --> Repository
-    Repository --> BaseDatos
+    Repository --> PostgreSQL
 
-    Controller["Controller"]
-    Service["Reglas Negocio"]
-    Repository["Acceso Datos"]
-    BaseDatos["Base de Datos"]
-```
+    Controller["Entrada / Controller"]
+    Service["Reglas de Negocio"]
+    Repository["Acceso a Datos"]
+    PostgreSQL["PostgreSQL"]
+````
+
+La utilización de Controller, Service y Repository será una decisión de implementación y no una obligación estructural para todos los módulos.
 
 ### Justificación
 
-Cada capa tiene una responsabilidad definida.
+Cada componente mantiene una responsabilidad definida.
+
+La separación permite evolucionar la implementación sin modificar las responsabilidades principales del Backend.
 
 ### Impacto
 
@@ -110,6 +131,8 @@ Facilita:
 * Pruebas.
 * Mantenimiento.
 * Reutilización.
+* Evolución del sistema.
+* Separación de responsabilidades.
 
 ---
 
@@ -159,23 +182,29 @@ La información debe mantenerse independiente de los componentes consumidores.
 
 ### Decisión
 
-El acceso a datos se realiza exclusivamente desde Backend.
+La persistencia de Chiri Platform v1.0 utilizará PostgreSQL.
+
+El acceso a PostgreSQL se realizará exclusivamente desde el Backend.
 
 ```mermaid
 flowchart TD
-    Backend --> BaseDatos
+
+    Backend --> PostgreSQL
 
     Backend["Backend"]
-    BaseDatos["Base de Datos"]
-```
+    PostgreSQL["PostgreSQL"]
+````
 
 ### Justificación
 
-Evita acceso directo desde clientes.
+Evita el acceso directo desde los clientes y mantiene la persistencia bajo el control del Backend.
 
 ### Impacto
 
-Mayor seguridad e integridad.
+* Mayor seguridad.
+* Mayor integridad de los datos.
+* Separación de responsabilidades.
+* Facilita la evolución de la Base de Datos.
 
 ---
 
