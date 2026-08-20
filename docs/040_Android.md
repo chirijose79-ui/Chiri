@@ -459,7 +459,7 @@ app/
 
     └── main/
 
-        ├── java/com/chirihome/
+        ├── java/com/chirihome/platform/
 
         ├── res/
 
