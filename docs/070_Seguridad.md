@@ -257,10 +257,6 @@ Las credenciales o mecanismos de autenticación que se consideren comprometidos 
 
 ---
 
-Continuamos con **4.4 Autorización**.
-
----
-
 # 4.4 Autorización
 
 Chiri Platform deberá controlar el acceso a recursos y operaciones mediante mecanismos de autorización.
@@ -295,10 +291,6 @@ Los accesos que ya no estén autorizados deberán ser rechazados aunque la ident
 ### Regla arquitectónica
 
 > **Toda operación protegida de Chiri Platform deberá ser autorizada en el servidor antes de ejecutarse, independientemente del cliente que origine la solicitud.**
-
----
-
-Continuamos con **4.5 Protección de Comunicaciones**.
 
 ---
 
@@ -338,10 +330,6 @@ Las comunicaciones deberán limitarse a los puertos, protocolos y destinos neces
 
 ---
 
-Continuamos con **4.6 Protección de Datos**.
-
----
-
 # 4.6 Protección de Datos
 
 Chiri Platform deberá proteger la información almacenada, procesada y transmitida por sus componentes durante todo su ciclo de vida.
@@ -378,10 +366,6 @@ La eliminación de información sensible deberá realizarse de manera que evite 
 ### Regla arquitectónica
 
 > **Los datos de Chiri Platform deberán protegerse durante su almacenamiento, procesamiento, transmisión, respaldo y eliminación, aplicando controles proporcionales a su sensibilidad y riesgo.**
-
----
-
-Continuamos con **4.7 Gestión de Sesiones y Tokens**.
 
 ---
 
@@ -427,10 +411,6 @@ Las sesiones administrativas deberán disponer de controles de seguridad adicion
 
 ---
 
-Continuamos con **4.8 Gestión de Secretos y Credenciales**.
-
----
-
 # 4.8 Gestión de Secretos y Credenciales
 
 Chiri Platform deberá proteger las credenciales, claves, tokens, certificados y demás secretos utilizados por sus componentes.
@@ -463,10 +443,6 @@ La exposición accidental de un secreto deberá considerarse un evento de seguri
 ### Regla arquitectónica
 
 > **Los secretos y credenciales de Chiri Platform deberán mantenerse protegidos, separados del código fuente y gestionados de forma que puedan ser reemplazados o revocados cuando sea necesario.**
-
----
-
-Continuamos con **4.9 Validación y Protección de Entradas**.
 
 ---
 
@@ -512,10 +488,6 @@ Los mensajes de error generados como consecuencia de entradas inválidas no debe
 
 ---
 
-Continuamos con **4.10 Seguridad de la API**.
-
----
-
 # 4.10 Seguridad de la API
 
 La API de Chiri Platform deberá aplicar controles de seguridad a todas las operaciones que expongan recursos o funcionalidades de la plataforma.
@@ -555,10 +527,6 @@ La API deberá mantener una separación clara entre:
 ### Regla arquitectónica
 
 > **Toda operación protegida expuesta mediante la API deberá validar la solicitud, autenticar y autorizar al solicitante cuando corresponda y ejecutar únicamente la operación permitida.**
-
----
-
-Continuamos con **4.11 Seguridad del Backend**.
 
 ---
 
@@ -605,10 +573,6 @@ El Backend deberá evitar la ejecución de operaciones con privilegios elevados 
 
 ---
 
-Continuamos con **4.12 Seguridad de la Base de Datos**.
-
----
-
 # 4.12 Seguridad de la Base de Datos
 
 La Base de Datos de Chiri Platform deberá protegerse contra acceso no autorizado, modificación indebida, pérdida de información y exposición de datos.
@@ -638,8 +602,6 @@ Los cambios estructurales o administrativos que puedan afectar la integridad de 
 ### Regla arquitectónica
 
 > **La Base de Datos deberá permanecer protegida de accesos no autorizados y únicamente los componentes e identidades que necesiten acceso podrán disponer de los privilegios mínimos requeridos.**
-
-Continuamos con **4.13 Seguridad de Servicios Internos**.
 
 ---
 
@@ -676,10 +638,6 @@ Las integraciones externas deberán considerarse fronteras adicionales de seguri
 
 ---
 
-Continuamos con **4.14 Seguridad de Android**.
-
----
-
 # 4.14 Seguridad de Android
 
 La aplicación Android de Chiri Platform deberá proteger las credenciales, sesiones, comunicaciones y datos que gestione en el dispositivo.
@@ -711,10 +669,6 @@ Los datos almacenados localmente deberán limitarse a los necesarios para el fun
 ### Regla arquitectónica
 
 > **La aplicación Android deberá proteger las credenciales, sesiones y datos locales, pero nunca deberá considerarse la autoridad final para autenticación o autorización de los recursos de Chiri Platform.**
-
----
-
-Continuamos con **4.15 Auditoría y Registro de Seguridad**.
 
 ---
 
@@ -766,10 +720,6 @@ La conservación de registros deberá ser proporcional a las necesidades de segu
 
 ---
 
-Continuamos con **4.16 Monitorización y Detección de Seguridad**.
-
----
-
 # 4.16 Monitorización y Detección de Seguridad
 
 Chiri Platform deberá disponer de mecanismos de monitorización que permitan identificar condiciones anómalas, fallos de seguridad y comportamientos que puedan representar un riesgo para la plataforma.
@@ -810,10 +760,6 @@ La monitorización deberá complementar, y no sustituir, los mecanismos de auten
 
 ---
 
-Continuamos con **4.17 Gestión de Errores y Excepciones**.
-
----
-
 # 4.17 Gestión de Errores y Excepciones
 
 Chiri Platform deberá gestionar los errores y excepciones de forma que no comprometan la seguridad de la plataforma ni expongan información interna innecesaria.
@@ -847,10 +793,6 @@ Los errores relacionados con servicios externos o internos deberán gestionarse 
 ### Regla arquitectónica
 
 > **Los errores y excepciones deberán gestionarse de forma controlada, evitando la exposición de información sensible y evitando que un fallo coloque a Chiri Platform en un estado inseguro.**
-
----
-
-Continuamos con **4.18 Protección contra Abuso y Uso Indebido**.
 
 ---
 
@@ -893,10 +835,6 @@ Las operaciones administrativas y las operaciones especialmente sensibles podrá
 
 ---
 
-Continuamos con **4.19 Seguridad de Infraestructura**.
-
----
-
 # 4.19 Seguridad de Infraestructura
 
 La infraestructura que soporte Chiri Platform deberá mantenerse protegida frente a accesos no autorizados, configuraciones inseguras y exposición innecesaria.
@@ -930,10 +868,6 @@ La exposición externa de servicios deberá limitarse estrictamente a los compon
 ### Regla arquitectónica
 
 > **La infraestructura de Chiri Platform deberá aplicar mínimo privilegio, limitar la exposición de servicios y mantener protegidos sus componentes administrativos y de ejecución.**
-
----
-
-Continuamos con **4.20 Copias de Seguridad y Recuperación**.
 
 ---
 
@@ -971,10 +905,6 @@ Los respaldos que ya no sean necesarios deberán eliminarse de forma controlada.
 ### Regla arquitectónica
 
 > **Los componentes e información críticos de Chiri Platform deberán disponer de mecanismos de respaldo y recuperación verificables, protegidos mediante controles de seguridad adecuados.**
-
----
-
-Continuamos con **4.21 Gestión de Vulnerabilidades**.
 
 ---
 
@@ -1030,10 +960,6 @@ Las vulnerabilidades pendientes deberán permanecer identificadas y gestionadas 
 
 ---
 
-Continuamos con **4.22 Gestión de Incidentes de Seguridad**.
-
----
-
 # 4.22 Gestión de Incidentes de Seguridad
 
 Chiri Platform deberá disponer de un proceso para detectar, evaluar, contener y resolver incidentes que puedan afectar la seguridad de la plataforma.
@@ -1078,10 +1004,6 @@ Después de un incidente significativo deberá realizarse una revisión para ide
 
 ---
 
-Continuamos con **4.23 Continuidad y Recuperación de la Plataforma**.
-
----
-
 # 4.23 Continuidad y Recuperación de la Plataforma
 
 Chiri Platform deberá considerar mecanismos que permitan mantener o recuperar sus funciones críticas ante fallos, incidentes de seguridad, pérdida de datos o indisponibilidad de componentes.
@@ -1118,10 +1040,6 @@ La estrategia de continuidad deberá revisarse cuando cambien componentes críti
 ### Regla arquitectónica
 
 > **La recuperación de Chiri Platform deberá restablecer los servicios y datos críticos manteniendo su integridad y los controles de seguridad definidos por la arquitectura.**
-
----
-
-Continuamos con **4.24 Revisión de Seguridad**.
 
 ---
 
@@ -1168,11 +1086,6 @@ La revisión de seguridad deberá formar parte del ciclo de evolución de Chiri 
 ### Regla arquitectónica
 
 > **La seguridad de Chiri Platform deberá revisarse de forma continua durante la evolución de la plataforma, verificando que los controles definidos sigan siendo adecuados para los riesgos existentes.**
-
----
-
-
-Continuamos con la última sección del modelo: **4.25 Regla General de Seguridad**.
 
 ---
 
