@@ -473,13 +473,13 @@ app/
 El paquete base será:
 
 ```text
-com.chirihome
+com.chirihome.platform
 ```
 
 Dentro de él se organizarán las responsabilidades:
 
 ```text
-com.chirihome/
+com.chirihome.platform/
 
 ├── ui/
 
