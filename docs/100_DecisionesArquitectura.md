@@ -193,7 +193,7 @@ flowchart TD
 
     Backend["Backend"]
     PostgreSQL["PostgreSQL"]
-````
+```
 
 ### Justificación
 
@@ -364,30 +364,6 @@ Mayor capacidad de adaptación.
 
 ---
 
-# 3. Resumen de Decisiones
-
-| ID      | Decisión                     | Estado   |
-| ------- | ---------------------------- | -------- |
-| ADR-001 | Arquitectura por capas       | Aprobada |
-| ADR-002 | Separación Backend           | Aprobada |
-| ADR-003 | API como punto único         | Aprobada |
-| ADR-004 | Base de Datos independiente  | Aprobada |
-| ADR-005 | Seguridad integrada          | Aprobada |
-| ADR-006 | Mermaid estándar             | Aprobada |
-| ADR-007 | Separación Arquitectura / UX | Aprobada |
-| ADR-008 | Guía programación            | Aprobada |
-| ADR-009 | Despliegue flexible          | Aprobada |
-
----
-
-# 4. Estado del Documento
-
-Documento:
-
-```text
-100_DecisionesArquitectura.md
-```
-
 Versión:
 
 ```text
@@ -397,5 +373,5 @@ Chiri Platform v1.0
 Estado:
 
 ```text
-EN REVISIÓN
+CERRADO
 ```
