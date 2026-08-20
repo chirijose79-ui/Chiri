@@ -373,5 +373,5 @@ Chiri Platform v1.0
 Estado:
 
 ```text
-CERRADO
+APROBADO
 ```
