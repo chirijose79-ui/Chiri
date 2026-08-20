@@ -133,12 +133,6 @@ directamente a Internet.
 
 ---
 
-Perfecto. Lo hacemos **sección por sección**, lista para copiar y pegar, sin avanzar hasta que me confirmes.
-
-Vamos a empezar con el encabezado del **punto 4** y la primera sección.
-
----
-
 # 4. Modelo General de Seguridad
 
 La seguridad de Chiri Platform deberá establecer un conjunto coherente de principios, controles y reglas arquitectónicas destinados a proteger la plataforma, sus componentes, sus comunicaciones, sus datos y los servicios integrados.
@@ -227,10 +221,6 @@ Los privilegios que ya no sean necesarios deberán eliminarse.
 ### Regla arquitectónica
 
 > **Todo usuario, servicio o componente de Chiri Platform deberá disponer únicamente de los privilegios necesarios para cumplir su función.**
-
----
-
-Continuamos con **4.3 Autenticación**.
 
 ---
 
