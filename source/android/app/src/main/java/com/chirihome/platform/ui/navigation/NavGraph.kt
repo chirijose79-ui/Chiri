@@ -5,6 +5,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.chirihome.platform.ui.screens.HomeScreen
+import com.chirihome.platform.ui.screens.LoginScreen
+import com.chirihome.platform.ui.screens.SplashScreen
 
 @Composable
 fun ChiriNavGraph() {
@@ -12,8 +14,16 @@ fun ChiriNavGraph() {
 
     NavHost(
         navController = navController,
-        startDestination = Routes.HOME
+        startDestination = Routes.SPLASH
     ) {
+        composable(Routes.SPLASH) {
+            SplashScreen()
+        }
+
+        composable(Routes.LOGIN) {
+            LoginScreen()
+        }
+
         composable(Routes.HOME) {
             HomeScreen()
         }
