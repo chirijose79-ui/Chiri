@@ -4,12 +4,15 @@ import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.chirihome.platform.session.SessionManager
 import com.chirihome.platform.ui.screens.HomeScreen
 import com.chirihome.platform.ui.screens.LoginScreen
 import com.chirihome.platform.ui.screens.SplashScreen
 
 @Composable
-fun ChiriNavGraph() {
+fun ChiriNavGraph(
+    sessionManager: SessionManager
+) {
     val navController = rememberNavController()
 
     NavHost(
@@ -17,7 +20,10 @@ fun ChiriNavGraph() {
         startDestination = Routes.SPLASH
     ) {
         composable(Routes.SPLASH) {
-            SplashScreen()
+            SplashScreen(
+                navController = navController,
+                sessionManager = sessionManager
+            )
         }
 
         composable(Routes.LOGIN) {

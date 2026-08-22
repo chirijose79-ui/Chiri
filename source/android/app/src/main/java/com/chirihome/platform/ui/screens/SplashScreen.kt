@@ -7,14 +7,37 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.chirihome.platform.R
+import com.chirihome.platform.session.SessionManager
+import com.chirihome.platform.ui.navigation.Routes
 
 @Composable
-fun SplashScreen() {
+fun SplashScreen(
+    navController: NavController,
+    sessionManager: SessionManager
+) {
+    LaunchedEffect(Unit) {
+        val sessionIsValid = sessionManager.isSessionValid()
+
+        val destination = if (sessionIsValid) {
+            Routes.HOME
+        } else {
+            Routes.LOGIN
+        }
+
+        navController.navigate(destination) {
+            popUpTo(Routes.SPLASH) {
+                inclusive = true
+            }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
