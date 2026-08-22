@@ -364,6 +364,128 @@ Mayor capacidad de adaptación.
 
 ---
 
+## ADR-010 — Autenticación de usuarios
+
+### Contexto
+
+Chiri Platform requiere identificar y autenticar a los usuarios que acceden a la aplicación Android.
+
+### Decisión
+
+La autenticación inicial de Chiri Platform utilizará:
+
+- Usuario o correo electrónico.
+- Contraseña.
+
+La aplicación Android realizará la autenticación mediante la API oficial de Chiri Platform.
+
+Android no realizará autenticación directamente contra la Base de Datos ni contra servicios internos.
+
+### Flujo
+
+Android → API → Backend → Autenticación
+
+### Consecuencias
+
+- La autenticación queda centralizada en el Backend.
+- Android no contiene lógica de autenticación del servidor.
+- Se permite utilizar usuario o correo electrónico como identificador.
+- La arquitectura permite incorporar posteriormente otros mecanismos de autenticación.
+
+---
+
+## ADR-011 — Roles y autorización
+
+### Contexto
+
+Chiri Platform requiere controlar las capacidades disponibles para cada usuario.
+
+### Decisión
+
+La versión inicial definirá los siguientes perfiles:
+
+- Administrador.
+- Usuario.
+- Invitado.
+
+La autorización será determinada por el Backend y comunicada mediante la API.
+
+Android no deberá utilizar reglas locales como fuente principal de autorización.
+
+### Flujo
+
+Usuario → Backend → Roles/Permisos → API → Android
+
+### Consecuencias
+
+- La autorización permanece centralizada.
+- Los permisos pueden evolucionar sin modificar la arquitectura Android.
+- Android utilizará los permisos recibidos para habilitar o restringir funcionalidades.
+- Los cinco módulos principales de Chiri forman parte de la navegación general, mientras que las operaciones disponibles dependerán de los permisos.
+
+---
+
+## ADR-012 — Gestión de sesión Android
+
+### Contexto
+
+La aplicación Android debe mantener la sesión del usuario entre aperturas de la aplicación.
+
+### Decisión
+
+Chiri Android utilizará una sesión persistente mientras la sesión proporcionada por el Backend continúe siendo válida.
+
+Al iniciar la aplicación se ejecutará un proceso inicial de comprobación de sesión.
+
+### Flujo
+
+Splash
+↓
+¿Sesión válida?
+
+Sí → Dashboard
+
+No → Login
+
+### Consecuencias
+
+- El usuario no deberá introducir sus credenciales cada vez que abra la aplicación.
+- La sesión deberá almacenarse utilizando mecanismos seguros.
+- El cierre de sesión invalidará la sesión local.
+- La aplicación podrá incorporar posteriormente mecanismos adicionales como biometría o PIN.
+- La validación definitiva de la sesión corresponde al Backend/API.
+
+---
+
+## ADR-013 — Navegación principal Android
+
+### Contexto
+
+Chiri Platform requiere una navegación común para las capacidades principales de la plataforma.
+
+### Decisión
+
+La aplicación Android utilizará cinco áreas principales:
+
+- Hogar.
+- Multimedia.
+- Inteligencia Artificial.
+- Personal.
+- Configuración.
+
+Estas áreas formarán parte de la navegación principal de Chiri.
+
+El acceso a funcionalidades específicas dentro de cada área estará condicionado por los permisos del usuario.
+
+### Consecuencias
+
+- La navegación mantiene una estructura estable.
+- Las capacidades disponibles pueden variar según el perfil y permisos.
+- La navegación Android no dependerá directamente de servicios internos.
+- Las funcionalidades serán implementadas progresivamente.
+
+---
+
 Versión:
 
 ```text
