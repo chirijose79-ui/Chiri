@@ -782,9 +782,7 @@ El usuario interactúa con Chiri, no con la infraestructura interna.
 
 # 4.2 Navegación Principal
 
-La aplicación podrá organizarse mediante áreas funcionales principales.
-
-Ejemplo conceptual:
+La aplicación utilizará las cinco áreas principale:
 
 ```mermaid id="8k3m5v"
 flowchart TB
@@ -801,6 +799,91 @@ flowchart TB
 
     Home --> Settings["Configuración"]
 ```
+
+# 4.2.1 Flujo de Inicio y Sesión
+
+Al iniciar la aplicación, Chiri deberá presentar una pantalla de inicio (Splash) mientras realiza las operaciones necesarias para determinar el estado de la sesión del usuario.
+
+El Splash no utilizará un temporizador fijo. Su duración dependerá del tiempo necesario para completar la inicialización y comprobar el estado de la sesión.
+
+El flujo será:
+
+```text
+Inicio de Chiri
+      |
+      v
+    Splash
+      |
+      v
+Inicialización
+      |
+      v
+¿Sesión válida?
+   /          \
+ Sí            No
+ |              |
+ v              v
+Inicio         Login
+```
+
+## Responsabilidades del Splash
+
+El Splash será responsable únicamente de:
+
+* presentar la identidad visual de Chiri.
+* mostrar un estado de inicialización al usuario.
+* esperar la finalización de las operaciones iniciales necesarias.
+* permitir determinar el destino inicial de la aplicación.
+
+El Splash no implementará lógica de negocio ni realizará directamente la autenticación contra servicios internos.
+
+## Sesión válida
+
+Cuando exista una sesión válida y vigente:
+
+```text
+Splash
+   |
+   v
+Sesión válida
+   |
+   v
+Inicio Chiri
+```
+
+El usuario será dirigido directamente a la pantalla de Inicio.
+
+## Sesión no válida
+
+Cuando no exista una sesión válida:
+
+```text
+Splash
+   |
+   v
+Sesión no válida
+   |
+   v
+Login
+```
+
+El usuario será dirigido a la pantalla de autenticación.
+
+## Autenticación
+
+La autenticación será realizada mediante la API de Chiri.
+
+La aplicación Android no deberá conectarse directamente con la base de datos ni implementar mecanismos propios para validar credenciales.
+
+La gestión de la sesión persistente seguirá las decisiones definidas en la arquitectura de Chiri Platform.
+
+## Principio de navegación
+
+El flujo inicial deberá ser transparente para el usuario:
+
+> El usuario verá el Splash mientras Chiri determina su estado de sesión y será dirigido automáticamente al destino correspondiente.
+
+La navegación deberá estar centralizada en el sistema de navegación de la aplicación y no deberá depender de temporizadores artificiales.
 
 ---
 
