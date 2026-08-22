@@ -4,7 +4,7 @@
 
 **Versión:** 1.0
 
-**Estado:** Cerrado
+**Estado:** APROBADO
 
 ---
 
@@ -782,7 +782,7 @@ El usuario interactúa con Chiri, no con la infraestructura interna.
 
 # 4.2 Navegación Principal
 
-La aplicación utilizará las cinco áreas principale:
+La aplicación utilizará las cinco áreas principales:
 
 ```mermaid id="8k3m5v"
 flowchart TB
