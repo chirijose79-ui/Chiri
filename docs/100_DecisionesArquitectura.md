@@ -73,20 +73,6 @@ Positivo:
 * Mayor escalabilidad.
 * Código organizado.
 
-Sí, **así está correcto**. ✅
-
-Ahora ADR-002 queda coherente con `090_GuiaProgramacion.md`:
-
-* No obliga a usar Controller/Service/Repository.
-* Permite esos patrones cuando sean apropiados.
-* Mantiene separadas las responsabilidades.
-* No contradice `020_Arquitectura.md` ni `030_Backend.md`.
-
-Solo haría **un pequeño ajuste de precisión** en el diagrama: `BaseDatos` debería llamarse **PostgreSQL**, porque ya es una decisión confirmada para Chiri Platform.
-
-Te recomiendo dejarlo así:
-
-````markdown
 ---
 
 # ADR-002
@@ -114,7 +100,7 @@ flowchart TD
     Service["Reglas de Negocio"]
     Repository["Acceso a Datos"]
     PostgreSQL["PostgreSQL"]
-````
+```
 
 La utilización de Controller, Service y Repository será una decisión de implementación y no una obligación estructural para todos los módulos.
 
