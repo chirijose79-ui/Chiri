@@ -341,7 +341,6 @@ Entre las condiciones que deberán producir `401` se encuentran:
 * sesión revocada;
 * sesión expirada;
 * usuario `INACTIVE`;
-* usuario `BLOCKED`;
 * usuario `DELETED`.
 
 La respuesta no deberá revelar información interna que permita determinar innecesariamente la causa específica del fallo de autenticación.
@@ -362,7 +361,7 @@ Ejemplo:
     "message": "Permisos insuficientes"
   }
 }
-````
+```
 
 La respuesta no deberá revelar:
 
@@ -377,45 +376,7 @@ La información detallada necesaria para auditoría podrá registrarse intername
 
 > **Toda operación protegida de Chiri Platform deberá ser autorizada en el servidor antes de ejecutarse, utilizando los permisos vigentes de la identidad independientemente del cliente que origine la solicitud.**
 
-````
-
-### Importante
-
-Hay una cosa que **no debemos cambiar todavía**: los estados:
-
-```text
-INACTIVE
-BLOCKED
-DELETED
-````
-
-y:
-
-```text
-REVOKED
-EXPIRED
-```
-
-Los estamos usando de forma coherente con las decisiones tomadas, pero antes de cerrar `070` los voy a contrastar con **`050_BaseDatos.md` + modelo SQLAlchemy + migraciones**, para asegurarnos de que los nombres coinciden exactamente con la implementación.
-
-Y mantenemos la decisión ya aprobada:
-
-```text
-JWT
- ├── identidad
- ├── jti
- ├── kid
- ├── iss
- ├── aud
- └── sesión
-
-JWT
- └── ❌ NO roles
- └── ❌ NO permisos
-
-PostgreSQL
- └── fuente de verdad de autorización
-```
+---
 
 # 4.5 Protección de Comunicaciones
 
