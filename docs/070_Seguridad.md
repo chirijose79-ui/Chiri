@@ -278,8 +278,6 @@ Después de activar correctamente la cuenta, el usuario deberá realizar el proc
 
 > **Una cuenta nueva no podrá utilizar recursos protegidos hasta completar correctamente la activación mediante el correo electrónico registrado.**
 
----
-
 # 4.4 Autorización
 
 Chiri Platform deberá controlar el acceso a recursos y operaciones mediante mecanismos de autorización.
@@ -323,17 +321,13 @@ La primera implementación de Chiri Platform no utilizará una caché de permiso
 
 La incorporación futura de mecanismos de caché deberá disponer de mecanismos explícitos de invalidación y no deberá permitir que permisos revocados continúen activos más allá del período definido por la arquitectura.
 
-### Regla arquitectónica
-
-> **Toda operación protegida de Chiri Platform deberá ser autorizada en el servidor antes de ejecutarse, utilizando los permisos vigentes de la identidad independientemente del cliente que origine la solicitud.**
-
 ## 4.4.1 Códigos de Autenticación y Autorización
 
 Chiri Platform utilizará los códigos HTTP `401 Unauthorized` y `403 Forbidden` de acuerdo con la naturaleza del rechazo.
 
 ### HTTP 401 Unauthorized
 
-Se utilizará `401` cuando la autenticación no sea válida o no exista una sesión válida.
+Se utilizará `401 Unauthorized` cuando la autenticación no sea válida o no exista una sesión válida.
 
 Entre las condiciones que deberán producir `401` se encuentran:
 
@@ -354,7 +348,7 @@ La respuesta no deberá revelar información interna que permita determinar inne
 
 ### HTTP 403 Forbidden
 
-Se utilizará `403` cuando la identidad esté correctamente autenticada y la sesión sea válida, pero la operación solicitada no esté autorizada.
+Se utilizará `403 Forbidden` cuando la identidad esté correctamente autenticada y la sesión sea válida, pero la operación solicitada no esté autorizada.
 
 La respuesta deberá utilizar un mensaje genérico.
 
@@ -368,7 +362,7 @@ Ejemplo:
     "message": "Permisos insuficientes"
   }
 }
-```
+````
 
 La respuesta no deberá revelar:
 
@@ -381,7 +375,47 @@ La información detallada necesaria para auditoría podrá registrarse intername
 
 ### Regla arquitectónica
 
-> **401 representa una autenticación no válida; 403 representa una identidad autenticada que no dispone de autorización suficiente para realizar la operación solicitada.**
+> **Toda operación protegida de Chiri Platform deberá ser autorizada en el servidor antes de ejecutarse, utilizando los permisos vigentes de la identidad independientemente del cliente que origine la solicitud.**
+
+````
+
+### Importante
+
+Hay una cosa que **no debemos cambiar todavía**: los estados:
+
+```text
+INACTIVE
+BLOCKED
+DELETED
+````
+
+y:
+
+```text
+REVOKED
+EXPIRED
+```
+
+Los estamos usando de forma coherente con las decisiones tomadas, pero antes de cerrar `070` los voy a contrastar con **`050_BaseDatos.md` + modelo SQLAlchemy + migraciones**, para asegurarnos de que los nombres coinciden exactamente con la implementación.
+
+Y mantenemos la decisión ya aprobada:
+
+```text
+JWT
+ ├── identidad
+ ├── jti
+ ├── kid
+ ├── iss
+ ├── aud
+ └── sesión
+
+JWT
+ └── ❌ NO roles
+ └── ❌ NO permisos
+
+PostgreSQL
+ └── fuente de verdad de autorización
+```
 
 # 4.5 Protección de Comunicaciones
 
@@ -487,7 +521,7 @@ Cuando sea necesario correlacionar intentos de autenticación, se utilizará un 
 
 ```text
 username_hash = HMAC-SHA-256(username, audit_secret)
-```
+````
 
 El secreto utilizado para generar `username_hash` deberá mantenerse protegido y separado del código fuente y de los registros.
 
@@ -546,14 +580,18 @@ Los datos que ya no sean necesarios deberán eliminarse o gestionarse de acuerdo
 
 La eliminación de información sensible deberá realizarse de manera que evite su exposición posterior cuando sea técnicamente posible.
 
-Cuando una cuenta o recurso sea eliminado, deberán considerarse también los datos relacionados que ya no sean necesarios, incluyendo información de sesiones, tokens, datos temporales y registros que puedan contener información sensible.
+Cuando una cuenta o recurso sea eliminado, deberán considerarse también los datos relacionados que ya no sean necesarios, incluyendo:
+
+* información de sesiones;
+* tokens;
+* datos temporales;
+* información sensible asociada.
 
 Los registros de auditoría necesarios para seguridad, trazabilidad o cumplimiento deberán conservarse de acuerdo con la política de retención definida para la plataforma.
 
 ### Regla arquitectónica
 
 > **Los datos de Chiri Platform deberán protegerse durante su almacenamiento, procesamiento, transmisión, respaldo y eliminación, aplicando controles proporcionales a su sensibilidad y riesgo y evitando almacenar información sensible innecesaria.**
-
 
 # 4.7 Gestión de Sesiones y Tokens
 
