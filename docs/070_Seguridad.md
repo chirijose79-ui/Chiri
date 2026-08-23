@@ -482,7 +482,7 @@ Cuando sea necesario correlacionar intentos de autenticación, se utilizará un 
 
 ```text
 username_hash = HMAC-SHA-256(username, audit_secret)
-````
+```
 
 El secreto utilizado para generar `username_hash` deberá mantenerse protegido y separado del código fuente y de los registros.
 
@@ -556,7 +556,27 @@ Los registros de auditoría necesarios para seguridad, trazabilidad o cumplimien
 
 # 4.7 Gestión de Sesiones y Tokens
 
+
+Sí. Revisé antes de escribirla contra lo que realmente existe en `master`.
+
+Encontré un punto importante: **el modelo actual ya tiene `User` con UUID y estados `ACTIVE / INACTIVE / DELETED`, pero todavía no existe una entidad `Session` implementada en el Backend**. La estructura actual del servidor todavía tiene la capa `security` preparada, pero no hay un modelo de sesión implementado.
+
+Por eso, `4.7` debe documentar **la arquitectura que vamos a implementar**, sin afirmar que Session/Refresh Token/JWT ya existen en código.
+
+También `060_API.md` ya establece conceptualmente que la autenticación utilizará sesiones, Access Token y Refresh Token, y que la API contempla inicio, renovación, cierre y consulta de sesión.
+
+Con esa precisión, esta es la versión que recomiendo dejar como definitiva:
+
+````markdown
+# 4.7 Gestión de Sesiones y Tokens
+
 Chiri Platform deberá gestionar de forma segura las sesiones y los mecanismos utilizados para mantener el estado de autenticación de los usuarios.
+
+La arquitectura de autenticación utilizará un modelo basado en:
+
+* sesión persistente en el Backend;
+* Access Token de corta duración;
+* Refresh Token asociado a la sesión.
 
 Los tokens y demás identificadores de sesión deberán considerarse información sensible.
 
@@ -581,21 +601,17 @@ Los tokens no deberán incluirse en:
 
 El cliente deberá almacenar los tokens utilizando mecanismos apropiados para protegerlos frente al acceso no autorizado.
 
-Los tokens deberán tener una duración limitada y deberán poder invalidarse cuando exista sospecha de compromiso.
+La autoridad final sobre la validez de una sesión será el Backend.
 
-La renovación de sesiones deberá realizarse mediante mecanismos controlados y no deberá permitir extender indefinidamente una sesión comprometida.
-
-El servidor deberá validar la vigencia y autenticidad del mecanismo de sesión antes de permitir el acceso a recursos protegidos.
-
-El cierre de sesión deberá invalidar la sesión y los mecanismos de renovación asociados.
-
-Las sesiones administrativas deberán disponer de controles de seguridad adicionales cuando el nivel de riesgo lo requiera.
+La arquitectura de sesiones y tokens deberá mantenerse independiente de la interfaz cliente utilizada para acceder a Chiri Platform.
 
 ## 4.7.1 Modelo de Sesión
 
-Cada sesión de usuario deberá mantenerse como una entidad independiente y deberá disponer de un identificador único.
+Cada inicio de sesión válido deberá crear una sesión independiente asociada a un usuario.
 
-La sesión deberá estar asociada a:
+La sesión deberá disponer de un identificador único.
+
+La sesión deberá estar asociada como mínimo a:
 
 * usuario;
 * fecha de creación;
@@ -610,13 +626,19 @@ Los estados mínimos de una sesión serán:
 ACTIVE
 REVOKED
 EXPIRED
-```
+````
 
 Una sesión `REVOKED` no podrá utilizarse nuevamente.
 
-Una sesión `EXPIRED` no podrá utilizarse para acceder a recursos protegidos.
+Una sesión `EXPIRED` no podrá utilizarse para acceder a recursos protegidos ni para renovar la autenticación.
 
-La revocación de una sesión deberá invalidar inmediatamente los mecanismos de renovación asociados.
+La sesión deberá estar asociada al usuario mediante su identificador UUID definido en el modelo de identidad.
+
+La implementación de la entidad `Session` se realizará posteriormente mediante el modelo de datos y su correspondiente migración.
+
+### Regla arquitectónica
+
+> **La sesión será la entidad persistente que permitirá controlar el ciclo de vida de la autenticación independientemente de la duración individual de los Access Tokens.**
 
 ## 4.7.2 Access Token
 
@@ -653,15 +675,17 @@ iss = chiri-platform
 aud = chiri-api
 ```
 
+El identificador del usuario utilizado en el token deberá corresponder al UUID de la identidad de Chiri.
+
 Los roles y permisos **no deberán formar parte del Access Token**.
 
 El Access Token no deberá utilizarse como fuente de verdad para determinar los permisos actuales del usuario.
 
 ### Regla arquitectónica
 
-> **El Access Token será un mecanismo de autenticación de corta duración y no deberá contener información de autorización que pueda quedar obsoleta durante la vida de la sesión.**
+> **El Access Token será una credencial de autenticación de corta duración y no deberá contener información de autorización que pueda quedar obsoleta durante la vida de la sesión.**
 
-## 4.7.3 Identificador de Token
+## 4.7.3 Identificador del Access Token
 
 Cada Access Token deberá disponer de un identificador único mediante el claim:
 
@@ -669,11 +693,15 @@ Cada Access Token deberá disponer de un identificador único mediante el claim:
 jti
 ```
 
-El `jti` permitirá identificar individualmente un token cuando sea necesario para trazabilidad, auditoría o investigación de incidentes.
+El `jti` permitirá identificar individualmente un token cuando sea necesario para:
 
-El `jti` no deberá utilizarse como mecanismo permanente de almacenamiento de Access Tokens.
+* trazabilidad;
+* auditoría;
+* investigación de incidentes.
 
-Chiri Platform no utilizará una blacklist permanente de `jti` para Access Tokens en la versión inicial.
+El `jti` no deberá utilizarse como mecanismo permanente de almacenamiento del Access Token.
+
+Chiri Platform no utilizará inicialmente una blacklist permanente de Access Tokens.
 
 ## 4.7.4 Identificador de Clave
 
@@ -683,11 +711,19 @@ Cada Access Token deberá incluir el identificador:
 kid
 ```
 
-El `kid` permitirá determinar qué clave pública corresponde a la clave utilizada para firmar el token.
+El `kid` permitirá identificar la clave pública correspondiente a la clave utilizada para firmar el token.
 
-Las claves privadas y públicas deberán administrarse como pares de claves correspondientes.
+Las claves privadas y públicas deberán administrarse como pares correspondientes.
 
-La clave privada utilizada para firmar tokens deberá mantenerse protegida y nunca deberá exponerse a clientes.
+La clave privada utilizada para firmar tokens deberá mantenerse protegida.
+
+La clave privada nunca deberá exponerse a:
+
+* aplicación Android;
+* clientes externos;
+* servicios que únicamente necesiten validar tokens;
+* endpoints HTTP;
+* endpoint JWKS.
 
 ## 4.7.5 Distribución de Claves Públicas
 
@@ -708,7 +744,9 @@ Nunca deberá exponer:
 * credenciales;
 * Refresh Tokens.
 
-El conjunto JWKS deberá contener las claves públicas necesarias para validar los tokens actualmente válidos y, durante las rotaciones, las claves anteriores que todavía deban utilizarse para validación.
+El `kid` incluido en un JWT deberá permitir seleccionar la clave pública correspondiente.
+
+Durante una rotación de claves, el endpoint JWKS podrá publicar temporalmente más de una clave pública cuando sea necesario para validar tokens legítimos todavía vigentes.
 
 ## 4.7.6 Rotación de Claves JWT
 
@@ -741,6 +779,8 @@ La clave privada anterior deberá retirarse de los mecanismos activos de firma c
 
 ## 4.7.7 Refresh Token
 
+El Refresh Token será utilizado exclusivamente para renovar el acceso mientras la sesión continúe siendo válida.
+
 El Refresh Token tendrá una duración máxima de **30 días**.
 
 El Refresh Token deberá estar asociado a una sesión concreta.
@@ -754,27 +794,35 @@ El servidor deberá validar:
 * estado de la sesión;
 * estado del usuario.
 
+Un Refresh Token no deberá utilizarse directamente para acceder a recursos protegidos de la API.
+
 Los Refresh Tokens deberán poder ser revocados inmediatamente.
 
-El cierre de sesión deberá provocar:
-
-```text
-Session
-    ↓
-REVOKED
-    ↓
-Refresh Token
-    ↓
-INVÁLIDO
-```
+El cierre de sesión deberá provocar la invalidación de la sesión y del mecanismo de renovación correspondiente.
 
 Los Refresh Tokens no deberán registrarse completos en logs o auditorías.
 
-Cuando sea técnicamente posible, el servidor deberá almacenar una representación protegida del Refresh Token en lugar del valor utilizable directamente.
+Cuando sea técnicamente posible, el servidor deberá almacenar una representación protegida o derivada del Refresh Token en lugar del valor utilizable directamente.
 
-## 4.7.8 Revocación de Access Tokens
+## 4.7.8 Rotación de Refresh Token
 
-Chiri Platform **no utilizará una blacklist de Access Tokens** en la versión inicial.
+La implementación deberá considerar la rotación del Refresh Token durante la renovación de sesión.
+
+Cuando un Refresh Token válido sea utilizado para renovar una sesión, el servidor podrá emitir un nuevo Refresh Token y dejar inválido el anterior.
+
+La rotación deberá impedir que un Refresh Token utilizado anteriormente pueda reutilizarse indefinidamente.
+
+Un intento de reutilización de un Refresh Token ya invalidado deberá considerarse un evento de seguridad.
+
+La política definitiva de rotación y detección de reutilización deberá implementarse junto con la entidad `Session`.
+
+### Regla arquitectónica
+
+> **Los Refresh Tokens deberán poder invalidarse individualmente y su reutilización posterior a una rotación deberá considerarse una condición de seguridad.**
+
+## 4.7.9 Revocación de Access Tokens
+
+Chiri Platform **no utilizará inicialmente una blacklist permanente de Access Tokens**.
 
 Los Access Tokens tendrán una duración máxima de 15 minutos.
 
@@ -782,31 +830,33 @@ La validez criptográfica del JWT no será suficiente para autorizar una solicit
 
 El Backend deberá comprobar además:
 
-* estado de la sesión;
-* estado del usuario;
+* estado actual de la sesión;
+* estado actual del usuario;
 * permisos actuales cuando la operación requiera autorización.
 
-De esta forma, una sesión revocada o un usuario bloqueado podrán impedir inmediatamente el acceso aunque exista un Access Token que todavía no haya alcanzado su fecha de expiración.
+De esta forma, una sesión revocada podrá impedir el acceso aunque exista un Access Token que todavía no haya alcanzado su fecha de expiración.
 
-La revocación de un Access Token individual no requerirá almacenar permanentemente una blacklist.
+La revocación de un Access Token individual no requerirá inicialmente almacenar una blacklist permanente.
 
 ### Regla arquitectónica
 
-> **Chiri Platform utilizará Access Tokens de corta duración y no mantendrá una blacklist permanente de JWT; la revocación efectiva se realizará mediante el estado de la sesión y del usuario.**
+> **Chiri Platform utilizará Access Tokens de corta duración y controlará la revocación mediante el estado persistente de la sesión y del usuario, evitando inicialmente una blacklist permanente de JWT.**
 
-## 4.7.9 Validación de Sesión
+## 4.7.10 Validación de Sesión
 
 En cada solicitud autenticada, el Backend deberá validar:
 
-* autenticidad del JWT;
+* estructura del JWT;
 * firma;
 * `kid`;
 * `iss`;
 * `aud`;
 * `iat`;
 * `exp`;
-* `Session.status`;
-* `User.status`.
+* identificador del usuario;
+* identificador de sesión;
+* estado actual de la sesión;
+* estado actual del usuario.
 
 Una sesión con estado:
 
@@ -821,13 +871,14 @@ Un usuario con estado:
 
 ```text
 INACTIVE
-BLOCKED
 DELETED
 ```
 
 no podrá utilizar una sesión para acceder a recursos protegidos.
 
-Los cambios de estado de sesión o usuario deberán tener efecto inmediato sobre las solicitudes posteriores.
+Un usuario con estado `ACTIVE` podrá utilizar una sesión `ACTIVE` siempre que la autenticación y autorización de la operación sean válidas.
+
+Los cambios de estado de sesión o usuario deberán tener efecto sobre las solicitudes posteriores.
 
 ### Flujo conceptual
 
@@ -848,13 +899,13 @@ flowchart TD
     JWT -->|Válido| Session
     Session -->|REVOKED / EXPIRED| Reject401
     Session -->|ACTIVE| User
-    User -->|INACTIVE / BLOCKED / DELETED| Reject401
+    User -->|INACTIVE / DELETED| Reject401
     User -->|ACTIVE| Authorization
     Authorization -->|Sin permiso| Reject403
     Authorization -->|Autorizado| Allow
 ```
 
-## 4.7.10 Cierre de Sesión
+## 4.7.11 Cierre de Sesión
 
 El cierre de sesión deberá invalidar la sesión correspondiente.
 
@@ -864,35 +915,42 @@ Como consecuencia:
 Session.status
     ↓
 REVOKED
+    ↓
+Refresh Token
+    ↓
+INVÁLIDO
 ```
 
-y el Refresh Token asociado deberá dejar de ser utilizable.
-
-El Access Token que ya haya sido emitido no será añadido a una blacklist.
+El Access Token que ya haya sido emitido no será añadido inicialmente a una blacklist.
 
 Las solicitudes posteriores deberán ser rechazadas mediante la validación del estado de la sesión.
 
-## 4.7.11 Revocación Global de Sesiones
+El cliente deberá eliminar los tokens locales asociados a la sesión después de completar el cierre de sesión.
 
-Las operaciones que requieran revocación global de acceso deberán poder invalidar todas las sesiones activas de un usuario.
+La eliminación local de los tokens no sustituye la revocación de la sesión en el servidor.
 
-Esto deberá aplicarse, como mínimo, cuando corresponda a:
+## 4.7.12 Revocación Global de Sesiones
 
-* bloqueo de usuario;
-* desactivación de usuario;
-* eliminación de usuario;
+La plataforma deberá permitir revocar todas las sesiones activas asociadas a un usuario.
+
+La revocación global deberá poder utilizarse, como mínimo, cuando corresponda a:
+
 * compromiso de credenciales;
 * cambio de contraseña cuando la política de seguridad lo requiera;
-* acción administrativa explícita de revocación global.
+* acción administrativa explícita;
+* recuperación de cuenta;
+* incidente de seguridad.
 
 El proceso será conceptualmente:
 
 ```text
 User
  ↓
-cambio de estado / evento de seguridad
+evento de seguridad
  ↓
-revocar sesiones activas
+buscar sesiones activas
+ ↓
+revocar sesiones
  ↓
 Session.status = REVOKED
  ↓
@@ -901,7 +959,39 @@ Refresh Tokens inválidos
 siguientes solicitudes → 401
 ```
 
-## 4.7.12 Autorización y Permisos
+La revocación global deberá afectar a todas las sesiones activas del usuario.
+
+## 4.7.13 Estado del Usuario y Sesiones
+
+La validez de una sesión dependerá también del estado actual del usuario.
+
+Los estados actualmente definidos para `User.status` son:
+
+```text
+ACTIVE
+INACTIVE
+DELETED
+```
+
+Un usuario `INACTIVE` no podrá acceder a recursos protegidos.
+
+Un usuario `DELETED` no podrá acceder a recursos protegidos.
+
+La activación de una cuenta deberá cambiar:
+
+```text
+INACTIVE → ACTIVE
+```
+
+La activación no deberá crear automáticamente una sesión.
+
+El inicio de sesión posterior a la activación será el encargado de crear la sesión.
+
+No se utilizará `BLOCKED` como valor de `User.status` en esta versión de la arquitectura.
+
+Las restricciones temporales derivadas de mecanismos contra abuso deberán gestionarse mediante los controles específicos definidos en `4.18` y no deberán confundirse con el estado persistente de la identidad.
+
+## 4.7.14 Autorización y Permisos
 
 Los roles y permisos no deberán almacenarse dentro del Access Token.
 
@@ -918,6 +1008,64 @@ La introducción futura de una caché deberá disponer de mecanismos explícitos
 ### Regla arquitectónica
 
 > **La autorización deberá utilizar los permisos vigentes en el momento de la solicitud y no deberá depender de información de permisos almacenada previamente dentro del JWT.**
+
+## 4.7.15 Relación entre Usuario, Sesión y Tokens
+
+La relación conceptual será:
+
+```text
+User
+  │
+  ├── Session 1
+  │      ├── Access Token
+  │      └── Refresh Token
+  │
+  ├── Session 2
+  │      ├── Access Token
+  │      └── Refresh Token
+  │
+  └── Session N
+         ├── Access Token
+         └── Refresh Token
+```
+
+Cada sesión será independiente.
+
+Revocar una sesión deberá invalidar únicamente los mecanismos de autenticación asociados a dicha sesión.
+
+La revocación global deberá invalidar todas las sesiones activas del usuario.
+
+## 4.7.16 Implementación Progresiva
+
+La arquitectura de sesiones y tokens definida en esta sección será implementada progresivamente.
+
+La implementación deberá respetar el siguiente orden conceptual:
+
+```text
+User
+  ↓
+Session
+  ↓
+Login
+  ↓
+Access Token
+  ↓
+Refresh Token
+  ↓
+Logout
+  ↓
+Revocación
+  ↓
+Revocación global
+```
+
+La entidad `Session`, los mecanismos de tokens y los endpoints correspondientes deberán implementarse mediante cambios controlados de código y migraciones.
+
+La implementación no deberá introducir cambios directos en la Base de Datos de producción fuera del sistema de migraciones definido por Chiri Platform.
+
+### Regla arquitectónica general
+
+> **La sesión persistente será la fuente de verdad del ciclo de vida de la autenticación, mientras que los Access Tokens proporcionarán autenticación de corta duración y los Refresh Tokens permitirán renovar una sesión válida bajo controles explícitos de seguridad.**
 
 # 4.8 Gestión de Secretos y Credenciales
 
