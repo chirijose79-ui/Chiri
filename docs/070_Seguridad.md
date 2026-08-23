@@ -4147,485 +4147,612 @@ La aplicación deberá asumir que el dispositivo puede estar comprometido y que 
 
 # 4.15 Auditoría y Registro de Seguridad
 
-Chiri Platform deberá mantener mecanismos de registro que permitan identificar y analizar eventos relevantes para la seguridad de la plataforma.
 
-Los registros deberán facilitar:
+asdasdas
+Perfecto. Entonces seguimos con **4.15 Auditoría y Registro de Seguridad**.
 
-* detección de actividades anómalas;
-* investigación de incidentes;
-* seguimiento de accesos;
-* análisis de errores de seguridad;
-* trazabilidad de operaciones relevantes;
-* identificación de cambios relacionados con seguridad;
-* correlación de eventos durante una investigación.
+Reemplaza **completamente la sección 4.15 actual** por esta:
 
-Los registros deberán contener únicamente la información necesaria para cumplir su finalidad.
+````markdown
+# 4.15 Auditoría y Registro de Seguridad
 
-Los registros de seguridad deberán protegerse contra modificación o eliminación no autorizada.
+Chiri Platform deberá disponer de mecanismos de auditoría y registro destinados a proporcionar trazabilidad sobre eventos relevantes de seguridad, autenticación, autorización, administración y operaciones sensibles.
 
-El acceso a los registros deberá estar limitado a las identidades que necesiten consultarlos.
+Los mecanismos de auditoría deberán permitir investigar eventos de seguridad sin almacenar innecesariamente información sensible.
 
-Los registros deberán disponer, cuando sea necesario, de información temporal suficiente para establecer la secuencia de los eventos.
+La auditoría deberá distinguirse de los logs operativos:
 
-La conservación de registros deberá ser proporcional a las necesidades de seguridad, operación y auditoría de la plataforma.
+* los **logs operativos** estarán destinados principalmente a diagnóstico y operación;
+* los **registros de auditoría** estarán destinados principalmente a trazabilidad y seguridad.
 
-## 4.15.1 Principios de Auditoría
+Ambos mecanismos deberán aplicar controles apropiados de protección y acceso.
 
-Los eventos de seguridad deberán registrarse de forma estructurada y consistente.
+## 4.15.1 Objetivos de Auditoría
 
-Cuando corresponda, los eventos deberán permitir identificar:
+La auditoría deberá permitir, cuando corresponda:
 
-* qué ocurrió;
-* cuándo ocurrió;
-* qué identidad estuvo involucrada;
-* qué sesión estuvo involucrada;
-* desde dónde se originó la operación;
-* cuál fue el resultado;
-* qué recurso u operación estuvo involucrado.
+* identificar quién realizó una operación;
+* determinar qué operación se realizó;
+* identificar sobre qué recurso se realizó;
+* determinar cuándo ocurrió;
+* conocer el resultado;
+* relacionar la operación con una solicitud;
+* detectar actividades anómalas;
+* investigar incidentes;
+* demostrar cambios relevantes de seguridad.
 
-Los registros deberán utilizar timestamps consistentes y deberán permitir ordenar correctamente los eventos.
+La auditoría no deberá utilizarse para almacenar información que no sea necesaria para estos objetivos.
 
-Los registros deberán distinguir entre:
+## 4.15.2 Eventos de Seguridad
 
-* operación exitosa;
-* operación rechazada;
-* operación fallida;
-* operación revocada;
-* operación bloqueada.
-
-La auditoría no deberá convertirse en una fuente innecesaria de información sensible.
-
-## 4.15.2 Eventos de Autenticación
-
-Deberán registrarse, cuando corresponda, los eventos relacionados con autenticación.
-
-Como mínimo deberán contemplarse:
+Como mínimo deberán poder registrarse los siguientes eventos cuando ocurran:
 
 ```text
 LOGIN_SUCCESS
 LOGIN_FAILED
-```
-
-Los eventos de autenticación deberán permitir detectar:
-
-* accesos exitosos;
-* intentos fallidos;
-* patrones de fuerza bruta;
-* actividad automatizada;
-* posibles compromisos de credenciales;
-* actividad anómala.
-
-## 4.15.3 LOGIN_SUCCESS
-
-El evento `LOGIN_SUCCESS` podrá contener como mínimo:
-
-```text
-timestamp
-actor_user_id
-target_user_id
-session_id
-device_id
-platform
-ip
-user_agent
-result
-```
-
-Cuando un campo no sea aplicable deberá omitirse o utilizarse un valor apropiado definido por el modelo de auditoría.
-
-El evento no deberá contener:
-
-* contraseña;
-* `password_hash`;
-* Access Token;
-* Refresh Token;
-* encabezado `Authorization`;
-* claves privadas;
-* secretos;
-* credenciales.
-
-Ejemplo conceptual:
-
-```json
-{
-  "event": "LOGIN_SUCCESS",
-  "timestamp": "2026-08-23T12:00:00Z",
-  "actor_user_id": "uuid",
-  "target_user_id": "uuid",
-  "session_id": "uuid",
-  "device_id": "device-id",
-  "platform": "android",
-  "ip": "192.0.2.10",
-  "user_agent": "Chiri/1.0",
-  "result": "SUCCESS"
-}
-```
-
-Los identificadores exactos y el formato definitivo del evento serán establecidos por el modelo de auditoría durante la implementación.
-
-## 4.15.4 LOGIN_FAILED
-
-Los intentos fallidos de autenticación deberán registrarse cuando corresponda.
-
-El evento `LOGIN_FAILED` deberá evitar almacenar el username en texto plano.
-
-Para permitir la correlación de intentos relacionados con el mismo identificador se utilizará:
-
-```text
-username_hash = HMAC-SHA-256(username, audit_secret)
-```
-
-El `audit_secret` deberá mantenerse protegido y separado del código fuente y de los registros.
-
-El evento podrá contener:
-
-```text
-timestamp
-username_hash
-reason_internal
-ip
-user_agent
-result
-```
-
-El campo `reason_internal` podrá utilizar valores internos controlados, por ejemplo:
-
-```text
-INVALID_PASSWORD
-USER_NOT_FOUND
-USER_INACTIVE
-USER_BLOCKED
-RATE_LIMITED
-```
-
-Estos valores internos no deberán exponerse directamente al cliente cuando puedan facilitar enumeración de usuarios o información sobre el estado de las cuentas.
-
-La respuesta de la API deberá utilizar mensajes genéricos para errores de autenticación.
-
-## 4.15.5 Auditoría de Sesiones
-
-Deberán registrarse, cuando corresponda, los eventos relevantes relacionados con el ciclo de vida de las sesiones.
-
-Entre ellos:
-
-```text
-SESSION_CREATED
-SESSION_REVOKED
-SESSION_EXPIRED
-SESSION_LOGOUT
-SESSION_REVOKED_ALL
-```
-
-Los eventos podrán contener:
-
-```text
-timestamp
-user_id
-session_id
-device_id
-platform
-ip
-user_agent
-result
-```
-
-La auditoría deberá permitir determinar cuándo una sesión fue creada, revocada, expirada o cerrada.
-
-Los eventos de revocación global deberán permitir identificar la acción que provocó la invalidación de las sesiones.
-
-## 4.15.6 Auditoría de Activación y Verificación
-
-Deberán registrarse, cuando corresponda, los eventos relacionados con la activación y verificación de cuentas.
-
-Como mínimo podrán contemplarse:
-
-```text
-ACCOUNT_ACTIVATION_REQUESTED
 ACCOUNT_ACTIVATED
-EMAIL_VERIFICATION_REQUESTED
-EMAIL_VERIFIED
-```
-
-Los eventos deberán permitir establecer la trazabilidad del proceso sin almacenar tokens completos.
-
-No deberán registrarse:
-
-* tokens de activación completos;
-* tokens de verificación completos;
-* contraseñas;
-* secretos.
-
-El evento deberá registrar únicamente identificadores y metadatos necesarios para establecer la trazabilidad.
-
-## 4.15.7 Auditoría de Cambio de Correo
-
-Los cambios de correo electrónico deberán generar eventos de auditoría cuando corresponda.
-
-Como mínimo:
-
-```text
-EMAIL_CHANGE_REQUESTED
-EMAIL_VERIFIED
-EMAIL_CHANGED
-```
-
-Los eventos deberán permitir determinar:
-
-* quién inició la operación;
-* cuándo se inició;
-* cuándo fue verificada;
-* cuándo se completó;
-* resultado de la operación.
-
-Los registros de auditoría **no deberán almacenar directamente**:
-
-```text
-email anterior
-email nuevo
-```
-
-Tampoco deberán almacenar:
-
-* tokens completos;
-* códigos de verificación completos;
-* credenciales;
-* secretos.
-
-Si fuera necesario correlacionar el proceso, deberán utilizarse identificadores internos o valores derivados mediante mecanismos de protección apropiados.
-
-## 4.15.8 Auditoría de Contraseñas
-
-Deberán registrarse los eventos de seguridad relevantes relacionados con contraseñas sin registrar nunca la contraseña ni su representación utilizable.
-
-Podrán contemplarse:
-
-```text
-PASSWORD_SET
 PASSWORD_CHANGED
 PASSWORD_RESET_REQUESTED
 PASSWORD_RESET_COMPLETED
+EMAIL_CHANGED
+SESSION_CREATED
+SESSION_REVOKED
+SESSION_EXPIRED
+SESSION_REFRESHED
+AUTHENTICATION_FAILED
+AUTHORIZATION_DENIED
+RATE_LIMITED
+SECURITY_CONFIGURATION_CHANGED
+ROLE_CHANGED
+PERMISSION_CHANGED
+ACCOUNT_DEACTIVATED
+ACCOUNT_DELETED
+GLOBAL_SESSION_REVOCATION
+````
+
+La lista podrá ampliarse conforme evolucionen los requisitos de seguridad de Chiri Platform.
+
+Los eventos deberán registrarse únicamente cuando sean relevantes para la operación o seguridad.
+
+## 4.15.3 Información de Auditoría
+
+Un evento de auditoría deberá contener, cuando corresponda:
+
+```text
+event_id
+event_type
+timestamp
+request_id
+user_id
+username_hash
+session_id
+resource_type
+resource_id
+action
+result
+source
 ```
 
-Los eventos no deberán contener:
+No todos los campos serán obligatorios para todos los eventos.
+
+Los eventos realizados antes de una autenticación válida podrán no disponer de `user_id` o `session_id`.
+
+En esos casos deberá utilizarse únicamente la información disponible y necesaria.
+
+## 4.15.4 Identificación del Usuario
+
+Cuando un evento pueda asociarse a un usuario autenticado, deberá registrarse el identificador correspondiente cuando sea necesario para trazabilidad.
+
+Para eventos en los que no sea apropiado almacenar directamente información identificable, podrá utilizarse:
+
+```text
+username_hash
+```
+
+El valor deberá generarse mediante:
+
+```text
+HMAC-SHA-256(username, audit_secret)
+```
+
+El `audit_secret` deberá ser independiente de:
+
+* claves JWT;
+* credenciales PostgreSQL;
+* credenciales de servicios;
+* otros secretos de autenticación.
+
+La gestión del secreto deberá seguir las reglas definidas en `4.8`.
+
+## 4.15.5 Identificador de Correlación
+
+Las solicitudes deberán poder relacionarse mediante un identificador de correlación:
+
+```text
+request_id
+```
+
+El `request_id` deberá permitir relacionar, cuando corresponda:
+
+```text
+Request
+   ↓
+API
+   ↓
+Backend
+   ↓
+Servicio interno
+   ↓
+Auditoría
+```
+
+El `request_id` no deberá contener:
+
+* contraseñas;
+* tokens;
+* secretos;
+* información personal innecesaria.
+
+Cuando sea apropiado, el mismo `request_id` podrá aparecer tanto en logs operativos como en eventos de auditoría.
+
+## 4.15.6 Identificador del Evento
+
+Cada evento de auditoría deberá disponer de un identificador único:
+
+```text
+event_id
+```
+
+El identificador deberá permitir distinguir eventos individuales incluso cuando ocurran simultáneamente.
+
+El `event_id` no deberá utilizarse como secreto ni deberá contener información sensible.
+
+## 4.15.7 Timestamp
+
+Los eventos de auditoría deberán registrar la fecha y hora del evento.
+
+Los timestamps deberán utilizar una representación consistente y deberán permitir ordenar cronológicamente los eventos.
+
+La plataforma deberá utilizar una referencia temporal consistente entre sus componentes.
+
+Cuando los servicios se encuentren distribuidos, deberá procurarse una sincronización adecuada del reloj del sistema.
+
+## 4.15.8 Resultado de la Operación
+
+Los eventos deberán indicar el resultado cuando sea relevante.
+
+Podrán utilizarse valores como:
+
+```text
+SUCCESS
+FAILURE
+DENIED
+```
+
+El resultado deberá describir el resultado real de la operación.
+
+Un intento de acceso rechazado deberá poder distinguirse de una operación ejecutada correctamente.
+
+## 4.15.9 Auditoría de Autenticación
+
+Los eventos relacionados con autenticación deberán registrar información suficiente para detectar y analizar intentos de acceso.
+
+Podrán registrarse:
+
+```text
+LOGIN_SUCCESS
+LOGIN_FAILED
+AUTHENTICATION_FAILED
+ACCOUNT_ACTIVATED
+PASSWORD_CHANGED
+PASSWORD_RESET_COMPLETED
+```
+
+Los registros no deberán contener:
 
 * contraseña;
-* `password_hash`;
-* tokens completos de recuperación;
-* códigos completos de recuperación;
-* secretos.
+* password hash;
+* Access Token;
+* Refresh Token;
+* secreto;
+* clave privada.
 
-Cuando se produzca una operación que requiera revocación de sesiones, el evento deberá permitir relacionar la operación con la revocación correspondiente.
+Los eventos de autenticación fallida deberán evitar revelar innecesariamente si una cuenta específica existe.
 
-## 4.15.9 Auditoría de Autorización
+## 4.15.10 Auditoría de Sesiones
 
-Deberán registrarse, cuando corresponda, los eventos relevantes relacionados con autorización.
+Los eventos relacionados con sesiones deberán permitir determinar el ciclo de vida de una sesión.
 
-Podrán contemplarse:
+Podrán registrarse:
+
+```text
+SESSION_CREATED
+SESSION_REFRESHED
+SESSION_REVOKED
+SESSION_EXPIRED
+GLOBAL_SESSION_REVOCATION
+```
+
+Cuando sea necesario, el evento podrá incluir:
+
+```text
+session_id
+user_id
+request_id
+timestamp
+result
+```
+
+Nunca deberá registrarse el Refresh Token completo.
+
+## 4.15.11 Auditoría de Autorización
+
+Los rechazos de autorización deberán poder registrarse cuando sean relevantes:
 
 ```text
 AUTHORIZATION_DENIED
-ROLE_ASSIGNED
-ROLE_REMOVED
-PERMISSION_GRANTED
-PERMISSION_REVOKED
 ```
 
-Los eventos deberán permitir investigar cambios de privilegios y accesos rechazados.
+El evento podrá incluir:
 
-Cuando una operación sea rechazada por falta de permisos, la auditoría interna podrá registrar el permiso o recurso requerido.
+* usuario;
+* recurso;
+* operación;
+* resultado;
+* `request_id`;
+* timestamp.
 
-Esta información **no deberá exponerse al cliente** cuando pueda facilitar la enumeración de permisos o información interna del sistema.
+No deberá registrarse información sensible innecesaria.
 
-## 4.15.10 Auditoría Administrativa
+La auditoría deberá permitir investigar intentos repetidos de acceso no autorizado.
 
-Las operaciones administrativas relacionadas con seguridad deberán quedar registradas cuando corresponda.
+## 4.15.12 Auditoría Administrativa
+
+Las operaciones administrativas sensibles deberán generar eventos de auditoría.
+
+Como mínimo deberán considerarse:
+
+* cambios de roles;
+* cambios de permisos;
+* cambios de estado de usuarios;
+* revocación de sesiones;
+* revocación global;
+* cambios de configuración de seguridad.
+
+Los eventos administrativos deberán identificar la identidad que realizó la operación cuando sea posible.
+
+Los eventos administrativos deberán conservar suficiente información para reconstruir qué cambio se realizó.
+
+## 4.15.13 Auditoría de Cambios de Identidad
+
+Los cambios relevantes de identidad deberán quedar registrados.
 
 Podrán incluir:
 
 ```text
-USER_BLOCKED
-USER_UNBLOCKED
-USER_DISABLED
-USER_ENABLED
-USER_DELETED
-SESSION_REVOKED
-SESSION_REVOKED_ALL
-ROLE_ASSIGNED
-ROLE_REMOVED
-PERMISSION_GRANTED
-PERMISSION_REVOKED
+EMAIL_CHANGED
+PASSWORD_CHANGED
+ACCOUNT_ACTIVATED
+ACCOUNT_DEACTIVATED
+ACCOUNT_DELETED
 ```
 
-Los eventos deberán permitir identificar:
+Los registros deberán identificar la identidad afectada y la operación realizada.
 
-* actor administrativo;
-* usuario afectado;
-* operación realizada;
-* fecha y hora;
-* resultado;
-* información de contexto necesaria.
+Nunca deberá registrarse la contraseña nueva o anterior.
 
-Las operaciones administrativas no deberán registrar credenciales ni secretos.
+En el caso de cambio de correo, no deberá almacenarse información adicional que no sea necesaria para la trazabilidad.
 
-## 4.15.11 Auditoría de Seguridad de la API
+## 4.15.14 Auditoría de Rate Limiting
 
-Los eventos de seguridad relevantes de la API podrán incluir:
+Cuando una solicitud sea rechazada debido a límites de uso, podrá registrarse:
 
 ```text
-AUTHENTICATION_FAILED
-AUTHORIZATION_DENIED
 RATE_LIMITED
-INVALID_TOKEN
-SESSION_REVOKED
-SECURITY_POLICY_VIOLATION
 ```
 
-Los registros deberán permitir correlacionar los eventos cuando sea necesario para investigación.
+El evento podrá contener:
 
-Los errores de seguridad no deberán provocar el almacenamiento automático de:
-
-* tokens completos;
-* headers de autenticación completos;
-* cookies;
-* credenciales;
-* secretos.
-
-Cuando sea necesario registrar información de una solicitud, deberán utilizarse identificadores y metadatos limitados.
-
-## 4.15.12 Información de Red y Cliente
-
-Cuando sea necesario para seguridad y auditoría, los eventos podrán contener:
-
-```text
-ip
-user_agent
-platform
-device_id
-```
-
-El almacenamiento de esta información deberá limitarse a lo necesario para:
-
-* trazabilidad;
-* detección de abuso;
-* investigación de incidentes;
-* correlación de eventos.
-
-La información de red y dispositivo deberá tratarse de acuerdo con las políticas de protección de datos aplicables.
-
-## 4.15.13 Protección de Registros
-
-Los registros de auditoría deberán protegerse contra:
-
-* modificación no autorizada;
-* eliminación no autorizada;
-* acceso no autorizado;
-* exposición innecesaria;
-* manipulación de timestamps;
-* pérdida de integridad.
-
-El acceso a los registros deberá estar limitado a los componentes e identidades que necesiten utilizarlos.
-
-Los componentes que generen eventos no deberán disponer automáticamente de privilegios administrativos sobre todos los registros históricos.
-
-Cuando sea técnicamente posible, los registros deberán almacenarse de forma que una modificación posterior pueda detectarse.
-
-## 4.15.14 Información que Nunca deberá Registrarse
-
-Chiri Platform no deberá registrar directamente:
-
-* contraseñas;
-* `password_hash`;
-* Access Tokens completos;
-* Refresh Tokens completos;
-* claves privadas;
-* secretos;
-* credenciales;
-* encabezados `Authorization` completos;
-* cookies de autenticación;
-* tokens de activación completos;
-* tokens de verificación completos;
-* tokens de recuperación completos;
-* códigos de recuperación completos;
-* cadenas de conexión que contengan credenciales.
-
-La información sensible deberá eliminarse, anonimizarse, derivarse o reemplazarse por identificadores seguros antes de generar el evento de auditoría.
-
-## 4.15.15 Retención de Auditoría
-
-La conservación de registros deberá definirse de acuerdo con:
-
-* necesidades de seguridad;
-* investigación de incidentes;
+* endpoint;
 * operación;
+* `request_id`;
+* usuario cuando exista;
+* origen cuando corresponda;
+* timestamp.
+
+No deberán almacenarse datos sensibles innecesarios.
+
+La auditoría deberá permitir detectar patrones de abuso sin convertirse en una fuente adicional de exposición de información.
+
+## 4.15.15 Datos que Nunca Deberán Registrarse
+
+Los mecanismos de auditoría y logging de Chiri Platform no deberán registrar directamente:
+
+```text
+password
+password_hash
+Access Token completo
+Refresh Token completo
+JWT completo
+clave privada JWT
+audit_secret
+credenciales PostgreSQL
+credenciales de servicios
+Authorization header completo
+cookies de autenticación
+secretos de integraciones
+```
+
+Cuando una operación requiera identificar un elemento sensible, deberá utilizarse una representación segura o identificador no reversible cuando corresponda.
+
+## 4.15.16 Protección contra Exposición de Tokens
+
+Los tokens no deberán aparecer accidentalmente en:
+
+* logs;
+* auditoría;
+* excepciones;
+* stack traces;
+* URLs;
+* mensajes de diagnóstico.
+
+Los mecanismos de logging deberán configurarse para evitar registrar automáticamente encabezados sensibles.
+
+En particular, no deberá registrarse directamente:
+
+```text
+Authorization: Bearer <token>
+```
+
+## 4.15.17 Protección de Logs
+
+Los logs y registros de auditoría deberán protegerse contra:
+
+* acceso no autorizado;
+* modificación;
+* eliminación;
+* exposición;
+* manipulación.
+
+El acceso deberá limitarse a las identidades y procesos que realmente lo necesiten.
+
+Los mecanismos de auditoría no deberán ser accesibles directamente desde la aplicación Android.
+
+## 4.15.18 Integridad de Auditoría
+
+Los registros de auditoría deberán protegerse contra modificaciones no autorizadas.
+
+Cuando la arquitectura lo requiera, podrán utilizarse mecanismos adicionales para detectar modificaciones posteriores.
+
+La aplicación no deberá permitir que un usuario común modifique o elimine directamente sus propios registros de auditoría.
+
+Las operaciones administrativas sobre los mecanismos de auditoría deberán estar restringidas.
+
+## 4.15.19 Separación de Auditoría
+
+Los registros de auditoría deberán mantenerse conceptualmente separados de los datos operativos de la aplicación.
+
+La eliminación o modificación de un recurso operativo no deberá eliminar automáticamente los registros de auditoría que sean necesarios para mantener la trazabilidad.
+
+La arquitectura podrá utilizar tablas, almacenamiento o sistemas de logging separados según las necesidades de implementación.
+
+## 4.15.20 Auditoría y PostgreSQL
+
+Cuando los eventos de auditoría se almacenen en PostgreSQL, deberán utilizar una estructura definida para ese propósito.
+
+El acceso a los registros de auditoría deberá limitarse a los componentes autorizados.
+
+Los usuarios de la aplicación no deberán disponer de acceso directo a las tablas de auditoría.
+
+La aplicación no deberá permitir que un cliente modifique directamente eventos históricos.
+
+Los registros deberán insertarse mediante el Backend y los mecanismos de persistencia autorizados.
+
+## 4.15.21 Retención
+
+Los registros de auditoría deberán conservarse durante un período definido por las necesidades operativas, de seguridad y legales aplicables.
+
+La política de retención deberá considerar:
+
+* investigación de incidentes;
 * capacidad de almacenamiento;
-* requisitos legales aplicables;
-* necesidades de trazabilidad.
+* requisitos legales;
+* necesidad operativa;
+* sensibilidad de la información.
 
-Los registros deberán conservarse durante el período necesario para cumplir su finalidad.
+Los registros que hayan superado su período de retención deberán eliminarse o anonimizarse de acuerdo con la política correspondiente.
 
-Los registros que ya no sean necesarios deberán eliminarse de forma controlada.
+La retención no deberá utilizarse como justificación para almacenar información sensible innecesaria indefinidamente.
 
-La eliminación de registros deberá respetar las políticas de seguridad y retención definidas para la plataforma.
+## 4.15.22 Eliminación de Auditoría
 
-## 4.15.16 Correlación de Eventos
+La eliminación de registros de auditoría deberá estar restringida.
 
-Los eventos de seguridad deberán poder correlacionarse mediante identificadores apropiados.
+No deberá permitirse que:
 
-Cuando corresponda, podrán utilizarse:
+* un usuario;
+* una aplicación cliente;
+* un servicio sin privilegios;
+* una operación normal de negocio
 
-```text
-user_id
-session_id
-event_id
-request_id
-device_id
-```
+elimine registros históricos de auditoría.
 
-Los identificadores de correlación no deberán contener información sensible innecesaria.
+Las operaciones administrativas de eliminación o mantenimiento deberán estar controladas y registradas cuando corresponda.
 
-La correlación deberá permitir reconstruir una secuencia de eventos sin requerir el almacenamiento de credenciales o tokens completos.
+## 4.15.23 Auditoría de Seguridad
 
-### Ejemplo conceptual
-
-```text
-LOGIN_SUCCESS
-      ↓
-SESSION_CREATED
-      ↓
-API_REQUEST
-      ↓
-AUTHORIZATION_DENIED
-      ↓
-SESSION_REVOKED
-```
-
-La implementación deberá permitir relacionar estos eventos cuando formen parte de una misma secuencia de seguridad.
-
-## 4.15.17 Auditoría y Monitorización
-
-Los registros de auditoría deberán poder utilizarse como fuente para mecanismos de monitorización y detección de seguridad.
-
-Los eventos podrán utilizarse para identificar:
+Los eventos relacionados con seguridad deberán poder utilizarse para detectar:
 
 * fuerza bruta;
-* intentos repetidos de autenticación;
-* actividad anómala;
-* abuso de recursos;
-* cambios inesperados de permisos;
-* revocaciones masivas;
-* posibles compromisos de credenciales.
+* intentos de acceso no autorizado;
+* abuso de API;
+* reutilización de credenciales;
+* revocaciones;
+* cambios administrativos;
+* comportamiento anómalo.
 
-La monitorización deberá complementar los registros de auditoría y no deberá sustituirlos.
+La auditoría deberá complementar los mecanismos de protección definidos en `4.10` y `4.18`.
 
-## 4.15.18 Regla de Minimización
+La auditoría no sustituirá los mecanismos preventivos de seguridad.
 
-La auditoría deberá registrar suficiente información para permitir trazabilidad e investigación, pero no deberá convertirse en un mecanismo de almacenamiento innecesario de datos personales, credenciales o secretos.
+## 4.15.24 Auditoría y Privacidad
 
-La información registrada deberá ser proporcional al riesgo y finalidad del evento.
+Los registros deberán aplicar el principio de minimización.
 
-### Regla arquitectónica
+Solo deberá almacenarse información necesaria para:
 
-> **Los eventos relevantes para la seguridad deberán mantener trazabilidad suficiente para permitir su detección, análisis e investigación sin registrar credenciales, tokens completos, secretos ni información sensible innecesaria.**
+* seguridad;
+* trazabilidad;
+* operación;
+* investigación de incidentes.
+
+Los registros no deberán convertirse en una copia completa de las solicitudes de los usuarios.
+
+En particular, no deberá almacenarse automáticamente el cuerpo completo de solicitudes que puedan contener:
+
+* contraseñas;
+* tokens;
+* información personal sensible;
+* secretos.
+
+## 4.15.25 Auditoría de Servicios Internos
+
+Las operaciones relevantes entre servicios internos podrán registrarse cuando sean necesarias para trazabilidad.
+
+Los registros podrán incluir:
+
+```text
+service_source
+service_target
+operation
+request_id
+timestamp
+result
+```
+
+No deberán registrarse las credenciales utilizadas para realizar la comunicación.
+
+La auditoría deberá permitir investigar operaciones entre servicios sin exponer los secretos utilizados para autenticarlos.
+
+## 4.15.26 Auditoría del Cliente Android
+
+La aplicación Android no deberá mantener registros permanentes de eventos de seguridad del servidor.
+
+Los eventos de seguridad relevantes deberán registrarse en el Backend.
+
+Android podrá generar logs locales de diagnóstico durante el desarrollo, pero no deberá almacenar permanentemente:
+
+* contraseñas;
+* Access Tokens;
+* Refresh Tokens;
+* secretos;
+* credenciales.
+
+Los logs de producción deberán limitarse a la información necesaria para diagnóstico y operación.
+
+## 4.15.27 Acceso a los Registros
+
+El acceso a los registros de auditoría deberá estar restringido.
+
+Deberán distinguirse, cuando corresponda:
+
+```text
+lectura
+administración
+eliminación
+```
+
+No todos los usuarios o servicios que puedan leer logs operativos deberán disponer automáticamente de acceso a los registros de auditoría.
+
+El acceso administrativo deberá seguir el principio de mínimo privilegio.
+
+## 4.15.28 Monitoreo
+
+Los registros de auditoría podrán utilizarse como fuente para mecanismos de monitoreo y detección.
+
+Podrán identificarse patrones como:
+
+```text
+múltiples LOGIN_FAILED
+múltiples AUTHORIZATION_DENIED
+múltiples RATE_LIMITED
+múltiples SESSION_REVOKED
+```
+
+Los mecanismos de monitoreo deberán evitar generar alertas excesivas que impidan detectar eventos realmente importantes.
+
+El monitoreo no deberá modificar los registros originales de auditoría.
+
+## 4.15.29 Investigación de Incidentes
+
+Los registros deberán proporcionar información suficiente para investigar incidentes de seguridad.
+
+Una investigación deberá poder correlacionar, cuando sea posible:
+
+```text
+event_id
+   ↓
+request_id
+   ↓
+user_id / username_hash
+   ↓
+session_id
+   ↓
+operación
+   ↓
+recurso
+   ↓
+resultado
+   ↓
+timestamp
+```
+
+Los registros deberán permitir reconstruir la secuencia de eventos sin necesidad de almacenar secretos.
+
+## 4.15.30 Fallo de Auditoría
+
+Un fallo del mecanismo de auditoría no deberá provocar automáticamente la concesión de permisos.
+
+Cuando un evento de seguridad crítico no pueda registrarse, deberá aplicarse una estrategia definida según el nivel de riesgo de la operación.
+
+Para operaciones críticas, podrá ser necesario rechazar la operación si la ausencia de auditoría impide mantener los requisitos mínimos de trazabilidad.
+
+Los mecanismos de auditoría no deberán utilizarse para permitir una operación que de otro modo estaría prohibida.
+
+## 4.15.31 Defensa en Profundidad
+
+La auditoría deberá complementar los mecanismos preventivos y de detección de Chiri Platform.
+
+El modelo conceptual será:
+
+```text
+Solicitud
+   ↓
+Autenticación
+   ↓
+Autorización
+   ↓
+Reglas de negocio
+   ↓
+Operación
+   ↓
+Auditoría
+   ↓
+Monitoreo / Investigación
+```
+
+La auditoría no sustituirá:
+
+* autenticación;
+* autorización;
+* validación;
+* rate limiting;
+* protección de secretos;
+* controles de Base de Datos.
+
+### Regla arquitectónica general
+
+> **Chiri Platform deberá mantener registros de auditoría suficientes para proporcionar trazabilidad y permitir la investigación de eventos de seguridad, evitando almacenar contraseñas, tokens, secretos o información sensible innecesaria y protegiendo los registros contra acceso y modificación no autorizados.**
 
 # 4.16 Monitorización y Detección de Seguridad
 
