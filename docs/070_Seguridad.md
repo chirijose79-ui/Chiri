@@ -5191,32 +5191,31 @@ Los mecanismos de seguridad deberán definir un comportamiento controlado cuando
 
 ## 4.18.16 Bloqueos Temporales
 
-Los mecanismos de protección podrán aplicar bloqueos temporales cuando se detecten patrones de abuso.
 
-Los bloqueos deberán:
+Los mecanismos de protección podrán aplicar restricciones temporales cuando se detecten patrones de abuso.
+
+Las restricciones deberán:
 
 * tener duración limitada;
 * poder registrarse para auditoría;
-* evitar bloqueos permanentes accidentales;
-* poder ser revisados por mecanismos administrativos cuando corresponda.
+* evitar restricciones permanentes accidentales;
+* poder ser revisadas por mecanismos administrativos cuando corresponda.
 
-Los bloqueos temporales derivados de rate limiting no deberán modificar permanentemente el estado del usuario salvo que una política explícita determine lo contrario.
+Las restricciones temporales derivadas de rate limiting no deberán modificar permanentemente el estado del usuario.
 
-Deberá distinguirse entre:
+Estas restricciones deberán mantenerse separadas del estado de identidad definido para el usuario.
 
-```text
-Rate limit / bloqueo temporal
-```
-
-y:
+El estado de usuario continuará utilizando únicamente los valores definidos por el modelo de identidad:
 
 ```text
-User.status = BLOCKED
+ACTIVE
+INACTIVE
+DELETED
 ```
 
-El primero constituye una medida temporal contra abuso.
+Una restricción temporal contra abuso no deberá crear un nuevo estado de usuario.
 
-El segundo constituye un estado de seguridad de la cuenta y requiere los controles de autorización y revocación definidos para usuarios bloqueados.
+Cuando una restricción afecte una sesión existente, el Backend deberá aplicar las medidas correspondientes sobre la sesión según la política de seguridad definida.
 
 ## 4.18.17 Auditoría de Abuso
 
