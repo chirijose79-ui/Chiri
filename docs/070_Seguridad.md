@@ -3569,99 +3569,290 @@ Ninguna capa deberá considerarse suficiente por sí sola.
 
 > **Los servicios internos de Chiri Platform no deberán considerarse confiables por defecto y deberán utilizar identidad, autenticación, autorización, mínimo privilegio, aislamiento de red y protección de secretos de acuerdo con su función y nivel de riesgo.**
 
-# 4.14 Seguridad de Android
+# 4.14 Seguridad del Cliente Android
 
-La aplicación Android de Chiri Platform deberá proteger las credenciales, sesiones, comunicaciones y datos que gestione en el dispositivo.
+La aplicación Android de Chiri Platform deberá implementar controles de seguridad destinados a proteger las credenciales, tokens, información local y comunicaciones utilizadas por el usuario.
 
-La aplicación deberá:
+El cliente Android deberá considerarse un componente no confiable desde el punto de vista de la autoridad de seguridad.
 
-* utilizar comunicaciones protegidas con la API;
-* proteger los mecanismos de autenticación;
-* almacenar de forma segura los tokens y credenciales necesarios;
-* validar las respuestas recibidas;
+Las decisiones definitivas de autenticación, autorización y acceso a recursos deberán permanecer en el Backend.
+
+La aplicación Android deberá:
+
+* proteger las credenciales y tokens almacenados localmente;
+* utilizar comunicaciones seguras;
+* validar las respuestas recibidas del Backend;
 * evitar almacenar información sensible innecesaria;
-* evitar exponer información sensible mediante registros;
-* mantener sus dependencias actualizadas;
-* responder adecuadamente ante la expiración o revocación de sesiones.
+* eliminar las credenciales locales cuando corresponda;
+* evitar exponer secretos del Backend;
+* mantener separadas las responsabilidades de presentación y seguridad.
 
-La aplicación no deberá contener secretos permanentes que permitan acceder directamente a recursos protegidos de Chiri Platform.
+### Regla arquitectónica
 
-La aplicación no deberá contener:
+> **Android es un cliente de Chiri Platform y nunca será la autoridad final para autenticación, autorización o permisos.**
 
-* claves privadas JWT;
-* secretos HMAC;
-* credenciales de Base de Datos;
-* credenciales de servicios internos;
-* credenciales permanentes de backend;
-* secretos utilizados por servicios de Chiri Platform.
+## 4.14.1 Comunicación con el Backend
 
-## 4.14.1 Almacenamiento de Tokens
-
-Los Access Tokens y Refresh Tokens deberán almacenarse utilizando mecanismos seguros proporcionados por Android.
-
-Los tokens no deberán almacenarse mediante mecanismos destinados a información no sensible.
-
-La aplicación no deberá almacenar tokens de autenticación en texto plano mediante:
-
-* archivos de configuración;
-* archivos de preferencias no protegidos;
-* bases de datos locales sin protección;
-* archivos temporales;
-* logs.
-
-Los tokens deberán mantenerse únicamente durante el tiempo necesario para cumplir su función.
-
-El Access Token deberá tratarse como una credencial de corta duración.
-
-El Refresh Token deberá considerarse una credencial sensible de mayor duración y deberá recibir protección equivalente o superior.
-
-Los tokens no deberán aparecer en:
-
-* logs;
-* URLs;
-* parámetros de consulta;
-* mensajes de diagnóstico;
-* archivos de configuración;
-* capturas o mecanismos de depuración no protegidos.
-
-## 4.14.2 Comunicación con la API
-
-Las comunicaciones entre Android y la API deberán utilizar los mecanismos de protección definidos por Chiri Platform.
-
-Las comunicaciones externas deberán utilizar:
+La aplicación Android deberá comunicarse con la API de Chiri Platform mediante:
 
 ```text
 HTTPS
 TLS
+````
+
+No deberán enviarse credenciales, tokens o información sensible mediante conexiones HTTP sin protección.
+
+La aplicación no deberá aceptar conexiones inseguras hacia endpoints de producción.
+
+Los certificados TLS deberán validarse mediante los mecanismos estándar de Android.
+
+La aplicación no deberá deshabilitar la validación de certificados para facilitar conexiones.
+
+No deberán utilizarse configuraciones como:
+
+```text
+Trust all certificates
+HostnameVerifier que acepte cualquier host
+cleartextTrafficPermitted=true
 ```
 
-La aplicación no deberá enviar credenciales o tokens mediante canales no protegidos.
+en producción.
 
-Los Access Tokens deberán enviarse únicamente mediante los mecanismos de autenticación definidos por la API.
+## 4.14.2 Access Token
 
-La aplicación no deberá incluir tokens en URLs cuando exista un mecanismo seguro alternativo.
+El Access Token deberá utilizarse únicamente para acceder a los recursos protegidos de la API durante su período de vigencia.
 
-La aplicación deberá validar las respuestas de la API antes de utilizarlas.
+La aplicación deberá tratar el Access Token como información sensible.
 
-Los datos recibidos desde la API no deberán considerarse automáticamente confiables para operaciones sensibles.
+El Access Token no deberá almacenarse:
 
-## 4.14.3 Autenticación
+* en texto plano;
+* en archivos públicos;
+* en SharedPreferences sin protección;
+* en bases de datos locales sin protección;
+* en logs;
+* en URLs;
+* en parámetros de consulta;
+* en mensajes de diagnóstico.
 
-La aplicación Android deberá utilizar los mecanismos de autenticación definidos por Chiri Platform.
+El cliente deberá utilizar mecanismos de almacenamiento seguro proporcionados por Android.
 
-El cliente no deberá implementar mecanismos alternativos que permitan obtener acceso directo a recursos protegidos.
+El Access Token tendrá una duración máxima definida por la arquitectura de:
 
-La aplicación no deberá considerar una operación local como evidencia suficiente de que el usuario está autenticado.
+```text
+15 minutos
+```
 
-La autoridad final para determinar la autenticación será el Backend.
+La aplicación no deberá intentar modificar ni prolongar artificialmente su duración.
 
-La autoridad final para determinar la autorización será el Backend.
+Cuando el Access Token expire, la aplicación deberá utilizar el mecanismo de renovación definido para la sesión.
 
-La aplicación podrá mantener un estado local de la sesión únicamente como información de interfaz y funcionamiento, pero dicho estado no deberá sustituir la validación realizada por el servidor.
+## 4.14.3 Refresh Token
 
-## 4.14.4 Expiración y Revocación de Sesiones
+El Refresh Token deberá considerarse una credencial sensible.
 
-La aplicación deberá responder correctamente cuando la API indique que una sesión ya no es válida.
+La aplicación deberá almacenarlo utilizando mecanismos de almacenamiento seguro disponibles en Android.
+
+No deberá almacenarse en:
+
+* código fuente;
+* logs;
+* archivos de texto;
+* SharedPreferences sin protección;
+* bases de datos locales sin protección;
+* URLs;
+* parámetros de consulta.
+
+El Refresh Token tendrá una duración máxima de:
+
+```text
+30 días
+```
+
+La aplicación no deberá intentar determinar por sí misma que un Refresh Token continúa siendo válido.
+
+La validez final será determinada por el Backend.
+
+Cuando el Backend rechace un Refresh Token, la aplicación deberá considerar inválida la sesión local y solicitar nuevamente autenticación cuando corresponda.
+
+## 4.14.4 Almacenamiento Seguro
+
+Los datos sensibles almacenados localmente deberán utilizar mecanismos de almacenamiento seguro de Android.
+
+La aplicación deberá utilizar **Android Keystore** para proteger las claves utilizadas para proteger información sensible.
+
+Cuando se utilice una biblioteca de almacenamiento seguro, esta deberá utilizar mecanismos respaldados por Android Keystore cuando corresponda.
+
+Los datos que deberán considerarse sensibles incluyen:
+
+* Access Token;
+* Refresh Token;
+* identificadores de sesión;
+* claves criptográficas locales;
+* información de autenticación;
+* información personal sensible.
+
+No deberán almacenarse localmente más datos sensibles de los necesarios.
+
+### Regla arquitectónica
+
+> **Las credenciales y tokens de Chiri Platform deberán almacenarse utilizando mecanismos de protección proporcionados por Android y nunca mediante almacenamiento plano destinado a datos no sensibles.**
+
+## 4.14.5 Contraseñas
+
+La aplicación Android no deberá almacenar permanentemente la contraseña del usuario.
+
+La contraseña deberá utilizarse únicamente durante las operaciones que requieran autenticación mediante contraseña.
+
+Después de completar la operación, la contraseña no deberá permanecer almacenada en:
+
+* archivos;
+* bases de datos;
+* preferencias;
+* logs;
+* cachés;
+* memoria persistente.
+
+La aplicación no deberá enviar la contraseña a ningún componente distinto del endpoint de autenticación autorizado.
+
+La aplicación nunca deberá realizar el hash de contraseña con el objetivo de sustituir el mecanismo de almacenamiento seguro del Backend.
+
+El almacenamiento definitivo de contraseñas y sus hashes será responsabilidad del Backend.
+
+## 4.14.6 Credenciales y Secretos del Backend
+
+La aplicación Android no deberá contener secretos utilizados exclusivamente por el Backend.
+
+No deberán incluirse dentro de la APK:
+
+* claves privadas JWT;
+* secretos HMAC;
+* credenciales PostgreSQL;
+* credenciales de migración;
+* contraseñas de servicios internos;
+* secretos administrativos;
+* Refresh Tokens de otros usuarios;
+* credenciales de servicios.
+
+Una clave incluida dentro de la aplicación deberá considerarse potencialmente recuperable por un atacante.
+
+Las credenciales que permitan acceso privilegiado deberán mantenerse exclusivamente en el Backend o en los mecanismos de gestión de secretos correspondientes.
+
+### Regla arquitectónica
+
+> **La APK no deberá utilizar secretos que concedan privilegios de Backend o acceso directo a infraestructura protegida.**
+
+## 4.14.7 Autenticación
+
+El inicio de sesión deberá realizarse mediante los endpoints definidos por la API.
+
+La aplicación deberá enviar las credenciales únicamente mediante HTTPS.
+
+Después de una autenticación exitosa, la aplicación recibirá los mecanismos de sesión definidos por el Backend.
+
+La aplicación no deberá asumir que el usuario está autenticado únicamente porque exista información local.
+
+La aplicación deberá considerar la sesión válida únicamente cuando el Backend confirme la autenticación.
+
+## 4.14.8 Activación de Cuenta
+
+Las cuentas nuevas deberán permanecer:
+
+```text
+INACTIVE
+```
+
+hasta que el usuario complete la activación mediante el mecanismo enviado por correo electrónico.
+
+La aplicación Android no deberá activar localmente una cuenta.
+
+La transición:
+
+```text
+INACTIVE → ACTIVE
+```
+
+deberá ser realizada por el Backend después de validar correctamente el mecanismo de activación.
+
+La activación de la cuenta no deberá crear automáticamente una sesión.
+
+Después de la activación, el usuario deberá iniciar sesión mediante el flujo normal.
+
+## 4.14.9 Estado de la Sesión
+
+La aplicación podrá mantener información local sobre el estado de la sesión para mejorar la experiencia de usuario, pero dicha información no será la autoridad final.
+
+El Backend será la fuente de verdad sobre la validez de la sesión.
+
+La aplicación deberá manejar correctamente:
+
+```text
+ACTIVE
+REVOKED
+EXPIRED
+```
+
+Una sesión revocada o expirada deberá provocar la eliminación de las credenciales locales asociadas cuando corresponda.
+
+La aplicación no deberá intentar reactivar localmente una sesión revocada.
+
+## 4.14.10 Renovación de Sesión
+
+Cuando el Access Token expire, la aplicación podrá solicitar una renovación mediante el Refresh Token.
+
+El flujo será:
+
+```text
+Access Token
+      ↓
+expirado
+      ↓
+Refresh Token
+      ↓
+Backend
+      ↓
+validación de Session
+      ↓
+nuevo Access Token
+      ↓
+continuar sesión
+```
+
+Si el Backend rechaza la renovación, la aplicación deberá:
+
+1. eliminar las credenciales locales asociadas;
+2. considerar la sesión local inválida;
+3. regresar al estado de autenticación;
+4. solicitar nuevamente las credenciales cuando corresponda.
+
+La aplicación no deberá realizar reintentos infinitos de renovación.
+
+## 4.14.11 Cierre de Sesión
+
+Cuando el usuario cierre sesión, la aplicación deberá solicitar al Backend el cierre de la sesión correspondiente cuando la API lo permita.
+
+Después del cierre:
+
+* deberán eliminarse los tokens locales;
+* deberán eliminarse las credenciales de sesión;
+* deberán limpiarse los datos temporales asociados;
+* la aplicación deberá regresar al estado no autenticado.
+
+La eliminación local de tokens no sustituye la revocación realizada por el Backend.
+
+La aplicación deberá poder recuperarse correctamente si el Backend ya había revocado la sesión.
+
+## 4.14.12 Revocación Global
+
+Cuando el Backend revoque todas las sesiones de un usuario, las credenciales locales de la aplicación deberán dejar de considerarse válidas.
+
+La siguiente solicitud autenticada deberá detectar el rechazo del Backend.
+
+Ante una respuesta que indique que la sesión ya no es válida, la aplicación deberá eliminar las credenciales locales y regresar al estado de autenticación.
+
+La aplicación no deberá continuar utilizando una sesión que el Backend haya revocado.
+
+## 4.14.13 Manejo de `401 Unauthorized`
 
 Cuando la API responda:
 
@@ -3669,67 +3860,86 @@ Cuando la API responda:
 401 Unauthorized
 ```
 
-por una sesión inválida, expirada o revocada, la aplicación deberá considerar que la sesión local ya no es válida.
+la aplicación deberá determinar si corresponde intentar una renovación mediante Refresh Token.
 
-Cuando corresponda, la aplicación deberá:
+La aplicación podrá realizar un único intento controlado de renovación cuando corresponda.
 
-* descartar el Access Token;
-* utilizar el Refresh Token únicamente mediante el flujo de renovación autorizado;
-* si la renovación falla, descartar el Refresh Token;
-* limpiar el estado local de autenticación;
-* solicitar nuevamente autenticación al usuario.
+Si la renovación falla, deberá:
 
-La aplicación no deberá intentar reutilizar indefinidamente un token rechazado por el servidor.
+```text
+eliminar sesión local
+        ↓
+eliminar tokens
+        ↓
+estado no autenticado
+```
 
-La aplicación no deberá ignorar una respuesta `401`.
+La aplicación no deberá ejecutar ciclos infinitos de:
 
-## 4.14.5 Refresh Token
+```text
+401
+ ↓
+refresh
+ ↓
+401
+ ↓
+refresh
+```
 
-El Refresh Token deberá utilizarse únicamente para obtener un nuevo Access Token mediante el endpoint de renovación definido por la API.
+## 4.14.14 Manejo de `403 Forbidden`
 
-El Refresh Token no deberá utilizarse para acceder directamente a recursos protegidos.
+Una respuesta:
 
-La aplicación deberá proteger el Refresh Token con mecanismos de almacenamiento seguro proporcionados por Android.
+```text
+403 Forbidden
+```
 
-Si el servidor determina que el Refresh Token ya no es válido, la aplicación deberá eliminarlo del almacenamiento local.
+indica que la identidad está autenticada pero no dispone de autorización suficiente para la operación solicitada.
 
-El Refresh Token no deberá incluirse en logs, URLs, mensajes de error ni información de diagnóstico.
+La aplicación deberá:
 
-## 4.14.6 Logout
+* impedir la ejecución de la operación;
+* mostrar un mensaje apropiado;
+* no intentar renovar automáticamente la sesión;
+* no modificar localmente los permisos.
 
-Cuando el usuario cierre sesión, la aplicación deberá ejecutar el flujo de cierre de sesión definido por la API cuando corresponda.
+La aplicación no deberá interpretar `403` como una indicación para solicitar nuevamente la contraseña.
 
-Después del cierre de sesión, la aplicación deberá:
+## 4.14.15 Validación de Respuestas
 
-* eliminar el Access Token local;
-* eliminar el Refresh Token local;
-* eliminar o invalidar el estado local de autenticación;
-* regresar al estado no autenticado.
+Las respuestas del Backend deberán considerarse datos externos.
 
-La aplicación no deberá mantener credenciales de sesión activas después de un cierre de sesión exitoso.
+La aplicación deberá validar:
 
-La eliminación local de tokens no sustituye la revocación de la sesión en el servidor.
+* código HTTP;
+* estructura;
+* tipos;
+* campos obligatorios;
+* valores esperados.
 
-## 4.14.7 Seguridad de Datos Locales
+La aplicación no deberá ejecutar directamente contenido recibido desde la API como código.
 
-La aplicación deberá almacenar localmente únicamente los datos necesarios para su funcionamiento.
+Las respuestas inesperadas deberán manejarse de forma segura.
 
-Los datos sensibles almacenados localmente deberán protegerse de acuerdo con su nivel de sensibilidad.
+Los errores del Backend no deberán provocar el acceso automático a información protegida.
 
-La aplicación deberá evitar almacenar innecesariamente:
+## 4.14.16 Protección de Información Personal
 
+La aplicación deberá almacenar únicamente la información personal necesaria para proporcionar la funcionalidad correspondiente.
+
+Los datos personales almacenados localmente deberán protegerse mediante mecanismos apropiados.
+
+La aplicación no deberá almacenar innecesariamente:
+
+* contraseñas;
+* tokens históricos;
 * información de autenticación;
-* datos personales sensibles;
-* información de sesiones;
-* credenciales;
-* información de seguridad;
-* datos que puedan utilizarse para obtener acceso a recursos protegidos.
+* datos sensibles del usuario;
+* respuestas completas de API.
 
-Los datos locales que ya no sean necesarios deberán eliminarse.
+Los datos que ya no sean necesarios deberán eliminarse.
 
-La información sensible no deberá escribirse en almacenamiento temporal sin protección.
-
-## 4.14.8 Logs y Diagnóstico
+## 4.14.17 Logs de Android
 
 La aplicación no deberá registrar información sensible en logs.
 
@@ -3738,79 +3948,202 @@ No deberán registrarse:
 * contraseñas;
 * Access Tokens;
 * Refresh Tokens;
-* encabezados `Authorization`;
-* cookies de autenticación;
-* claves privadas;
+* claves criptográficas;
 * secretos;
+* encabezados `Authorization`;
 * credenciales;
 * información personal sensible innecesaria.
 
-Los logs utilizados durante desarrollo deberán aplicar las mismas reglas de protección y no deberán convertirse en una fuente de exposición de credenciales.
+Los logs de desarrollo deberán eliminarse o restringirse en las compilaciones de producción.
 
-Los mecanismos de depuración deberán deshabilitarse o restringirse adecuadamente en versiones destinadas a producción.
+Los mensajes de diagnóstico deberán utilizar identificadores no sensibles cuando sea necesario correlacionar operaciones.
 
-## 4.14.9 Validación de Autorización
+## 4.14.18 Capturas de Pantalla
 
-La aplicación podrá ocultar o mostrar funcionalidades según el estado conocido del usuario, pero dichas decisiones tendrán únicamente finalidad de interfaz.
+Las pantallas que muestren información altamente sensible deberán aplicar las protecciones disponibles en Android cuando corresponda.
 
-La aplicación Android nunca deberá considerarse la autoridad final para determinar si una operación está permitida.
+La aplicación podrá impedir capturas de pantalla para pantallas que contengan:
 
-La autorización deberá ser realizada y verificada por el Backend.
-
-Aunque una operación aparezca disponible en la interfaz, el servidor deberá validar nuevamente:
-
-* identidad;
-* sesión;
-* estado del usuario;
-* permisos;
-* recurso;
-* operación.
-
-Una modificación de permisos en el servidor deberá tener efecto sobre las solicitudes posteriores de la aplicación.
-
-## 4.14.10 Protección de Información Sensible
-
-La aplicación deberá evitar exponer información sensible mediante:
-
-* capturas de pantalla cuando sea técnicamente posible;
-* notificaciones;
-* logs;
-* mensajes de error;
-* URLs;
-* intents;
-* almacenamiento compartido;
-* mecanismos de depuración.
-
-Las interfaces que presenten información sensible deberán aplicar las medidas de protección correspondientes al nivel de riesgo.
-
-La aplicación no deberá mostrar al usuario información interna innecesaria sobre:
-
-* Base de Datos;
-* Backend;
-* infraestructura;
+* tokens;
 * credenciales;
-* secretos;
-* mecanismos internos de seguridad.
+* información altamente sensible;
+* información administrativa sensible.
 
-## 4.14.11 Dependencias y Plataforma
+La protección deberá aplicarse únicamente cuando exista una necesidad real para la información presentada.
 
-Las dependencias utilizadas por la aplicación Android deberán mantenerse actualizadas de acuerdo con las políticas de seguridad de Chiri Platform.
+## 4.14.19 Portapapeles
+
+La aplicación deberá evitar copiar automáticamente información sensible al portapapeles.
+
+No deberán copiarse automáticamente:
+
+* Access Tokens;
+* Refresh Tokens;
+* contraseñas;
+* claves;
+* secretos.
+
+Cuando una función permita copiar información sensible por una acción explícita del usuario, deberá advertirse del riesgo cuando corresponda.
+
+## 4.14.20 Datos en Memoria
+
+La aplicación deberá minimizar el tiempo durante el cual mantiene información sensible en memoria.
+
+Los tokens deberán mantenerse únicamente durante el tiempo necesario para realizar las operaciones correspondientes.
+
+Las referencias a datos sensibles deberán liberarse cuando ya no sean necesarias.
+
+La aplicación no deberá mantener credenciales innecesariamente en objetos globales o componentes de larga duración.
+
+## 4.14.21 Protección contra Ingeniería Inversa
+
+La aplicación deberá asumir que un atacante con acceso al APK puede inspeccionar su contenido.
+
+Por tanto, la seguridad no deberá depender de mantener secretos dentro de la aplicación.
+
+Podrán utilizarse mecanismos de ofuscación y endurecimiento cuando sean necesarios, pero estos no deberán considerarse sustitutos de la seguridad del Backend.
+
+La información incluida en la aplicación deberá considerarse potencialmente recuperable.
+
+## 4.14.22 Integridad de la Aplicación
+
+La aplicación podrá utilizar mecanismos disponibles en Android para evaluar la integridad del entorno cuando el nivel de riesgo lo justifique.
+
+Estos mecanismos podrán utilizarse como controles adicionales.
+
+La integridad del cliente no deberá sustituir:
+
+* autenticación;
+* autorización;
+* validación de sesión;
+* protección de tokens;
+* validación del Backend.
+
+El Backend continuará siendo la autoridad final.
+
+## 4.14.23 Actualizaciones
+
+La aplicación deberá mantenerse actualizada con versiones compatibles y soportadas de Android y sus dependencias.
+
+Las actualizaciones de seguridad deberán incorporarse de acuerdo con la política de mantenimiento del proyecto.
 
 Las dependencias deberán revisarse ante vulnerabilidades conocidas.
 
-La aplicación deberá utilizar mecanismos de seguridad proporcionados por Android siempre que sean adecuados para la protección de:
+Las versiones obsoletas que presenten riesgos de seguridad podrán dejar de ser compatibles cuando exista una justificación técnica.
 
-* credenciales;
-* claves;
-* tokens;
-* datos locales;
-* comunicaciones.
+## 4.14.24 Protección de Dependencias
 
-Las configuraciones de desarrollo y producción deberán mantenerse separadas.
+Las dependencias utilizadas por Android deberán revisarse y mantenerse actualizadas.
 
-### Regla arquitectónica
+No deberán incluirse bibliotecas innecesarias que aumenten la superficie de ataque.
 
-> **La aplicación Android deberá proteger las credenciales, sesiones y datos locales, pero nunca deberá considerarse la autoridad final para autenticación o autorización de los recursos de Chiri Platform.**
+Las dependencias que procesen:
+
+* autenticación;
+* almacenamiento seguro;
+* comunicaciones;
+* criptografía;
+
+deberán recibir especial atención durante las actualizaciones.
+
+No deberán implementarse primitivas criptográficas propias cuando existan mecanismos seguros y mantenidos por Android o bibliotecas reconocidas.
+
+## 4.14.25 Seguridad del Almacenamiento Local
+
+Los archivos locales deberán protegerse de acuerdo con su sensibilidad.
+
+Los datos sensibles no deberán almacenarse en ubicaciones accesibles públicamente.
+
+La aplicación deberá evitar almacenar información de autenticación en:
+
+* almacenamiento externo;
+* archivos públicos;
+* bases de datos sin protección;
+* preferencias no protegidas.
+
+Los archivos temporales que contengan información sensible deberán eliminarse después de su utilización.
+
+## 4.14.26 Datos de Desarrollo
+
+Las compilaciones de desarrollo podrán disponer de herramientas adicionales de diagnóstico, pero estas deberán permanecer separadas de las configuraciones de producción.
+
+No deberán incluirse secretos reales de producción en:
+
+* builds de desarrollo;
+* código fuente;
+* recursos;
+* archivos de configuración;
+* repositorios.
+
+Los endpoints de desarrollo no deberán utilizarse automáticamente en producción.
+
+## 4.14.27 Separación de Entornos
+
+La aplicación deberá distinguir las configuraciones correspondientes a:
+
+```text
+development
+testing
+production
+```
+
+Cada entorno deberá utilizar sus propios endpoints y credenciales.
+
+Las credenciales de producción no deberán almacenarse en el entorno de desarrollo.
+
+Los valores sensibles deberán proporcionarse mediante mecanismos adecuados al proceso de construcción y despliegue.
+
+## 4.14.28 Fallo Seguro
+
+Cuando la aplicación no pueda determinar de forma confiable el estado de autenticación, deberá asumir que la sesión no es válida.
+
+La aplicación no deberá permitir acceso local a recursos protegidos únicamente porque existan datos almacenados previamente.
+
+Ante errores críticos de seguridad deberá preferirse:
+
+```text
+denegar acceso
+```
+
+antes que:
+
+```text
+permitir acceso sin validación
+```
+
+La indisponibilidad del Backend no deberá convertirse en una autorización local.
+
+## 4.14.29 Defensa en Profundidad
+
+La seguridad del cliente Android deberá aplicar múltiples capas:
+
+```text
+Android
+   ↓
+Almacenamiento seguro
+   ↓
+HTTPS / TLS
+   ↓
+Access Token
+   ↓
+Session
+   ↓
+Backend
+   ↓
+Autenticación
+   ↓
+Autorización
+   ↓
+PostgreSQL
+```
+
+Ninguna de estas capas deberá considerarse suficiente por sí sola.
+
+La aplicación deberá asumir que el dispositivo puede estar comprometido y que cualquier información almacenada localmente podría potencialmente ser recuperada por un atacante con privilegios suficientes.
+
+### Regla arquitectónica general
+
+> **La aplicación Android deberá proteger las credenciales, tokens, comunicaciones y datos locales, pero nunca deberá sustituir los controles de seguridad del Backend. La autoridad final sobre identidad, sesiones, autorización y acceso a recursos permanecerá en Chiri Platform Backend.**
 
 # 4.15 Auditoría y Registro de Seguridad
 
