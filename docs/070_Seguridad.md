@@ -2694,66 +2694,880 @@ El fallo de un control obligatorio deberá impedir la ejecución de la operació
 
 # 4.12 Seguridad de la Base de Datos
 
-La Base de Datos de Chiri Platform deberá protegerse contra acceso no autorizado, modificación indebida, pérdida de información y exposición de datos.
+La Base de Datos de Chiri Platform deberá proteger la información almacenada frente a acceso, modificación, eliminación o exposición no autorizados.
 
-El acceso a la Base de Datos deberá estar limitado a los componentes que realmente lo necesiten.
+La Base de Datos deberá aplicar los principios de:
 
-Las cuentas utilizadas para acceder a la Base de Datos deberán disponer únicamente de los permisos necesarios para sus funciones.
+* mínimo privilegio;
+* separación de responsabilidades;
+* autenticación;
+* autorización;
+* protección de datos;
+* integridad;
+* disponibilidad;
+* auditoría;
+* respaldo;
+* recuperación.
 
-Las credenciales de la Base de Datos deberán mantenerse protegidas y separadas del código fuente.
+La Base de Datos será un componente interno de Chiri Platform y no deberá estar directamente expuesta a clientes externos.
 
-La Base de Datos no deberá exponerse directamente a redes externas cuando no sea necesario.
+La aplicación Android nunca deberá conectarse directamente a PostgreSQL.
 
-El acceso deberá realizarse preferentemente a través de los componentes autorizados de Chiri Platform.
+El acceso normal a los datos deberá realizarse mediante el Backend y las interfaces definidas por la arquitectura.
 
-Las operaciones realizadas sobre la Base de Datos deberán respetar las reglas de autorización y seguridad definidas por la plataforma.
+## 4.12.1 Acceso a PostgreSQL
 
-Las consultas deberán utilizar mecanismos seguros para evitar inyección y manipulación de instrucciones.
+El acceso a PostgreSQL deberá limitarse a los componentes que realmente necesiten utilizarlo.
 
-Los datos sensibles deberán protegerse de acuerdo con su nivel de clasificación.
+El Backend deberá ser el componente principal encargado de acceder a los datos de la aplicación.
 
-Los respaldos de la Base de Datos deberán considerarse información sensible y deberán disponer de controles de acceso y protección adecuados.
+Los clientes externos no deberán acceder directamente a PostgreSQL.
 
-Las operaciones administrativas sobre la Base de Datos deberán mantenerse separadas de las operaciones normales de la aplicación.
+No deberán exponerse públicamente:
 
-Los cambios estructurales o administrativos que puedan afectar la integridad de los datos deberán realizarse mediante procedimientos controlados.
+* puerto PostgreSQL;
+* credenciales PostgreSQL;
+* interfaces administrativas;
+* conexiones directas a la Base de Datos.
+
+La Base de Datos deberá permanecer dentro de la infraestructura protegida de Chiri Platform.
 
 ### Regla arquitectónica
 
-> **La Base de Datos deberá permanecer protegida de accesos no autorizados y únicamente los componentes e identidades que necesiten acceso podrán disponer de los privilegios mínimos requeridos.**
+> **PostgreSQL no será un punto de acceso directo para clientes externos; el acceso a los datos deberá realizarse mediante el Backend autorizado.**
 
----
+## 4.12.2 Credenciales de Base de Datos
+
+Las credenciales utilizadas para acceder a PostgreSQL deberán mantenerse como secretos.
+
+Las credenciales no deberán almacenarse en:
+
+* código fuente;
+* repositorios;
+* imágenes Docker;
+* documentación pública;
+* logs;
+* respuestas API.
+
+Las credenciales deberán gestionarse mediante los mecanismos definidos en `4.8`.
+
+Las credenciales deberán poder ser reemplazadas sin modificar el código fuente del Backend.
+
+## 4.12.3 Separación de Credenciales
+
+Las credenciales utilizadas por la aplicación durante su ejecución deberán mantenerse separadas de las credenciales utilizadas para ejecutar migraciones.
+
+La aplicación deberá utilizar únicamente los privilegios necesarios para sus operaciones normales.
+
+Las migraciones Alembic podrán utilizar una identidad con privilegios adicionales únicamente cuando sean necesarios para modificar la estructura de la Base de Datos.
+
+Las credenciales administrativas no deberán utilizarse para las operaciones normales de la aplicación.
+
+### Regla arquitectónica
+
+> **Las credenciales de ejecución y las credenciales de migración deberán mantenerse separadas y deberán disponer únicamente de los privilegios necesarios para sus respectivas funciones.**
+
+## 4.12.4 Principio de Mínimo Privilegio
+
+Los usuarios, servicios y procesos que accedan a PostgreSQL deberán disponer únicamente de los permisos necesarios.
+
+El usuario utilizado por el Backend no deberá disponer de privilegios administrativos innecesarios.
+
+Los permisos deberán limitarse según:
+
+* Base de Datos;
+* esquema;
+* tabla;
+* operación;
+* función.
+
+Cuando sea posible, deberán evitarse privilegios globales.
+
+Los permisos que ya no sean necesarios deberán eliminarse.
+
+## 4.12.5 Esquemas de PostgreSQL
+
+La Base de Datos podrá utilizar esquemas para separar responsabilidades y dominios de información.
+
+Los permisos deberán limitarse al esquema y objetos necesarios para cada componente.
+
+En particular, los componentes que no necesiten acceder a determinados esquemas no deberán disponer de permisos sobre ellos.
+
+La separación lógica de esquemas no deberá considerarse por sí sola una frontera de seguridad suficiente; deberá complementarse con autenticación y autorización de PostgreSQL.
+
+## 4.12.6 Integridad de Datos
+
+La integridad de la información deberá protegerse mediante restricciones de Base de Datos cuando corresponda.
+
+Podrán utilizarse:
+
+* `PRIMARY KEY`;
+* `FOREIGN KEY`;
+* `UNIQUE`;
+* `NOT NULL`;
+* `CHECK`;
+* restricciones de integridad referencial.
+
+Las reglas críticas de integridad no deberán depender exclusivamente de validaciones realizadas por el cliente.
+
+Las validaciones del Backend deberán complementar las restricciones de PostgreSQL.
+
+### Regla arquitectónica
+
+> **Las reglas críticas de integridad de datos deberán protegerse en la Base de Datos cuando puedan expresarse mediante restricciones del modelo.**
+
+## 4.12.7 UUID
+
+Los identificadores principales definidos como UUID deberán mantenerse como UUID en PostgreSQL.
+
+Los UUID deberán generarse mediante los mecanismos definidos por la arquitectura.
+
+La Base de Datos deberá mantener la integridad de los identificadores mediante sus restricciones correspondientes.
+
+Los clientes no deberán poder modificar arbitrariamente identificadores de entidades existentes.
+
+Los UUID utilizados en solicitudes deberán validarse en el Backend antes de realizar operaciones sobre PostgreSQL.
+
+## 4.12.8 Contraseñas
+
+Las contraseñas de usuario no deberán almacenarse directamente en PostgreSQL.
+
+Únicamente deberá almacenarse el resultado derivado mediante **Argon2id**.
+
+La Base de Datos no deberá contener:
+
+* contraseña en texto plano;
+* contraseña recuperable;
+* contraseña temporal en texto plano.
+
+El `password_hash` deberá considerarse información sensible.
+
+El Backend será responsable de realizar las operaciones de hash y verificación de contraseñas.
+
+## 4.12.9 Tokens y Datos de Autenticación
+
+Los tokens utilizados por los mecanismos de autenticación deberán protegerse de acuerdo con `4.7` y `4.8`.
+
+Los valores sensibles de tokens no deberán almacenarse en texto plano cuando pueda utilizarse una representación protegida o derivada.
+
+Los tokens de activación, recuperación o renovación deberán disponer de:
+
+* duración limitada;
+* uso controlado;
+* invalidación;
+* asociación con la identidad correspondiente.
+
+La Base de Datos no deberá utilizarse como mecanismo para exponer tokens mediante consultas administrativas o endpoints.
+
+## 4.12.10 Acceso desde el Backend
+
+El Backend deberá acceder a PostgreSQL mediante la capa de persistencia definida por la arquitectura.
+
+Las operaciones deberán utilizar consultas parametrizadas.
+
+No deberán construirse consultas concatenando directamente datos recibidos desde clientes.
+
+El Backend deberá validar los datos antes de enviarlos a PostgreSQL.
+
+Las operaciones que modifiquen datos deberán respetar:
+
+* autorización;
+* reglas de negocio;
+* integridad;
+* transacciones.
+
+## 4.12.11 SQL Injection
+
+La arquitectura deberá proteger PostgreSQL contra SQL Injection.
+
+Las consultas deberán utilizar:
+
+* SQLAlchemy ORM;
+* parámetros;
+* consultas parametrizadas;
+* mecanismos seguros de composición de consultas.
+
+Los valores proporcionados por clientes nunca deberán concatenarse directamente dentro de instrucciones SQL.
+
+Los filtros dinámicos deberán utilizar listas explícitas de campos permitidos.
+
+Los nombres de tablas, columnas y operadores no deberán poder ser definidos arbitrariamente por un cliente.
+
+## 4.12.12 Transacciones
+
+Las operaciones que modifiquen múltiples recursos relacionados deberán utilizar transacciones cuando sea necesario mantener la consistencia.
+
+Una operación deberá confirmarse únicamente cuando todas las modificaciones necesarias se hayan completado correctamente.
+
+Ante un error, la transacción deberá revertirse cuando corresponda.
+
+Las operaciones parciales no deberán dejar la Base de Datos en un estado inconsistente.
+
+El Backend deberá definir explícitamente los límites de las transacciones para las operaciones críticas.
+
+## 4.12.13 Migraciones Alembic
+
+Los cambios estructurales de PostgreSQL deberán gestionarse mediante **Alembic**.
+
+Las migraciones deberán:
+
+* estar versionadas;
+* almacenarse en Git;
+* poder reproducirse;
+* ser revisadas;
+* ejecutarse de forma controlada.
+
+No deberán realizarse modificaciones estructurales manuales como parte del funcionamiento normal del Backend.
+
+Las migraciones deberán ejecutarse utilizando las credenciales correspondientes al proceso de migración.
+
+Las migraciones deberán ser compatibles con el estado real de la Base de Datos antes de aplicarse.
+
+### Regla arquitectónica
+
+> **Toda modificación estructural de PostgreSQL deberá realizarse mediante migraciones Alembic versionadas y controladas.**
+
+## 4.12.14 Auditoría de Acceso
+
+Los accesos y operaciones relevantes sobre información sensible deberán poder relacionarse con los mecanismos de auditoría definidos en `4.15`.
+
+La auditoría deberá permitir identificar, cuando corresponda:
+
+* identidad;
+* operación;
+* recurso;
+* timestamp;
+* resultado;
+* `request_id`.
+
+Los registros no deberán contener:
+
+* contraseñas;
+* tokens completos;
+* credenciales;
+* secretos;
+* claves privadas.
+
+## 4.12.15 Logs de PostgreSQL
+
+Los logs de PostgreSQL deberán configurarse de forma que proporcionen información útil para operación y seguridad sin exponer credenciales o información sensible innecesaria.
+
+No deberán registrarse credenciales.
+
+Los mecanismos de logging deberán evitar la exposición innecesaria de:
+
+* datos personales;
+* tokens;
+* secretos;
+* información de autenticación.
+
+Los logs deberán protegerse mediante controles de acceso adecuados.
+
+## 4.12.16 Protección de Conexiones
+
+Las conexiones a PostgreSQL deberán limitarse a los componentes autorizados.
+
+El puerto de PostgreSQL no deberá exponerse públicamente.
+
+Cuando la arquitectura requiera conexiones a través de redes no confiables, deberá utilizarse protección criptográfica apropiada.
+
+Las conexiones deberán utilizar credenciales válidas y permisos mínimos.
+
+El Backend no deberá aceptar conexiones arbitrarias desde clientes externos hacia PostgreSQL.
+
+## 4.12.17 Pool de Conexiones
+
+El Backend deberá utilizar un pool de conexiones configurado de acuerdo con la capacidad de PostgreSQL y las necesidades de la aplicación.
+
+El número máximo de conexiones deberá limitarse para evitar consumo excesivo de recursos.
+
+Las conexiones deberán liberarse correctamente después de su utilización.
+
+Una conexión fallida no deberá mantenerse indefinidamente en el pool.
+
+La configuración deberá evitar que un aumento de solicitudes produzca agotamiento de las conexiones disponibles.
+
+## 4.12.18 Protección contra Agotamiento de Recursos
+
+La Base de Datos deberá protegerse contra consumo excesivo de recursos.
+
+Deberán considerarse:
+
+* número máximo de conexiones;
+* consultas excesivamente costosas;
+* operaciones masivas;
+* tamaño de solicitudes;
+* consultas sin límites;
+* operaciones repetitivas.
+
+El Backend deberá aplicar paginación cuando una consulta pueda devolver grandes cantidades de información.
+
+Las operaciones costosas deberán disponer de límites apropiados.
+
+## 4.12.19 Paginación y Límites
+
+Las consultas que devuelvan colecciones deberán utilizar límites y paginación cuando corresponda.
+
+El cliente no deberá poder solicitar cantidades arbitrariamente grandes de registros.
+
+Los límites máximos deberán definirse en el Backend.
+
+Los parámetros de paginación deberán validarse.
+
+Una solicitud que supere el límite permitido deberá ser rechazada o ajustada de acuerdo con la política definida para el endpoint.
+
+## 4.12.20 Eliminación de Datos
+
+Las operaciones de eliminación deberán estar protegidas mediante autorización.
+
+La eliminación de datos críticos deberá aplicar las reglas de negocio correspondientes.
+
+Cuando la arquitectura utilice eliminación lógica, el estado deberá mantenerse consistente con las reglas de identidad y autorización.
+
+En particular, un usuario con estado:
+
+```text
+DELETED
+````
+
+no deberá poder acceder a recursos protegidos.
+
+Los datos necesarios para auditoría deberán conservarse de acuerdo con la política de retención definida.
+
+## 4.12.21 Respaldos
+
+La Base de Datos deberá disponer de mecanismos de respaldo adecuados a las necesidades de disponibilidad y recuperación de Chiri Platform.
+
+Los respaldos deberán protegerse contra:
+
+* acceso no autorizado;
+* modificación;
+* eliminación accidental;
+* pérdida;
+* exposición.
+
+Los respaldos que contengan información sensible deberán tratarse con el mismo nivel de protección que los datos originales.
+
+Los respaldos no deberán almacenarse en ubicaciones públicamente accesibles.
+
+## 4.12.22 Recuperación
+
+Los procedimientos de recuperación deberán estar documentados y deberán poder probarse.
+
+La restauración de un respaldo deberá considerar:
+
+* integridad;
+* disponibilidad;
+* credenciales;
+* configuración;
+* migraciones;
+* compatibilidad de versiones.
+
+Después de una restauración deberá verificarse que los controles de seguridad continúan funcionando correctamente.
+
+## 4.12.23 Docker y PostgreSQL
+
+Cuando PostgreSQL se ejecute mediante Docker, el contenedor deberá utilizar una configuración de mínimo privilegio.
+
+No deberán incluirse credenciales directamente dentro de la imagen.
+
+Los datos de PostgreSQL deberán mantenerse en almacenamiento persistente apropiado.
+
+El puerto de PostgreSQL no deberá publicarse hacia Internet.
+
+El acceso deberá limitarse a las redes y servicios que realmente lo necesiten.
+
+Los volúmenes de datos deberán protegerse mediante permisos adecuados del sistema operativo y Docker.
+
+## 4.12.24 Entorno de Producción
+
+En producción deberán utilizarse:
+
+* credenciales propias del entorno;
+* configuración propia del entorno;
+* permisos mínimos;
+* respaldos;
+* monitoreo;
+* mecanismos de recuperación.
+
+Las credenciales de desarrollo no deberán utilizarse en producción.
+
+Los datos reales de producción no deberán utilizarse en entornos de desarrollo sin controles y anonimización apropiados cuando corresponda.
+
+## 4.12.25 Desarrollo y Pruebas
+
+Los entornos de desarrollo y pruebas deberán utilizar Bases de Datos independientes de producción.
+
+No deberán utilizarse credenciales de producción durante el desarrollo.
+
+Los datos de producción no deberán copiarse directamente a entornos de desarrollo sin medidas de protección adecuadas.
+
+Las pruebas deberán utilizar datos ficticios o adecuadamente protegidos.
+
+## 4.12.26 Principio de Fail Secure
+
+Cuando el Backend no pueda determinar de forma confiable si una operación sobre PostgreSQL está autorizada, deberá rechazar la operación.
+
+La indisponibilidad de un mecanismo de autorización no deberá provocar acceso automático a los datos.
+
+Los errores de Base de Datos deberán manejarse de forma controlada.
+
+No deberán exponerse al cliente detalles internos de PostgreSQL.
+
+### Regla arquitectónica
+
+> **Ante cualquier condición en la que no pueda verificarse de forma confiable la autorización o integridad de una operación de datos, Chiri Platform deberá rechazar la operación y mantener la Base de Datos en un estado seguro.**
+
+## 4.12.27 Defensa en Profundidad
+
+La protección de PostgreSQL deberá aplicar varias capas:
+
+```text
+Cliente
+   ↓
+HTTPS
+   ↓
+API
+   ↓
+Autenticación
+   ↓
+Autorización
+   ↓
+Backend
+   ↓
+Credenciales DB
+   ↓
+PostgreSQL
+   ↓
+Restricciones de integridad
+   ↓
+Auditoría / Backup
+```
+
+La Base de Datos no deberá depender de una única capa de seguridad.
+
+Los controles de aplicación deberán complementarse con controles propios de PostgreSQL y de la infraestructura.
+
+### Regla arquitectónica general
+
+> **PostgreSQL será un componente interno protegido por múltiples capas de seguridad, accesible únicamente mediante identidades autorizadas y con privilegios mínimos, manteniendo la integridad, confidencialidad, disponibilidad y trazabilidad de los datos.**
 
 # 4.13 Seguridad de Servicios Internos
 
-Los servicios internos integrados con Chiri Platform deberán considerarse componentes independientes y no deberán recibir confianza automática por encontrarse dentro de la infraestructura de la plataforma.
+Los servicios internos utilizados por Chiri Platform deberán considerarse componentes independientes y deberán disponer de controles de seguridad adecuados a su función.
 
-Cada servicio deberá disponer únicamente de los accesos necesarios para cumplir su función.
+La pertenencia de un servicio a la red interna no deberá considerarse suficiente para establecer confianza automática.
 
-Cuando corresponda, las comunicaciones entre Chiri Platform y los servicios internos deberán utilizar mecanismos de autenticación y protección adecuados.
+Los servicios internos deberán utilizar el principio de mínimo privilegio y deberán acceder únicamente a los recursos necesarios para cumplir su función.
 
-Los servicios internos deberán:
+El Backend deberá controlar las comunicaciones con servicios internos cuando dichas comunicaciones puedan afectar recursos protegidos o información sensible.
 
-* limitar los puertos y protocolos utilizados;
-* restringir los accesos innecesarios;
-* utilizar credenciales independientes;
-* proteger sus secretos;
-* mantener sus componentes actualizados;
-* registrar los eventos de seguridad relevantes.
+## 4.12.1 Identidad de Servicios
 
-El acceso desde un servicio interno hacia otro servicio deberá estar limitado al mínimo necesario.
+Cada servicio interno que requiera autenticación deberá utilizar una identidad propia.
 
-Un compromiso de un servicio interno no deberá proporcionar automáticamente acceso completo al resto de Chiri Platform.
+Las identidades de servicios deberán mantenerse separadas de las cuentas de usuarios.
 
-Los servicios integrados que puedan acceder a información sensible deberán recibir permisos proporcionales a la información y operaciones que necesiten.
+No deberá utilizarse una cuenta de usuario para autenticar permanentemente un servicio.
 
-Los servicios internos no deberán exponer interfaces administrativas o de gestión cuando no sean necesarias para su funcionamiento.
+Cada identidad de servicio deberá disponer únicamente de los permisos necesarios.
 
-Las integraciones externas deberán considerarse fronteras adicionales de seguridad y deberán validarse las respuestas y datos recibidos antes de utilizarlos.
+Las credenciales de servicios deberán poder ser revocadas o reemplazadas independientemente de las credenciales de otros servicios.
 
 ### Regla arquitectónica
 
-> **Ningún servicio interno deberá considerarse confiable por defecto; cada integración deberá utilizar únicamente los permisos, comunicaciones y recursos necesarios para cumplir su función.**
+> **Cada servicio deberá disponer de una identidad independiente y únicamente de los privilegios necesarios para cumplir su función.**
+
+## 4.13.2 Credenciales de Servicios
+
+Las credenciales utilizadas entre servicios deberán considerarse secretos.
+
+No deberán almacenarse en:
+
+* código fuente;
+* repositorios;
+* imágenes Docker;
+* logs;
+* documentación pública;
+* respuestas API.
+
+Las credenciales deberán gestionarse mediante los mecanismos definidos en `4.8`.
+
+Las credenciales de servicios diferentes deberán mantenerse separadas cuando sea técnicamente posible.
+
+Un secreto utilizado por un servicio no deberá reutilizarse automáticamente para todos los servicios internos.
+
+## 4.13.3 Autenticación entre Servicios
+
+Cuando un servicio interno requiera autenticación, deberá utilizar un mecanismo explícito de identificación.
+
+El mecanismo deberá permitir determinar:
+
+* servicio origen;
+* servicio destino;
+* identidad utilizada;
+* operación solicitada.
+
+La autenticación entre servicios no deberá depender únicamente de:
+
+* dirección IP;
+* red local;
+* nombre DNS;
+* pertenencia al mismo contenedor;
+* pertenencia al mismo Docker network.
+
+La red podrá actuar como una capa adicional de protección, pero no deberá considerarse el único mecanismo de confianza cuando el riesgo lo requiera.
+
+## 4.13.4 Autorización entre Servicios
+
+Un servicio autenticado no deberá tener acceso automáticamente a todos los recursos de otro servicio.
+
+El servicio destino deberá validar que la identidad de origen está autorizada para realizar la operación solicitada.
+
+Los permisos deberán limitarse según:
+
+```text
+servicio origen
+        ↓
+operación
+        ↓
+recurso
+        ↓
+servicio destino
+````
+
+Una identidad de servicio comprometida no deberá proporcionar automáticamente acceso a todos los servicios internos.
+
+## 4.13.5 Comunicación entre Servicios
+
+Las comunicaciones entre servicios deberán utilizar mecanismos adecuados al nivel de riesgo.
+
+Cuando una comunicación atraviese una frontera de seguridad o transporte información sensible, deberá utilizar protección criptográfica apropiada.
+
+Las comunicaciones internas no deberán exponerse directamente a clientes externos salvo que exista una decisión arquitectónica explícita.
+
+Los servicios deberán comunicarse únicamente mediante los puertos y protocolos necesarios.
+
+Los puertos internos que no necesiten exposición externa no deberán publicarse hacia Internet.
+
+## 4.13.6 Red Docker
+
+Los servicios ejecutados mediante Docker deberán utilizar redes apropiadas para limitar la comunicación entre componentes.
+
+Un servicio no deberá conectarse a todas las redes disponibles sin necesidad.
+
+Los contenedores deberán utilizar únicamente las redes requeridas por su función.
+
+Cuando sea posible, deberán separarse:
+
+```text
+Red pública / entrada
+        ↓
+API
+        ↓
+Backend
+        ↓
+Servicios internos
+        ↓
+Base de Datos
+```
+
+La configuración exacta de redes podrá variar según el despliegue, pero deberá mantener el principio de mínima exposición.
+
+## 4.13.7 Exposición de Puertos
+
+Los servicios internos no deberán publicar puertos hacia interfaces externas cuando no sea necesario.
+
+Los puertos publicados deberán limitarse a los estrictamente necesarios.
+
+No deberán exponerse directamente hacia Internet:
+
+* PostgreSQL;
+* Redis;
+* servicios internos;
+* APIs administrativas;
+* interfaces de administración;
+* servicios de soporte interno.
+
+Cuando un servicio requiera acceso externo, deberá utilizar la arquitectura de exposición definida para Chiri Platform.
+
+## 4.13.8 Backend y Servicios Internos
+
+El Backend será responsable de controlar las solicitudes que realice hacia servicios internos cuando estas formen parte de operaciones protegidas.
+
+El Backend deberá validar las respuestas recibidas antes de utilizarlas.
+
+Los datos recibidos de un servicio interno no deberán considerarse automáticamente confiables.
+
+El Backend deberá validar:
+
+* formato;
+* estructura;
+* tipos;
+* valores;
+* estado;
+* errores.
+
+Una respuesta inesperada no deberá provocar automáticamente la ejecución de operaciones privilegiadas.
+
+## 4.13.9 Servicios Externos
+
+Las integraciones con servicios externos deberán mantenerse separadas de las credenciales y recursos internos que no necesiten.
+
+Cada integración deberá disponer de credenciales específicas.
+
+Las credenciales deberán disponer únicamente de los permisos requeridos.
+
+Las respuestas de servicios externos deberán considerarse no confiables y deberán validarse antes de ser utilizadas.
+
+Los errores externos no deberán provocar la exposición de:
+
+* credenciales;
+* secretos;
+* stack traces;
+* información interna;
+* datos de otros usuarios.
+
+## 4.13.10 Timeouts y Disponibilidad
+
+Las comunicaciones entre servicios deberán utilizar timeouts apropiados.
+
+Ningún servicio deberá esperar indefinidamente una respuesta de otro componente.
+
+Cuando un servicio interno no esté disponible, el Backend deberá manejar la condición de forma controlada.
+
+La indisponibilidad de un servicio no deberá provocar automáticamente:
+
+* concesión de permisos;
+* omisión de autenticación;
+* exposición de información;
+* ejecución de operaciones no autorizadas.
+
+Cuando una dependencia sea necesaria para determinar si una operación es segura, la operación deberá rechazarse si no puede realizarse una validación confiable.
+
+## 4.13.11 Reintentos
+
+Los mecanismos de reintento deberán utilizar límites apropiados.
+
+Los servicios no deberán realizar reintentos indefinidos.
+
+Los reintentos deberán considerar:
+
+* cantidad máxima;
+* intervalo;
+* timeout;
+* tipo de error;
+* idempotencia de la operación.
+
+Las operaciones no idempotentes deberán disponer de controles adicionales para evitar ejecuciones duplicadas.
+
+## 4.13.12 Protección contra Abuso
+
+Los servicios internos deberán disponer de límites adecuados cuando exista riesgo de:
+
+* solicitudes excesivas;
+* consumo excesivo de recursos;
+* automatización;
+* llamadas recursivas;
+* ciclos entre servicios.
+
+Un servicio interno comprometido no deberá poder generar solicitudes ilimitadas hacia otros componentes.
+
+Los mecanismos de protección contra abuso deberán complementar los definidos en `4.18`.
+
+## 4.13.13 Gestión de Secretos
+
+Los secretos utilizados para comunicación entre servicios deberán gestionarse según `4.8`.
+
+Los secretos deberán:
+
+* mantenerse fuera del código;
+* mantenerse fuera de Git;
+* mantenerse fuera de las imágenes;
+* no aparecer en logs;
+* poder ser reemplazados;
+* disponer de privilegios mínimos.
+
+Cuando un secreto sea comprometido, deberá poder revocarse sin necesidad de reemplazar automáticamente las credenciales de todos los servicios.
+
+## 4.13.14 Logs y Auditoría
+
+Las comunicaciones relevantes entre servicios deberán poder registrarse cuando sean necesarias para seguridad o diagnóstico.
+
+Los registros podrán contener:
+
+* servicio origen;
+* servicio destino;
+* operación;
+* timestamp;
+* `request_id`;
+* resultado;
+* error controlado.
+
+No deberán registrarse:
+
+* credenciales;
+* tokens completos;
+* secretos;
+* claves privadas;
+* información sensible innecesaria.
+
+Los eventos relevantes de seguridad deberán seguir las reglas de auditoría definidas en `4.15`.
+
+## 4.13.15 Identificadores de Correlación
+
+Las operaciones que atraviesen varios servicios deberán poder correlacionarse mediante un identificador de solicitud cuando sea necesario.
+
+Ejemplo:
+
+```text
+Cliente
+   ↓
+API
+   ↓ request_id
+Backend
+   ↓ request_id
+Servicio interno
+   ↓ request_id
+Auditoría
+```
+
+El `request_id` no deberá contener información sensible.
+
+La correlación deberá permitir investigar una operación sin necesidad de registrar credenciales o tokens.
+
+## 4.13.16 Mínimo Privilegio
+
+Cada servicio deberá disponer únicamente de los accesos necesarios.
+
+Por ejemplo:
+
+```text
+Servicio A
+ ├── acceso → recurso A
+ └── acceso → recurso B
+
+Servicio B
+ └── acceso → recurso C
+```
+
+No deberá concederse acceso global por comodidad de configuración.
+
+Los permisos deberán revisarse cuando cambie la función del servicio.
+
+Los permisos que ya no sean necesarios deberán eliminarse.
+
+## 4.13.17 Acceso a Base de Datos
+
+Los servicios internos no deberán acceder directamente a PostgreSQL salvo que exista una necesidad arquitectónica explícita.
+
+Cuando un servicio necesite acceso directo a la Base de Datos, deberá utilizar una identidad y credenciales específicas.
+
+El servicio deberá disponer únicamente de los permisos necesarios.
+
+Las credenciales deberán mantenerse separadas de las utilizadas por otros servicios.
+
+La Base de Datos deberá continuar protegida mediante los mecanismos definidos para PostgreSQL y no deberá exponerse directamente a clientes externos.
+
+## 4.13.18 Administración
+
+Las interfaces administrativas de los servicios internos deberán mantenerse separadas de las interfaces destinadas a operaciones normales.
+
+Las interfaces administrativas no deberán exponerse públicamente sin mecanismos de protección adecuados.
+
+Cuando una operación administrativa afecte seguridad o infraestructura deberá:
+
+* requerir autenticación;
+* requerir autorización;
+* limitarse a identidades autorizadas;
+* generar auditoría cuando corresponda.
+
+## 4.13.19 Contenedores
+
+Los servicios internos ejecutados mediante Docker deberán seguir el principio de mínimo privilegio.
+
+Los contenedores deberán evitar:
+
+* ejecución como `root` cuando no sea necesaria;
+* privilegios adicionales;
+* acceso innecesario al host;
+* montajes innecesarios;
+* publicación innecesaria de puertos;
+* acceso a dispositivos del host sin necesidad.
+
+Los contenedores no deberán incluir secretos permanentes dentro de sus imágenes.
+
+## 4.13.20 Fallo Seguro
+
+Si un servicio interno no puede verificar correctamente una solicitud protegida, deberá rechazarla.
+
+No deberá concederse acceso debido a:
+
+* indisponibilidad de un servicio de autorización;
+* error de red;
+* timeout;
+* error de autenticación;
+* respuesta inválida;
+* configuración incompleta.
+
+La plataforma deberá preferir una operación rechazada antes que una operación ejecutada sin validación suficiente.
+
+### Regla arquitectónica
+
+> **La indisponibilidad o fallo de un mecanismo de seguridad no deberá convertirse en una autorización implícita.**
+
+## 4.13.21 Aislamiento
+
+Los servicios internos deberán mantenerse aislados según su nivel de riesgo.
+
+La arquitectura deberá evitar que el compromiso de un servicio permita automáticamente:
+
+* acceder a PostgreSQL;
+* acceder a otros servicios;
+* obtener credenciales;
+* modificar permisos;
+* acceder a información de otros componentes.
+
+El aislamiento deberá combinar:
+
+* redes;
+* autenticación;
+* autorización;
+* credenciales independientes;
+* mínimo privilegio;
+* controles de infraestructura.
+
+## 4.13.22 Defensa en Profundidad
+
+La seguridad de los servicios internos deberá aplicar múltiples capas de protección.
+
+El flujo conceptual será:
+
+```text
+Servicio origen
+      ↓
+Red / Firewall
+      ↓
+Autenticación
+      ↓
+Autorización
+      ↓
+Validación
+      ↓
+Servicio destino
+      ↓
+Reglas de negocio
+      ↓
+Recurso
+      ↓
+Auditoría
+```
+
+Ninguna capa deberá considerarse suficiente por sí sola.
+
+### Regla arquitectónica general
+
+> **Los servicios internos de Chiri Platform no deberán considerarse confiables por defecto y deberán utilizar identidad, autenticación, autorización, mínimo privilegio, aislamiento de red y protección de secretos de acuerdo con su función y nivel de riesgo.**
 
 # 4.14 Seguridad de Android
 
