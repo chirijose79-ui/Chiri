@@ -556,20 +556,6 @@ Los registros de auditoría necesarios para seguridad, trazabilidad o cumplimien
 
 # 4.7 Gestión de Sesiones y Tokens
 
-
-Sí. Revisé antes de escribirla contra lo que realmente existe en `master`.
-
-Encontré un punto importante: **el modelo actual ya tiene `User` con UUID y estados `ACTIVE / INACTIVE / DELETED`, pero todavía no existe una entidad `Session` implementada en el Backend**. La estructura actual del servidor todavía tiene la capa `security` preparada, pero no hay un modelo de sesión implementado.
-
-Por eso, `4.7` debe documentar **la arquitectura que vamos a implementar**, sin afirmar que Session/Refresh Token/JWT ya existen en código.
-
-También `060_API.md` ya establece conceptualmente que la autenticación utilizará sesiones, Access Token y Refresh Token, y que la API contempla inicio, renovación, cierre y consulta de sesión.
-
-Con esa precisión, esta es la versión que recomiendo dejar como definitiva:
-
-````markdown
-# 4.7 Gestión de Sesiones y Tokens
-
 Chiri Platform deberá gestionar de forma segura las sesiones y los mecanismos utilizados para mantener el estado de autenticación de los usuarios.
 
 La arquitectura de autenticación utilizará un modelo basado en:
@@ -626,7 +612,7 @@ Los estados mínimos de una sesión serán:
 ACTIVE
 REVOKED
 EXPIRED
-````
+```
 
 Una sesión `REVOKED` no podrá utilizarse nuevamente.
 
@@ -1124,7 +1110,7 @@ El repositorio podrá incluir:
 
 ```text
 .env.example
-````
+```
 
 Este archivo deberá contener únicamente:
 
@@ -1488,7 +1474,7 @@ Las solicitudes sin una autenticación válida deberán rechazarse con:
 
 ```text
 401 Unauthorized
-````
+```
 
 ## 4.10.2 Autorización de Solicitudes
 
@@ -2099,46 +2085,612 @@ El fallo de cualquiera de los controles de seguridad deberá impedir la ejecuci�
 
 # 4.11 Seguridad del Backend
 
-El Backend de Chiri Platform deberá aplicar los controles necesarios para proteger la lógica de negocio, los recursos internos y la información procesada por la plataforma.
+El Backend de Chiri Platform deberá implementar las reglas de seguridad necesarias para proteger la lógica de negocio, los datos, las sesiones, las integraciones y los servicios internos.
 
-El Backend deberá:
+El Backend será responsable de aplicar los controles de seguridad independientemente del cliente utilizado para acceder a la plataforma.
 
-* validar las solicitudes recibidas;
-* aplicar las reglas de autorización;
-* proteger la lógica de negocio;
-* utilizar únicamente los privilegios necesarios;
-* proteger las credenciales y secretos;
-* controlar el acceso a recursos internos;
-* gestionar los errores de forma segura;
-* registrar los eventos de seguridad relevantes.
+La seguridad del Backend deberá considerar:
 
-La lógica de seguridad no deberá depender exclusivamente del cliente.
+* autenticación;
+* autorización;
+* validación de entradas;
+* protección de datos;
+* gestión de sesiones;
+* gestión de secretos;
+* acceso a Base de Datos;
+* comunicación con servicios internos;
+* manejo de errores;
+* auditoría;
+* protección contra abuso;
+* configuración segura.
 
-Las reglas de negocio que impliquen restricciones de acceso deberán validarse en el Backend antes de ejecutar las operaciones correspondientes.
+El Backend no deberá confiar en que las solicitudes recibidas desde Android u otros clientes sean legítimas únicamente porque hayan sido generadas por una aplicación oficial.
 
-El Backend deberá utilizar cuentas y credenciales con los privilegios mínimos necesarios para acceder a otros componentes.
+## 4.11.1 Separación de Responsabilidades
 
-Los servicios internos utilizados por el Backend deberán autenticarse cuando corresponda y deberán limitar sus permisos al ámbito necesario.
+El Backend deberá mantener separadas las responsabilidades de:
 
-Las excepciones y errores internos no deberán exponer:
+```text
+API
+ ↓
+Autenticación
+ ↓
+Autorización
+ ↓
+Lógica de negocio
+ ↓
+Persistencia
+ ↓
+Integraciones
+````
 
-* credenciales;
-* tokens;
-* claves;
-* consultas internas;
-* rutas sensibles;
-* información de infraestructura;
-* detalles innecesarios de implementación.
+Cada componente deberá realizar únicamente las funciones necesarias para su responsabilidad.
 
-Los componentes del Backend deberán mantenerse actualizados y sus dependencias deberán gestionarse de acuerdo con las políticas de seguridad de la plataforma.
+La lógica de seguridad no deberá depender exclusivamente de la capa de presentación.
 
-El Backend deberá evitar la ejecución de operaciones con privilegios elevados cuando no sean estrictamente necesarias.
+Las decisiones de autenticación y autorización deberán permanecer bajo control del Backend.
+
+Las operaciones de Base de Datos deberán realizarse mediante la capa de persistencia definida por la arquitectura.
+
+Las integraciones externas deberán mantenerse separadas de la lógica principal cuando sea técnicamente apropiado.
 
 ### Regla arquitectónica
 
-> **El Backend deberá aplicar las reglas de seguridad en el servidor y deberá ejecutar cada operación utilizando únicamente los recursos y privilegios necesarios para cumplir su función.**
+> **Ninguna capa del Backend deberá asumir responsabilidades de seguridad que correspondan exclusivamente a otra capa, y los controles críticos deberán validarse en el servidor.**
 
----
+## 4.11.2 Autenticación
+
+El Backend deberá ser la autoridad encargada de validar la autenticación de los clientes.
+
+Las solicitudes protegidas deberán validar el Access Token según las reglas definidas en `4.7` y `4.10`.
+
+El Backend deberá comprobar como mínimo:
+
+* firma;
+* `kid`;
+* `iss`;
+* `aud`;
+* `iat`;
+* `exp`;
+* `user_id`;
+* `session_id`;
+* estado de la sesión;
+* estado del usuario.
+
+La aplicación cliente no podrá determinar por sí misma que una sesión continúa siendo válida.
+
+Un Access Token válido criptográficamente no deberá considerarse suficiente cuando:
+
+* la sesión haya sido revocada;
+* la sesión haya expirado;
+* el usuario se encuentre `INACTIVE`;
+* el usuario se encuentre `DELETED`.
+
+En dichos casos la solicitud deberá rechazarse.
+
+## 4.11.3 Autorización
+
+El Backend deberá validar la autorización antes de ejecutar cualquier operación protegida.
+
+La autorización deberá utilizar los permisos vigentes de la identidad.
+
+Los roles y permisos no deberán confiarse a valores enviados por el cliente.
+
+Los roles y permisos no deberán utilizarse desde información obsoleta almacenada en el JWT.
+
+PostgreSQL será la fuente de verdad para la autorización en la primera implementación.
+
+Los cambios de permisos deberán tener efecto sobre las solicitudes posteriores sin requerir la emisión de un nuevo Access Token.
+
+Una identidad autenticada pero sin autorización suficiente deberá recibir:
+
+```text
+403 Forbidden
+```
+
+## 4.11.4 Lógica de Negocio
+
+Las reglas de negocio deberán validarse en el Backend.
+
+La aplicación Android podrá proporcionar validaciones de interfaz, pero estas no sustituirán las validaciones del servidor.
+
+El Backend deberá comprobar:
+
+* reglas de negocio;
+* relaciones entre entidades;
+* estados válidos;
+* permisos;
+* restricciones;
+* condiciones necesarias para realizar una operación.
+
+Los clientes no deberán poder modificar directamente estados internos que deban ser controlados por el Backend.
+
+Ejemplos de información que deberá permanecer bajo control del servidor:
+
+* estado del usuario;
+* estado de sesión;
+* permisos;
+* roles;
+* identificadores internos;
+* timestamps de creación;
+* timestamps de modificación;
+* información de auditoría.
+
+## 4.11.5 Protección contra Mass Assignment
+
+El Backend deberá utilizar modelos explícitos para las operaciones de entrada.
+
+Los modelos recibidos desde el cliente no deberán mapearse automáticamente sobre todas las propiedades de una entidad.
+
+Los campos protegidos deberán ser controlados explícitamente.
+
+Como mínimo deberán protegerse:
+
+```text
+id
+status
+password_hash
+created_at
+updated_at
+roles
+permissions
+```
+
+cuando correspondan a la entidad.
+
+Las operaciones administrativas deberán utilizar mecanismos explícitos de autorización.
+
+El cliente no deberá poder enviar un campo protegido para modificarlo indirectamente.
+
+## 4.11.6 Acceso a PostgreSQL
+
+El Backend deberá acceder a PostgreSQL utilizando credenciales específicas del entorno de ejecución.
+
+La aplicación deberá utilizar únicamente los privilegios necesarios para sus operaciones normales.
+
+Las credenciales utilizadas por la aplicación deberán mantenerse separadas de las credenciales utilizadas para migraciones.
+
+Las credenciales de migración deberán utilizarse únicamente durante operaciones controladas de migración.
+
+El Backend no deberá utilizar una cuenta PostgreSQL con privilegios administrativos innecesarios para ejecutar operaciones normales.
+
+Las credenciales de Base de Datos deberán gestionarse de acuerdo con `4.8`.
+
+## 4.11.7 SQLAlchemy y Persistencia
+
+Las operaciones de persistencia deberán utilizar el mecanismo ORM definido por el proyecto.
+
+Cuando se utilice SQLAlchemy, las consultas deberán utilizar parámetros y mecanismos seguros proporcionados por SQLAlchemy.
+
+No deberán construirse consultas SQL mediante concatenación directa de valores recibidos del cliente.
+
+Las operaciones que requieran SQL explícito deberán utilizar consultas parametrizadas.
+
+Los identificadores y valores recibidos desde clientes deberán validarse antes de utilizarse en operaciones de persistencia.
+
+## 4.11.8 Migraciones de Base de Datos
+
+Los cambios estructurales de PostgreSQL deberán realizarse mediante Alembic.
+
+El Backend no deberá modificar directamente la estructura de la Base de Datos durante la ejecución normal de la aplicación.
+
+Las migraciones deberán:
+
+* estar versionadas;
+* formar parte del repositorio;
+* poder reproducirse;
+* revisarse antes de aplicarse;
+* ejecutarse de forma controlada.
+
+Las credenciales utilizadas para ejecutar migraciones deberán disponer de privilegios suficientes para realizar los cambios estructurales necesarios.
+
+Las credenciales de migración no deberán utilizarse como credenciales normales de ejecución.
+
+### Regla arquitectónica
+
+> **La estructura de la Base de Datos deberá evolucionar mediante migraciones Alembic controladas y no mediante modificaciones manuales realizadas por la aplicación en tiempo de ejecución.**
+
+## 4.11.9 Manejo de Excepciones
+
+El Backend deberá manejar las excepciones de forma controlada.
+
+Las excepciones internas no deberán exponerse directamente al cliente.
+
+No deberán devolverse al cliente:
+
+* stack traces;
+* rutas del sistema;
+* consultas SQL;
+* credenciales;
+* secretos;
+* información interna de infraestructura;
+* detalles de configuración;
+* información sensible.
+
+Las excepciones deberán convertirse en respuestas API consistentes.
+
+La información técnica necesaria para diagnosticar el error podrá registrarse internamente, respetando las reglas de `4.15`.
+
+## 4.11.10 Errores Internos
+
+Los errores inesperados deberán generar una respuesta controlada.
+
+Cuando una operación falle debido a un error interno, la API podrá responder:
+
+```text
+500 Internal Server Error
+```
+
+La respuesta pública deberá contener un mensaje genérico.
+
+Ejemplo:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERR_INTERNAL",
+    "message": "Error interno del servidor"
+  }
+}
+```
+
+No deberá incluirse en la respuesta información técnica sobre la causa interna.
+
+Cuando sea necesario investigar el incidente, el Backend deberá generar un registro asociado mediante un identificador de correlación.
+
+## 4.11.11 Identificador de Correlación
+
+Las solicitudes deberán poder asociarse a un identificador de correlación cuando sea necesario para trazabilidad.
+
+Podrá utilizarse un identificador como:
+
+```text
+request_id
+```
+
+El identificador deberá permitir relacionar:
+
+```text
+Request
+ ↓
+Backend
+ ↓
+Base de Datos
+ ↓
+Servicio interno
+ ↓
+Log / Auditoría
+```
+
+El identificador no deberá contener:
+
+* contraseñas;
+* tokens;
+* secretos;
+* información personal innecesaria.
+
+Cuando sea apropiado, el `request_id` podrá devolverse al cliente para facilitar soporte y diagnóstico.
+
+## 4.11.12 Gestión de Secretos
+
+El Backend deberá obtener sus secretos mediante mecanismos de configuración seguros.
+
+Los secretos no deberán almacenarse en:
+
+* código fuente;
+* repositorios;
+* imágenes Docker;
+* logs;
+* respuestas API.
+
+Los secretos deberán gestionarse de acuerdo con `4.8`.
+
+Entre los secretos que deberán protegerse se encuentran:
+
+* clave privada JWT;
+* secreto HMAC de auditoría;
+* credenciales PostgreSQL;
+* credenciales de correo;
+* credenciales de servicios internos;
+* credenciales de integraciones externas.
+
+## 4.11.13 Configuración
+
+La configuración del Backend deberá mantenerse separada del código fuente cuando corresponda.
+
+Deberán diferenciarse como mínimo:
+
+```text
+development
+testing
+production
+```
+
+Los valores sensibles deberán proporcionarse mediante variables de entorno o mecanismos de gestión de secretos adecuados.
+
+Los valores predeterminados no deberán contener credenciales reales.
+
+Las configuraciones de desarrollo no deberán utilizarse automáticamente en producción.
+
+La configuración de producción deberá minimizar:
+
+* debug;
+* información de diagnóstico pública;
+* endpoints internos expuestos;
+* credenciales de prueba;
+* configuraciones inseguras.
+
+## 4.11.14 Modo Debug
+
+El modo debug no deberá estar habilitado en producción.
+
+La aplicación no deberá exponer públicamente:
+
+* stack traces;
+* consola interactiva;
+* información de configuración;
+* variables de entorno;
+* información interna del proceso.
+
+Las herramientas de diagnóstico deberán estar restringidas a los entornos y usuarios autorizados.
+
+## 4.11.15 Servicios Internos
+
+El Backend podrá comunicarse con servicios internos cuando la funcionalidad lo requiera.
+
+La comunicación deberá utilizar:
+
+* autenticación apropiada;
+* autorización;
+* canales protegidos cuando corresponda;
+* credenciales específicas;
+* mínimo privilegio.
+
+Los servicios internos no deberán considerarse confiables únicamente por encontrarse en la misma red.
+
+El Backend deberá validar las respuestas recibidas de servicios internos antes de utilizarlas en operaciones sensibles.
+
+Un servicio interno comprometido no deberá proporcionar automáticamente acceso a todos los recursos de Chiri Platform.
+
+## 4.11.16 Integraciones Externas
+
+Las integraciones externas deberán mantenerse aisladas de las credenciales y recursos internos que no necesiten.
+
+Cada integración deberá utilizar sus propias credenciales cuando sea técnicamente posible.
+
+Las respuestas de servicios externos deberán considerarse datos no confiables.
+
+El Backend deberá validar:
+
+* formato;
+* contenido;
+* estado;
+* códigos de respuesta;
+* datos recibidos.
+
+Los errores de un servicio externo no deberán provocar automáticamente la exposición de información interna al cliente.
+
+## 4.11.17 Timeouts
+
+Las comunicaciones con servicios externos o internos deberán utilizar timeouts apropiados.
+
+Una solicitud no deberá permanecer indefinidamente esperando una respuesta externa.
+
+Los timeouts deberán configurarse de acuerdo con la naturaleza de cada servicio.
+
+Las operaciones que puedan tardar más tiempo deberán utilizar mecanismos apropiados para procesamiento asíncrono cuando corresponda.
+
+## 4.11.18 Protección contra Abuso
+
+El Backend deberá aplicar las medidas de protección contra abuso definidas en `4.18`.
+
+Entre ellas:
+
+* rate limiting;
+* protección contra fuerza bruta;
+* límites de solicitudes;
+* protección de endpoints sensibles;
+* restricciones temporales;
+* auditoría.
+
+El Backend no deberá depender exclusivamente de controles implementados por proxies o clientes.
+
+Los controles externos podrán complementar los controles del Backend.
+
+## 4.11.19 Auditoría
+
+Las operaciones relevantes para seguridad deberán generar eventos de auditoría según las reglas definidas en `4.15`.
+
+Podrán registrarse:
+
+```text
+LOGIN_SUCCESS
+LOGIN_FAILED
+SESSION_CREATED
+SESSION_REVOKED
+SESSION_EXPIRED
+AUTHORIZATION_DENIED
+PASSWORD_CHANGED
+PASSWORD_RESET_COMPLETED
+EMAIL_CHANGED
+RATE_LIMITED
+```
+
+Los registros deberán contener únicamente la información necesaria.
+
+Nunca deberán registrarse:
+
+* contraseñas;
+* Access Tokens completos;
+* Refresh Tokens completos;
+* claves privadas;
+* secretos;
+* credenciales.
+
+## 4.11.20 Protección de Información Sensible
+
+El Backend deberá evitar que información sensible llegue a componentes que no la necesiten.
+
+Las respuestas de API deberán utilizar modelos explícitos de salida.
+
+Las entidades internas no deberán serializarse automáticamente cuando puedan contener:
+
+* `password_hash`;
+* secretos;
+* tokens;
+* información de auditoría;
+* credenciales;
+* información interna.
+
+Los campos sensibles deberán excluirse explícitamente de las respuestas.
+
+## 4.11.21 Seguridad de Procesos
+
+El proceso del Backend deberá ejecutarse con los privilegios mínimos necesarios.
+
+El usuario del sistema utilizado para ejecutar la aplicación no deberá disponer de privilegios administrativos innecesarios.
+
+El proceso no deberá ejecutarse como `root` salvo que exista una necesidad explícita y justificada.
+
+Los archivos utilizados por el Backend deberán disponer de permisos adecuados.
+
+Las claves privadas y secretos deberán ser accesibles únicamente por los procesos que los necesiten.
+
+## 4.11.22 Seguridad de Contenedores
+
+Cuando el Backend se ejecute mediante Docker, el contenedor deberá utilizar una configuración de mínimo privilegio.
+
+Deberá evitarse:
+
+* ejecución como `root` cuando no sea necesaria;
+* privilegios adicionales innecesarios;
+* acceso directo a dispositivos del host;
+* montaje de directorios del host que no sean necesarios;
+* exposición innecesaria de puertos.
+
+Los secretos no deberán incorporarse permanentemente a la imagen Docker.
+
+Las imágenes deberán construirse sin incluir:
+
+* `.env` reales;
+* claves privadas;
+* credenciales;
+* tokens;
+* certificados privados.
+
+## 4.11.23 Dependencias
+
+Las dependencias del Backend deberán mantenerse actualizadas y deberán revisarse ante vulnerabilidades conocidas.
+
+Las dependencias deberán limitarse a las necesarias para el funcionamiento de la plataforma.
+
+No deberán incorporarse dependencias innecesarias que aumenten la superficie de ataque.
+
+Los cambios importantes de dependencias deberán validarse mediante pruebas antes de desplegarse en producción.
+
+## 4.11.24 Logs de Aplicación
+
+Los logs deberán utilizar niveles apropiados y deberán evitar información sensible.
+
+Los logs podrán contener:
+
+* errores;
+* eventos operativos;
+* identificadores de correlación;
+* identificadores internos;
+* información necesaria para diagnóstico.
+
+No deberán contener:
+
+* contraseñas;
+* Access Tokens;
+* Refresh Tokens;
+* claves privadas;
+* secretos;
+* credenciales;
+* encabezados `Authorization` completos.
+
+Los logs deberán seguir las reglas de protección y retención definidas en `4.15`.
+
+## 4.11.25 Acceso Administrativo
+
+Las funciones administrativas deberán estar protegidas mediante autenticación y autorización específicas.
+
+El Backend deberá verificar explícitamente los permisos administrativos antes de ejecutar:
+
+* cambios de roles;
+* cambios de permisos;
+* modificación de estados de usuarios;
+* revocación de sesiones;
+* revocación global;
+* cambios de configuración de seguridad.
+
+Las operaciones administrativas sensibles deberán quedar registradas en auditoría.
+
+## 4.11.26 Principio de Fail Secure
+
+Cuando un componente de seguridad no pueda determinar de forma confiable si una operación está autorizada, deberá denegar la operación.
+
+Ante condiciones como:
+
+* sesión desconocida;
+* permiso no determinado;
+* identidad no válida;
+* error de validación;
+* configuración de seguridad incompleta;
+
+el Backend no deberá asumir autorización.
+
+La operación deberá rechazarse de forma segura.
+
+### Regla arquitectónica
+
+> **Ante una condición de seguridad desconocida o no verificable, Chiri Platform deberá adoptar una postura de denegación y nunca conceder acceso por defecto.**
+
+## 4.11.27 Disponibilidad y Degradación
+
+Los mecanismos de seguridad no deberán eliminarse automáticamente para mantener disponible una funcionalidad.
+
+Si un componente necesario para validar una autorización no está disponible, el Backend deberá adoptar una estrategia segura.
+
+Por ejemplo, si la información necesaria para determinar permisos no puede obtenerse de PostgreSQL, la operación protegida deberá rechazarse en lugar de concederse por defecto.
+
+Los mecanismos de caché no deberán utilizarse para mantener indefinidamente permisos que hayan podido ser revocados.
+
+## 4.11.28 Regla de Defensa en Profundidad
+
+Una solicitud protegida deberá atravesar los controles correspondientes antes de alcanzar la lógica de negocio y los recursos.
+
+El flujo conceptual será:
+
+```text
+Request
+   ↓
+HTTPS
+   ↓
+Validación de entrada
+   ↓
+Autenticación
+   ↓
+Validación de Session
+   ↓
+Validación de User
+   ↓
+Autorización
+   ↓
+Reglas de negocio
+   ↓
+Persistencia / Servicio
+   ↓
+Auditoría
+```
+
+El fallo de un control obligatorio deberá impedir la ejecución de la operación.
+
+### Regla arquitectónica general
+
+> **El Backend de Chiri Platform será la autoridad de seguridad para las operaciones protegidas y deberá validar autenticación, sesión, autorización, datos, reglas de negocio y acceso a recursos antes de ejecutar operaciones sensibles, aplicando el principio de mínimo privilegio y una estrategia de defensa en profundidad.**
 
 # 4.12 Seguridad de la Base de Datos
 
@@ -2267,7 +2819,7 @@ Las comunicaciones externas deberán utilizar:
 ```text
 HTTPS
 TLS
-````
+```
 
 La aplicación no deberá enviar credenciales o tokens mediante canales no protegidos.
 
@@ -2505,7 +3057,7 @@ Como mínimo deberán contemplarse:
 ```text
 LOGIN_SUCCESS
 LOGIN_FAILED
-````
+```
 
 Los eventos de autenticación deberán permitir detectar:
 
@@ -3035,7 +3587,7 @@ La política inicial para el inicio de sesión será:
 ```text
 Máximo de intentos fallidos: 5
 Ventana de evaluación: 15 minutos
-````
+```
 
 El mecanismo deberá poder considerar como mínimo:
 
