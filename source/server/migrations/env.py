@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.config.settings import settings
 from app.database.database import Base
+from app.database import models
 
 
 config = context.config
