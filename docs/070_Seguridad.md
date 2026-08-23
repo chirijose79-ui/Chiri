@@ -1076,26 +1076,20 @@ Los secretos deberán mantenerse separados del código fuente y de cualquier con
 No deberán incluirse secretos reales en:
 
 * repositorios de código;
-* archivos de documentación;
 * código fuente;
+* documentación;
 * imágenes de contenedores;
 * registros de aplicación;
-* archivos compartidos sin protección;
-* archivos de configuración destinados a distribución pública.
+* archivos de configuración destinados a distribución pública;
+* respuestas de API.
 
 Los servicios deberán utilizar únicamente las credenciales necesarias para realizar sus funciones.
 
-Las credenciales deberán poder ser reemplazadas cuando exista sospecha de compromiso o cuando sea necesario por razones de seguridad.
+Las credenciales utilizadas por diferentes componentes deberán mantenerse separadas cuando sus funciones o niveles de privilegio sean diferentes.
 
-Los secretos utilizados por diferentes componentes deberán mantenerse separados cuando sus funciones y niveles de privilegio sean diferentes.
+Los secretos deberán poder ser reemplazados cuando exista sospecha de compromiso o cuando sea necesario por razones de seguridad.
 
-Las claves, certificados y credenciales deberán protegerse mediante mecanismos adecuados al entorno de ejecución.
-
-Los valores utilizados durante el desarrollo deberán mantenerse separados de los utilizados en entornos de ejecución reales.
-
-Cuando un secreto deje de ser necesario, deberá retirarse de los mecanismos activos de configuración y acceso.
-
-La exposición accidental de un secreto deberá considerarse un evento de seguridad y deberá evaluarse su posible reemplazo o revocación.
+La exposición accidental de un secreto deberá considerarse un evento de seguridad y deberá evaluarse su posible revocación o reemplazo.
 
 ## 4.8.1 Separación de Secretos
 
@@ -1103,7 +1097,7 @@ Cada secreto deberá tener una finalidad específica.
 
 No deberá reutilizarse una misma clave o secreto para diferentes funciones de seguridad cuando dichas funciones tengan objetivos o niveles de privilegio diferentes.
 
-Como mínimo, deberán mantenerse separados:
+Como mínimo deberán mantenerse separados:
 
 * credenciales de Base de Datos;
 * credenciales utilizadas para migraciones;
@@ -1111,7 +1105,8 @@ Como mínimo, deberán mantenerse separados:
 * secreto HMAC utilizado para auditoría;
 * credenciales utilizadas para correo electrónico;
 * credenciales de servicios internos;
-* otros secretos específicos de cada integración.
+* secretos utilizados por integraciones externas;
+* otros secretos específicos de cada componente.
 
 La separación deberá limitar el impacto de un posible compromiso de una credencial.
 
@@ -1123,9 +1118,9 @@ La separación deberá limitar el impacto de un posible compromiso de una creden
 
 Durante el desarrollo, los secretos locales podrán gestionarse mediante archivos `.env`.
 
-Los archivos `.env` deberán permanecer fuera del control de versiones.
+Los archivos `.env` reales deberán permanecer fuera del control de versiones.
 
-El repositorio podrá incluir un archivo:
+El repositorio podrá incluir:
 
 ```text
 .env.example
@@ -1145,12 +1140,14 @@ Ejemplo:
 ```text
 DATABASE_URL=CHANGE_ME
 MIGRATION_DATABASE_URL=CHANGE_ME
+JWT_PRIVATE_KEY_PATH=CHANGE_ME
 AUDIT_HMAC_SECRET=CHANGE_ME
+MAIL_PASSWORD=CHANGE_ME
 ```
 
 Los archivos `.env` reales deberán estar incluidos en las reglas de exclusión correspondientes de Git.
 
-Los secretos de un equipo de desarrollo no deberán copiarse automáticamente al repositorio ni compartirse mediante commits.
+Los secretos de un equipo de desarrollo no deberán copiarse al repositorio ni compartirse mediante commits.
 
 ### Regla arquitectónica
 
@@ -1158,18 +1155,21 @@ Los secretos de un equipo de desarrollo no deberán copiarse automáticamente al
 
 ## 4.8.3 Clave Privada JWT
 
-La clave privada utilizada para firmar los Access Tokens deberá mantenerse protegida y nunca deberá incluirse directamente en:
+La clave privada utilizada para firmar los Access Tokens deberá mantenerse protegida.
 
-* código fuente;
-* repositorios;
-* imágenes Docker;
-* documentación;
-* logs;
-* respuestas de API.
+La clave deberá:
+
+* utilizar RSA de 3072 bits;
+* utilizarse con RS256;
+* mantenerse fuera del código fuente;
+* mantenerse fuera del repositorio;
+* mantenerse fuera de las imágenes Docker;
+* mantenerse fuera de los logs;
+* mantenerse fuera de respuestas API.
 
 Durante el desarrollo, la clave privada JWT podrá almacenarse como un archivo PEM local protegido.
 
-La ubicación prevista será:
+Ejemplo de ubicación:
 
 ```text
 secrets/
@@ -1179,9 +1179,7 @@ secrets/
 
 El archivo deberá permanecer fuera del control de versiones.
 
-La clave deberá utilizar RSA de **3072 bits** y utilizarse con el algoritmo **RS256**.
-
-La aplicación deberá cargar la clave mediante configuración segura y no deberá contener la clave privada embebida en el código fuente.
+La aplicación deberá cargar la clave mediante configuración segura.
 
 La clave privada nunca deberá exponerse a:
 
@@ -1189,23 +1187,28 @@ La clave privada nunca deberá exponerse a:
 * clientes externos;
 * servicios que únicamente necesiten validar tokens;
 * endpoints HTTP;
-* JWKS.
+* endpoint JWKS.
 
-La clave pública correspondiente podrá distribuirse mediante los mecanismos definidos en la sección de gestión de JWKS.
+La clave pública correspondiente podrá distribuirse mediante el endpoint JWKS definido en `4.7`.
 
 ## 4.8.4 Gestión de Claves JWT en Producción
 
-En producción, la clave privada JWT no deberá formar parte de la imagen Docker ni del repositorio.
+En producción, la clave privada JWT no deberá formar parte de:
+
+* imagen Docker;
+* repositorio;
+* documentación;
+* archivos públicos de configuración.
 
 La clave privada deberá obtenerse mediante un mecanismo de gestión de secretos apropiado para el entorno de ejecución.
 
-El mecanismo definitivo de producción será un **Secret Manager**.
+El servicio encargado de firmar los Access Tokens deberá disponer únicamente del acceso necesario para utilizar la clave privada.
 
-El servicio de autenticación deberá disponer únicamente del acceso necesario para utilizar la clave privada.
-
-Los demás servicios que únicamente necesiten validar Access Tokens deberán utilizar las claves públicas correspondientes.
+Los componentes que únicamente necesiten validar Access Tokens deberán utilizar las claves públicas correspondientes.
 
 La clave privada deberá permanecer aislada de los componentes que no necesiten firmar tokens.
+
+La rotación de claves deberá seguir la política definida en `4.7.6`.
 
 ## 4.8.5 Secreto HMAC de Auditoría
 
@@ -1263,7 +1266,8 @@ No deberán incluirse en:
 * repositorios;
 * imágenes Docker;
 * logs;
-* respuestas API.
+* respuestas API;
+* documentación pública.
 
 El servicio encargado del envío de correo deberá disponer únicamente de los permisos necesarios para realizar dicha función.
 
@@ -1281,11 +1285,32 @@ Las credenciales de servicios internos deberán tratarse como secretos incluso c
 
 La pertenencia a una red interna no deberá considerarse suficiente para justificar el almacenamiento o distribución insegura de credenciales.
 
-## 4.8.9 Producción y Secret Manager
+## 4.8.9 Refresh Tokens
+
+Los Refresh Tokens deberán tratarse como credenciales sensibles.
+
+No deberán almacenarse:
+
+* en código fuente;
+* en repositorios;
+* en logs;
+* en respuestas de diagnóstico;
+* en documentación;
+* en imágenes Docker.
+
+Los Refresh Tokens almacenados por el Backend deberán utilizar una representación protegida o derivada cuando sea técnicamente posible.
+
+El valor utilizable del Refresh Token deberá entregarse únicamente al cliente autenticado mediante el flujo correspondiente.
+
+Los Refresh Tokens deberán poder ser invalidados mediante la revocación de la sesión asociada.
+
+La gestión del ciclo de vida de los Refresh Tokens deberá seguir las reglas establecidas en `4.7`.
+
+## 4.8.10 Producción y Secret Manager
 
 Los secretos utilizados en producción deberán gestionarse mediante un **Secret Manager** o mecanismo equivalente apropiado para el entorno.
 
-El Secret Manager deberá permitir, según sus capacidades:
+El mecanismo deberá permitir, según sus capacidades:
 
 * almacenamiento seguro;
 * control de acceso;
@@ -1305,12 +1330,12 @@ El proceso de despliegue deberá proporcionar los secretos al componente únicam
 
 > **Los secretos de producción deberán permanecer fuera del código, repositorio e imágenes de ejecución y deberán ser proporcionados al servicio mediante mecanismos seguros de gestión de secretos.**
 
-## 4.8.10 Rotación y Revocación
+## 4.8.11 Rotación y Revocación
 
 Los secretos deberán poder reemplazarse cuando:
 
 * exista sospecha de compromiso;
-* un empleado o servicio deje de necesitarlos;
+* un usuario, empleado o servicio deje de necesitarlos;
 * cambie el entorno;
 * se produzca una migración;
 * expire una credencial;
@@ -1318,11 +1343,13 @@ Los secretos deberán poder reemplazarse cuando:
 
 La rotación de un secreto deberá realizarse de forma controlada para evitar interrupciones innecesarias de los servicios.
 
-Las claves JWT deberán seguir además la política específica de rotación definida en la sección `4.7`.
+Las claves JWT deberán seguir además la política específica de rotación definida en `4.7`.
+
+Los Refresh Tokens deberán poder invalidarse mediante la revocación de la sesión correspondiente.
 
 La revocación o sustitución de un secreto comprometido deberá considerarse una acción de respuesta ante incidentes cuando corresponda.
 
-## 4.8.11 Exposición Accidental
+## 4.8.12 Exposición Accidental
 
 La exposición accidental de un secreto deberá considerarse un evento de seguridad.
 
@@ -1343,7 +1370,7 @@ La eliminación del secreto del código fuente no deberá considerarse suficient
 
 Deberá evaluarse su rotación o revocación.
 
-## 4.8.12 Registros y Diagnóstico
+## 4.8.13 Registros y Diagnóstico
 
 Los logs y mecanismos de diagnóstico deberán evitar la exposición de secretos.
 
@@ -1361,6 +1388,8 @@ No deberán registrarse directamente:
 * cookies de autenticación.
 
 Cuando sea necesario diagnosticar una operación relacionada con un secreto, deberá utilizarse información no sensible o valores truncados/anonimizados que no permitan reconstruir el secreto original.
+
+Los mecanismos de diagnóstico no deberán registrar automáticamente el contenido completo de las solicitudes HTTP cuando estas puedan contener credenciales o tokens.
 
 ### Regla arquitectónica
 
