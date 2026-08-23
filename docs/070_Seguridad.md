@@ -1441,350 +1441,661 @@ Los mensajes de error generados como consecuencia de entradas inválidas no debe
 
 # 4.10 Seguridad de la API
 
-La API de Chiri Platform deberá aplicar controles de seguridad a todas las operaciones que expongan recursos o funcionalidades de la plataforma.
+La API de Chiri Platform deberá implementar controles de seguridad destinados a proteger las solicitudes, recursos y operaciones expuestas a los clientes.
 
-La API deberá:
+La seguridad de la API deberá aplicar los principios definidos en las secciones anteriores y deberá mantenerse independiente del cliente utilizado.
 
-* autenticar las solicitudes que requieran identidad;
-* autorizar cada operación protegida;
-* validar las entradas recibidas;
-* limitar el acceso a los recursos permitidos;
-* proteger las comunicaciones;
-* controlar el uso excesivo o abusivo;
-* generar respuestas de error controladas;
-* evitar la exposición de información sensible.
-
-Los endpoints públicos deberán limitarse a las funcionalidades que realmente necesiten exposición.
-
-Los endpoints administrativos deberán disponer de controles de autorización específicos y no deberán quedar disponibles para usuarios sin los privilegios correspondientes.
-
-La API no deberá confiar en información de autenticación o autorización enviada directamente por el cliente.
-
-Los identificadores, parámetros y datos recibidos mediante solicitudes deberán validarse antes de procesarse.
-
-Las respuestas de la API no deberán incluir información sensible que no sea necesaria para completar la operación solicitada.
-
-Los errores de la API deberán proporcionar información suficiente para identificar el resultado de la operación sin revelar detalles internos innecesarios, credenciales, secretos o información sensible.
-
-Las operaciones que puedan modificar información deberán aplicar controles adecuados de autenticación, autorización, validación y, cuando corresponda, protección contra repetición o abuso.
-
-La API deberá mantener una separación clara entre:
+La API deberá validar, según corresponda:
 
 * autenticación;
 * autorización;
-* validación;
-* lógica de negocio;
-* acceso a datos.
+* estructura de la solicitud;
+* tipos de datos;
+* formato de datos;
+* parámetros;
+* contenido recibido;
+* reglas de negocio;
+* límites de uso.
+
+Ningún cliente deberá considerarse confiable por defecto.
+
+La validación realizada en Android no sustituirá la validación realizada por el Backend.
 
 ## 4.10.1 Autenticación de Solicitudes
 
-Las operaciones protegidas deberán requerir un Access Token válido.
+Los endpoints que requieran identidad deberán exigir una sesión autenticada válida.
 
-El servidor deberá validar como mínimo:
+La autenticación de las solicitudes deberá utilizar el Access Token definido en `4.7`.
 
-* existencia del token cuando sea requerido;
+El servidor deberá validar:
+
+* presencia del token;
 * estructura del JWT;
-* firma RS256;
+* firma;
 * `kid`;
 * `iss`;
 * `aud`;
 * `iat`;
 * `exp`;
-* identificador de usuario;
+* identificador del usuario;
 * identificador de sesión;
-* estado actual de la sesión;
-* estado actual del usuario.
+* estado de la sesión;
+* estado del usuario.
 
-La validación criptográfica del JWT no será suficiente para autorizar una solicitud.
+Un token criptográficamente válido no será suficiente si la sesión o el usuario ya no se encuentran en un estado válido.
 
-La sesión y el estado actual del usuario deberán considerarse parte de la decisión efectiva de autenticación.
-
-Una solicitud asociada a una sesión:
-
-```text
-REVOKED
-EXPIRED
-````
-
-deberá rechazarse.
-
-Una solicitud asociada a un usuario:
-
-```text
-INACTIVE
-BLOCKED
-DELETED
-```
-
-deberá rechazarse.
-
-## 4.10.2 Autorización de Solicitudes
-
-Las operaciones protegidas deberán comprobar los permisos actuales de la identidad antes de ejecutar la operación.
-
-Los roles y permisos no deberán obtenerse del Access Token.
-
-Los permisos deberán resolverse utilizando el estado actual del usuario y sus relaciones de autorización.
-
-Los cambios de roles o permisos deberán tener efecto inmediato sobre las solicitudes posteriores.
-
-La primera implementación no utilizará una caché de permisos.
-
-PostgreSQL será la fuente de verdad para los permisos.
-
-La API deberá rechazar cualquier operación para la cual la identidad no disponga de autorización suficiente.
-
-## 4.10.3 HTTP 401 Unauthorized
-
-La API deberá utilizar:
+Las solicitudes sin una autenticación válida deberán rechazarse con:
 
 ```text
 401 Unauthorized
-```
+````
 
-cuando la solicitud no disponga de una autenticación válida.
+## 4.10.2 Autorización de Solicitudes
 
-Las condiciones que deberán producir `401` incluyen:
+Después de validar la autenticación, el Backend deberá comprobar que la identidad tiene permiso para realizar la operación solicitada.
 
-* token ausente cuando sea obligatorio;
-* token inválido;
-* token expirado;
-* firma inválida;
-* `kid` desconocido o inválido;
-* `iss` inválido;
-* `aud` inválido;
-* `iat` inválido;
-* sesión revocada;
-* sesión expirada;
-* usuario `INACTIVE`;
-* usuario `BLOCKED`;
-* usuario `DELETED`.
+La autorización deberá realizarse en el servidor.
 
-La respuesta deberá evitar revelar información innecesaria sobre la causa específica del fallo.
+La aplicación cliente no podrá conceder permisos mediante:
 
-Ejemplo conceptual:
+* parámetros;
+* encabezados;
+* valores enviados por el cliente;
+* información almacenada localmente;
+* roles declarados por el cliente.
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ERR_AUTH_001",
-    "message": "Autenticación requerida"
-  }
-}
-```
+Los roles y permisos deberán resolverse utilizando la información vigente de autorización.
 
-El mensaje podrá utilizarse para distintos escenarios de autenticación inválida sin revelar información sensible.
+PostgreSQL será la fuente de verdad para los permisos en la primera implementación.
 
-## 4.10.4 HTTP 403 Forbidden
-
-La API deberá utilizar:
+Una identidad correctamente autenticada pero sin autorización suficiente deberá recibir:
 
 ```text
 403 Forbidden
 ```
 
-cuando la identidad esté correctamente autenticada y la sesión sea válida, pero la operación solicitada no esté autorizada.
+## 4.10.3 Validación de Entrada
 
-Ejemplo:
+Toda información recibida desde un cliente deberá considerarse no confiable hasta ser validada.
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "ERR_AUTH_003",
-    "message": "Permisos insuficientes"
-  }
-}
-```
+La API deberá validar:
 
-La respuesta `403` no deberá revelar:
+* tipos;
+* formatos;
+* longitudes;
+* rangos;
+* valores permitidos;
+* campos obligatorios;
+* relaciones entre campos;
+* identificadores;
+* parámetros de consulta;
+* contenido de solicitudes.
 
-* el permiso específico que falta;
-* los roles del usuario;
-* los permisos disponibles;
-* la estructura interna del sistema de autorización.
+La validación deberá realizarse antes de ejecutar operaciones de negocio.
 
-La información detallada necesaria para auditoría podrá registrarse internamente sin exponerse al cliente.
+La API no deberá confiar en validaciones realizadas exclusivamente por Android.
 
-## 4.10.5 Access Token y Refresh Token
+Los identificadores UUID recibidos deberán validarse como UUID antes de utilizarse.
 
-La API deberá distinguir claramente entre Access Token y Refresh Token.
+Los valores que correspondan a enumeraciones deberán limitarse a los valores definidos por el modelo de datos y la arquitectura.
 
-El Access Token:
+## 4.10.4 Validación de Parámetros
 
-* será un JWT;
-* utilizará RS256;
-* tendrá una duración máxima de 15 minutos;
-* incluirá `kid`;
-* incluirá `jti`;
-* incluirá `iss`;
-* incluirá `aud`;
-* estará asociado a una sesión.
-
-El Refresh Token:
-
-* tendrá una duración máxima de 30 días;
-* estará asociado a una sesión;
-* podrá ser revocado inmediatamente;
-* no deberá utilizarse como credencial para acceder directamente a recursos protegidos de la API.
-
-El Refresh Token solamente deberá utilizarse en los mecanismos definidos para renovación de sesión.
-
-Los tokens completos no deberán registrarse en logs ni auditorías.
-
-## 4.10.6 Endpoint de JWKS
-
-La API deberá publicar las claves públicas necesarias para validar Access Tokens mediante:
+Los parámetros enviados mediante:
 
 ```text
-GET /.well-known/jwks.json
+path
+query
+header
+body
 ```
 
-El endpoint deberá publicar únicamente claves públicas.
+deberán validarse según el contexto de la operación.
 
-Nunca deberá exponer:
+Los parámetros no esperados no deberán modificar el comportamiento de una operación protegida.
 
-* claves privadas;
-* secretos;
-* credenciales;
-* Refresh Tokens.
+La API deberá evitar que un cliente pueda controlar directamente atributos internos que no formen parte de la operación permitida.
 
-El valor `kid` incluido en un JWT deberá permitir seleccionar la clave pública correspondiente.
+Los campos de entidades que no sean modificables por el cliente deberán ignorarse o rechazarse según la política definida para el endpoint.
 
-Durante la rotación de claves, el endpoint JWKS podrá publicar temporalmente más de una clave pública cuando sea necesario para validar tokens legítimos todavía vigentes.
+## 4.10.5 Mass Assignment
 
-## 4.10.7 Endpoints Públicos
+Los endpoints de escritura deberán utilizar modelos de entrada explícitos.
 
-Los endpoints públicos deberán estar explícitamente identificados y deberán limitarse a las operaciones que realmente necesiten estar disponibles sin autenticación.
+La API no deberá permitir que un cliente modifique automáticamente todos los campos de una entidad mediante el envío de un objeto arbitrario.
 
-Los endpoints relacionados con:
+Los campos sensibles deberán controlarse explícitamente.
 
-* activación de cuenta;
-* verificación de correo;
-* recuperación de contraseña;
-* inicio de sesión;
-* renovación de sesión;
+Entre los campos que no deberán ser modificables directamente por un usuario se encuentran, según corresponda:
 
-deberán aplicar controles específicos contra abuso y automatización.
-
-Los endpoints públicos no deberán proporcionar información que permita enumerar usuarios, cuentas, sesiones u otros recursos protegidos.
-
-## 4.10.8 Protección de Credenciales
-
-La API nunca deberá devolver:
-
+* `id`;
+* `status`;
 * `password_hash`;
-* contraseñas;
+* `created_at`;
+* `updated_at`;
+* roles;
+* permisos;
+* identificadores internos;
+* información de auditoría.
+
+Las modificaciones administrativas deberán utilizar endpoints y controles de autorización específicos.
+
+## 4.10.6 Protección de Consultas a Base de Datos
+
+Las consultas a PostgreSQL deberán utilizar mecanismos parametrizados proporcionados por el ORM o por el sistema de acceso a datos.
+
+La API no deberá construir consultas SQL concatenando directamente valores proporcionados por clientes.
+
+Los valores recibidos desde clientes deberán mantenerse separados de las instrucciones SQL.
+
+Las operaciones que permitan filtros, ordenamientos o búsquedas deberán utilizar listas explícitas de campos y operadores permitidos.
+
+Los nombres de columnas, tablas u operaciones internas no deberán poder ser definidos arbitrariamente por el cliente.
+
+## 4.10.7 Protección contra Inyección
+
+La API deberá protegerse contra diferentes formas de inyección, incluyendo:
+
+* SQL Injection;
+* Command Injection;
+* Path Traversal;
+* Header Injection;
+* inyección en plantillas;
+* otras formas de inyección aplicables a los componentes utilizados.
+
+Los datos proporcionados por clientes deberán validarse antes de ser utilizados por otros componentes.
+
+Las funciones del sistema operativo no deberán recibir directamente valores no validados provenientes de clientes.
+
+Los servicios externos deberán recibir únicamente los parámetros necesarios y validados.
+
+## 4.10.8 Manejo de Errores
+
+La API deberá utilizar respuestas de error estructuradas y consistentes.
+
+Los errores devueltos al cliente no deberán revelar información interna innecesaria.
+
+No deberán exponerse:
+
+* stack traces;
+* rutas internas;
+* consultas SQL;
+* nombres internos de tablas;
+* credenciales;
 * secretos;
-* claves privadas;
-* credenciales internas;
-* Refresh Tokens almacenados;
-* información interna innecesaria.
+* claves;
+* información de infraestructura;
+* detalles de configuración;
+* información interna de seguridad.
 
-Las respuestas relacionadas con autenticación deberán proporcionar únicamente la información necesaria para que el cliente pueda continuar el flujo correspondiente.
+En producción, los errores internos deberán utilizar mensajes genéricos.
 
-Los mensajes de error deberán evitar revelar si una cuenta específica existe cuando dicha información pueda facilitar enumeración de usuarios.
+La información técnica necesaria para diagnóstico deberá registrarse mediante mecanismos de logging y auditoría apropiados.
 
-## 4.10.9 Protección contra Repetición y Abuso
+## 4.10.9 Códigos HTTP de Seguridad
 
-Las operaciones sensibles deberán considerar mecanismos de protección contra repetición, automatización y abuso.
-
-Entre las operaciones que podrán requerir controles adicionales se encuentran:
-
-* inicio de sesión;
-* activación de cuenta;
-* recuperación de contraseña;
-* cambio de contraseña;
-* cambio de correo electrónico;
-* renovación de sesión;
-* operaciones administrativas.
-
-Los tokens de activación, verificación y recuperación deberán ser de un solo uso cuando la operación así lo requiera.
-
-Los límites de solicitudes deberán definirse de acuerdo con el riesgo de cada endpoint.
-
-La API podrá utilizar Redis para implementar mecanismos de rate limiting y protección contra abuso cuando dicho componente forme parte de la infraestructura correspondiente.
-
-## 4.10.10 Auditoría de Operaciones de Seguridad
-
-Las operaciones relevantes de autenticación y seguridad deberán generar eventos de auditoría cuando corresponda.
-
-Entre ellas:
-
-* inicio de sesión exitoso;
-* inicio de sesión fallido;
-* activación de cuenta;
-* verificación de correo;
-* cambio de correo;
-* recuperación de contraseña;
-* cambio de contraseña;
-* revocación de sesión;
-* revocación global de sesiones;
-* cambios de permisos;
-* operaciones administrativas relacionadas con seguridad.
-
-Los eventos de auditoría no deberán contener contraseñas, tokens completos, secretos o claves privadas.
-
-## 4.10.11 Errores de la API
-
-Los errores de la API deberán utilizar códigos HTTP coherentes con la naturaleza del problema.
+La API deberá utilizar códigos HTTP coherentes con el resultado de la operación.
 
 Como mínimo:
 
 ```text
-400 → solicitud inválida
-401 → autenticación inválida o ausente
-403 → autenticado pero no autorizado
-404 → recurso no encontrado
-409 → conflicto de estado o recurso
-422 → datos semánticamente inválidos, cuando corresponda
-429 → límite de solicitudes excedido
-500 → error interno
+200 OK
+201 Created
+204 No Content
+400 Bad Request
+401 Unauthorized
+403 Forbidden
+404 Not Found
+409 Conflict
+422 Unprocessable Entity
+429 Too Many Requests
+500 Internal Server Error
 ```
 
-Los códigos concretos podrán ampliarse según las necesidades de cada módulo.
+La utilización de cada código deberá corresponder a la naturaleza real del resultado.
 
-Las respuestas de error deberán mantener un formato consistente con el contrato definido por la API.
+### `400 Bad Request`
 
-Los errores internos no deberán exponer:
+Se utilizará cuando la solicitud no pueda procesarse debido a una estructura o formato inválido.
 
-* stack traces;
-* consultas SQL;
-* rutas internas;
-* nombres de archivos;
-* credenciales;
-* secretos;
-* configuración interna;
-* información de infraestructura.
+### `401 Unauthorized`
 
-Los detalles técnicos deberán permanecer en los mecanismos internos de diagnóstico y registro.
+Se utilizará cuando:
 
-## 4.10.12 Separación de Responsabilidades
+* no exista autenticación válida;
+* el Access Token sea inválido;
+* el Access Token haya expirado;
+* la sesión haya sido revocada;
+* la sesión haya expirado;
+* el usuario no se encuentre en un estado que permita autenticación.
 
-La API deberá mantener una separación clara entre:
+### `403 Forbidden`
+
+Se utilizará cuando:
+
+* la identidad esté autenticada;
+* la sesión sea válida;
+* pero la operación no esté autorizada.
+
+### `404 Not Found`
+
+Podrá utilizarse cuando el recurso solicitado no exista.
+
+Cuando sea necesario evitar enumeración de recursos, la API podrá utilizar respuestas que no permitan determinar si un recurso existe.
+
+### `409 Conflict`
+
+Se utilizará cuando la operación sea válida sintácticamente pero entre en conflicto con el estado actual del recurso.
+
+### `422 Unprocessable Entity`
+
+Podrá utilizarse cuando la estructura de la solicitud sea válida pero los datos no cumplan las reglas de validación definidas.
+
+### `429 Too Many Requests`
+
+Se utilizará cuando una identidad u origen supere los límites de uso definidos por los mecanismos de protección contra abuso.
+
+## 4.10.10 Rate Limiting
+
+Los endpoints de la API deberán disponer de mecanismos de rate limiting cuando exista riesgo de abuso.
+
+La política deberá adaptarse al nivel de riesgo de cada operación.
+
+Como mínimo deberán considerarse:
+
+* autenticación;
+* activación;
+* verificación de correo;
+* recuperación de contraseña;
+* cambio de contraseña;
+* cambio de correo;
+* renovación de sesión;
+* endpoints públicos;
+* operaciones administrativas.
+
+La implementación podrá utilizar Redis como almacenamiento temporal de contadores y ventanas de rate limiting.
+
+Los datos utilizados para rate limiting deberán disponer de expiración.
+
+La pérdida de Redis no deberá provocar la pérdida de información permanente de identidad o autorización.
+
+## 4.10.11 Protección contra Fuerza Bruta
+
+El inicio de sesión deberá estar protegido contra intentos repetidos de autenticación.
+
+La política inicial será:
 
 ```text
-Autenticación
-    ↓
-Validación de sesión
-    ↓
-Autorización
-    ↓
-Validación de entrada
-    ↓
-Caso de uso
-    ↓
-Acceso a datos
+5 intentos fallidos
+15 minutos de ventana
 ```
 
-La capa API no deberá convertirse en la autoridad exclusiva de seguridad.
+El mecanismo podrá considerar:
 
-Las reglas de autenticación y autorización deberán mantenerse en las capas correspondientes del Backend y deberán protegerse contra accesos alternativos que intenten omitir la API.
+* usuario;
+* IP;
+* frecuencia de solicitudes;
+* otros identificadores apropiados.
 
-### Regla arquitectónica
+Los intentos que superen los límites establecidos podrán responder:
 
-> **Toda operación protegida expuesta mediante la API deberá validar la solicitud, autenticar y autorizar al solicitante cuando corresponda, verificar el estado actual de la sesión y del usuario y ejecutar únicamente la operación permitida.**
+```text
+429 Too Many Requests
+```
+
+La respuesta no deberá revelar si el usuario existe.
+
+Los mecanismos de protección contra fuerza bruta deberán complementarse con los controles definidos en `4.18`.
+
+## 4.10.12 Protección de Endpoints Sensibles
+
+Los endpoints relacionados con autenticación, identidad y seguridad deberán recibir controles adicionales.
+
+Se consideran especialmente sensibles:
+
+```text
+login
+activation
+email verification
+password reset
+password change
+email change
+token refresh
+logout
+session management
+administration
+```
+
+Estos endpoints deberán disponer de:
+
+* autenticación cuando corresponda;
+* autorización cuando corresponda;
+* rate limiting;
+* validación de entrada;
+* auditoría;
+* protección contra enumeración;
+* manejo seguro de errores.
+
+## 4.10.13 Refresh Token Endpoint
+
+El endpoint de renovación de sesión deberá aceptar únicamente un Refresh Token válido.
+
+El servidor deberá validar:
+
+* Refresh Token;
+* sesión asociada;
+* usuario;
+* estado de sesión;
+* estado del usuario;
+* vigencia.
+
+Un Refresh Token inválido, expirado o revocado deberá provocar:
+
+```text
+401 Unauthorized
+```
+
+El endpoint no deberá permitir utilizar el Refresh Token como credencial para acceder directamente a otros recursos.
+
+La renovación deberá seguir las reglas establecidas en `4.7`.
+
+## 4.10.14 Logout
+
+El endpoint de cierre de sesión deberá invalidar la sesión asociada.
+
+Después del cierre de sesión:
+
+```text
+Session.status = REVOKED
+```
+
+El Refresh Token asociado deberá dejar de ser válido.
+
+El Access Token no se añadirá inicialmente a una blacklist permanente.
+
+Las solicitudes posteriores deberán rechazarse mediante la validación del estado de la sesión.
+
+La operación deberá poder quedar registrada mediante los mecanismos de auditoría.
+
+## 4.10.15 Revocación Global
+
+La API deberá disponer de un mecanismo para revocar todas las sesiones activas de un usuario cuando la arquitectura lo requiera.
+
+La operación podrá ejecutarse debido a:
+
+* compromiso de credenciales;
+* cambio de contraseña;
+* recuperación de cuenta;
+* acción administrativa;
+* incidente de seguridad.
+
+La revocación deberá afectar a todas las sesiones activas del usuario.
+
+Las sesiones revocadas deberán rechazar solicitudes posteriores con:
+
+```text
+401 Unauthorized
+```
+
+## 4.10.16 Protección de Recursos
+
+Los endpoints deberán limitar el acceso únicamente a los recursos que correspondan a la identidad autenticada y autorizada.
+
+La API deberá comprobar que el recurso solicitado pertenece al ámbito de acceso de la identidad.
+
+No deberá ser posible acceder a un recurso modificando únicamente un UUID o identificador recibido mediante la URL.
+
+Ejemplo:
+
+```text
+GET /users/{user_id}
+```
+
+no deberá permitir que un usuario autenticado consulte información privada de otro usuario simplemente cambiando:
+
+```text
+{user_id}
+```
+
+La autorización deberá ejecutarse después de identificar el recurso y antes de devolver información protegida.
+
+## 4.10.17 Protección de Información Personal
+
+Los endpoints deberán devolver únicamente los campos necesarios para cumplir la finalidad de la operación.
+
+La API no deberá devolver automáticamente todos los campos internos de las entidades.
+
+No deberán exponerse mediante respuestas normales:
+
+* `password_hash`;
+* secretos;
+* tokens internos;
+* información de auditoría;
+* credenciales;
+* información interna de infraestructura.
+
+La información personal deberá limitarse al mínimo necesario.
+
+## 4.10.18 Protección de Tokens en HTTP
+
+Los Access Tokens deberán transmitirse únicamente mediante mecanismos de autenticación definidos por la API.
+
+La API deberá evitar aceptar tokens mediante mecanismos ambiguos cuando exista un mecanismo estándar definido.
+
+No deberán aceptarse tokens desde parámetros de consulta si existe una alternativa segura.
+
+Los tokens no deberán aparecer en URLs debido a riesgos asociados con:
+
+* logs;
+* historial del navegador;
+* proxies;
+* herramientas de monitorización;
+* encabezados `Referer`.
+
+Los encabezados de autenticación no deberán registrarse completos.
+
+## 4.10.19 CORS
+
+La API deberá utilizar una política CORS restrictiva cuando sea aplicable.
+
+No deberá utilizarse:
+
+```text
+Access-Control-Allow-Origin: *
+```
+
+para endpoints que requieran credenciales o autenticación.
+
+Los orígenes permitidos deberán definirse explícitamente según los clientes autorizados.
+
+La configuración CORS deberá diferenciar entre:
+
+* desarrollo;
+* pruebas;
+* producción.
+
+La política de producción deberá permitir únicamente los orígenes necesarios.
+
+## 4.10.20 Seguridad de Documentación y OpenAPI
+
+La documentación OpenAPI deberá reflejar los mecanismos de autenticación y autorización definidos para la API.
+
+Los endpoints protegidos deberán indicar claramente el mecanismo de autenticación requerido.
+
+La documentación no deberá contener:
+
+* credenciales reales;
+* tokens reales;
+* secretos;
+* claves privadas;
+* datos personales reales.
+
+Los ejemplos deberán utilizar valores ficticios.
+
+El acceso a documentación administrativa o información sensible de la API podrá restringirse en entornos de producción.
+
+## 4.10.21 Versionado de API
+
+Los cambios de seguridad que puedan afectar el comportamiento de clientes deberán gestionarse mediante mecanismos de versionado compatibles con la arquitectura definida.
+
+Los cambios incompatibles no deberán introducirse sin considerar:
+
+* clientes existentes;
+* sesiones activas;
+* tokens emitidos;
+* compatibilidad;
+* migración;
+* revocación cuando corresponda.
+
+La eliminación de un mecanismo de autenticación deberá planificarse para evitar dejar clientes utilizando mecanismos obsoletos.
+
+## 4.10.22 Auditoría de Seguridad de la API
+
+Los eventos relevantes de seguridad deberán poder registrarse mediante los mecanismos definidos en `4.15`.
+
+Podrán registrarse:
+
+```text
+LOGIN_SUCCESS
+LOGIN_FAILED
+SESSION_CREATED
+SESSION_REVOKED
+SESSION_EXPIRED
+AUTHENTICATION_FAILED
+AUTHORIZATION_DENIED
+RATE_LIMITED
+PASSWORD_CHANGED
+PASSWORD_RESET_COMPLETED
+EMAIL_CHANGED
+```
+
+Los registros deberán contener únicamente la información necesaria para investigación y trazabilidad.
+
+No deberán registrarse:
+
+* contraseñas;
+* Access Tokens completos;
+* Refresh Tokens completos;
+* claves privadas;
+* secretos;
+* credenciales.
+
+## 4.10.23 Seguridad de Servicios Internos
+
+La API y el Backend deberán mantener separados los servicios internos de los clientes externos.
+
+Los clientes no deberán acceder directamente a servicios internos.
+
+Cuando el Backend necesite utilizar un servicio interno, deberá utilizar mecanismos de autenticación y autorización apropiados.
+
+Las credenciales de servicios internos deberán mantenerse separadas de las credenciales de usuarios.
+
+Un servicio interno no deberá asumir que otra identidad es confiable únicamente por pertenecer a la red interna.
+
+## 4.10.24 Seguridad de Administración
+
+Las operaciones administrativas deberán estar protegidas mediante autorización específica.
+
+Las operaciones administrativas no deberán depender únicamente de que el usuario esté autenticado.
+
+El Backend deberá validar que la identidad dispone de los privilegios administrativos necesarios.
+
+Las operaciones administrativas sensibles deberán generar eventos de auditoría.
+
+Entre ellas:
+
+* modificación de roles;
+* modificación de permisos;
+* bloqueo o desactivación de cuentas;
+* revocación de sesiones;
+* revocación global;
+* cambios de configuración de seguridad.
+
+## 4.10.25 Protección contra Enumeración
+
+Las respuestas de la API deberán evitar revelar información que permita determinar innecesariamente:
+
+* existencia de usuarios;
+* existencia de correos;
+* existencia de recursos privados;
+* permisos internos;
+* roles;
+* estados internos.
+
+Las operaciones de autenticación y recuperación deberán utilizar mensajes genéricos cuando corresponda.
+
+La protección deberá considerar no solamente el contenido de la respuesta, sino también diferencias observables de comportamiento.
+
+## 4.10.26 Seguridad del Transporte
+
+Toda API expuesta a clientes externos deberá utilizar:
+
+```text
+HTTPS
+TLS
+```
+
+Las comunicaciones HTTP sin protección no deberán utilizarse para transportar:
+
+* contraseñas;
+* Access Tokens;
+* Refresh Tokens;
+* información personal sensible;
+* credenciales;
+* secretos.
+
+Las terminaciones TLS realizadas mediante proxies o túneles deberán formar parte de la arquitectura de seguridad y deberán proteger adecuadamente el tráfico hasta el componente correspondiente.
+
+## 4.10.27 Configuración de Producción
+
+En producción deberán deshabilitarse o restringirse mecanismos de desarrollo que puedan revelar información interna.
+
+No deberán habilitarse:
+
+* debug innecesario;
+* stack traces públicos;
+* credenciales de prueba;
+* endpoints de diagnóstico sin protección;
+* documentación interna sin control;
+* configuraciones inseguras.
+
+Las configuraciones de producción deberán mantenerse separadas de las de desarrollo.
+
+Los secretos deberán gestionarse según `4.8`.
+
+## 4.10.28 Regla de Defensa en Profundidad
+
+La seguridad de la API no deberá depender de un único control.
+
+Una solicitud deberá atravesar, según corresponda:
+
+```text
+Cliente
+   ↓
+HTTPS / TLS
+   ↓
+API
+   ↓
+Validación de solicitud
+   ↓
+Autenticación
+   ↓
+Validación de sesión
+   ↓
+Autorización
+   ↓
+Reglas de negocio
+   ↓
+Acceso a recursos
+   ↓
+Auditoría
+```
+
+El fallo de cualquiera de los controles de seguridad deberá impedir la ejecución de la operación cuando dicho control sea obligatorio.
+
+### Regla arquitectónica general
+
+> **La API de Chiri Platform deberá validar toda solicitud en el servidor, aplicando defensa en profundidad mediante transporte seguro, autenticación, validación de sesión, autorización, validación de datos, protección contra abuso y auditoría, sin confiar en controles realizados exclusivamente por el cliente.**
 
 # 4.11 Seguridad del Backend
 
