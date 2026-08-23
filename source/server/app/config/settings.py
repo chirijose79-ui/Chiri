@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
 
     database_url: str
+    migration_database_url: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
