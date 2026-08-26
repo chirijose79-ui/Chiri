@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     database_url: str
     migration_database_url: str
 
+    jwt_private_key_path: str
+    jwt_key_id: str
+    jwt_issuer: str
+    jwt_audience: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
