@@ -788,7 +788,7 @@ El cierre de sesión deberá provocar la invalidación de la sesión y del mecan
 
 Los Refresh Tokens no deberán registrarse completos en logs o auditorías.
 
-Cuando sea técnicamente posible, el servidor deberá almacenar una representación protegida o derivada del Refresh Token en lugar del valor utilizable directamente.
+El servidor deberá almacenar una representación protegida o derivada del Refresh Token y no el valor utilizable directamente.
 
 ## 4.7.8 Rotación de Refresh Token
 
