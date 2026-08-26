@@ -5,9 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DbSession
 
-from app.api.dependencies import get_current_user, get_db
-from app.database.models.user import User
+from app.api.dependencies import (
+    get_current_session,
+    get_current_user,
+    get_db,
+)
 from app.application.login_service import login_user
+from app.application.session_service import revoke_session
+from app.database.models.session import Session
+from app.database.models.user import User
 from app.domain.exceptions import InvalidCredentialsError
 
 
@@ -69,4 +75,21 @@ def get_me(
         "user_id": str(current_user.id),
         "username": current_user.username,
         "email": current_user.email,
+    }
+
+
+@router.post(
+    "/logout",
+)
+def logout(
+    session: Session = Depends(get_current_session),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    revoke_session(
+        db=db,
+        session=session,
+    )
+
+    return {
+        "message": "Logged out successfully",
     }

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.application.session_service import get_active_session
 from app.database.database import SessionLocal
+from app.database.models.session import Session
 from app.database.models.user import User
 from app.security.jwt import (
     InvalidAccessTokenError,
@@ -29,12 +30,12 @@ def get_db() -> Generator[DbSession, None, None]:
         db.close()
 
 
-def get_current_user(
+def get_current_session(
     credentials: HTTPAuthorizationCredentials | None = Depends(
         bearer_scheme
     ),
     db: DbSession = Depends(get_db),
-) -> User:
+) -> Session:
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -101,9 +102,16 @@ def get_current_user(
             },
         )
 
+    return session
+
+
+def get_current_user(
+    session: Session = Depends(get_current_session),
+    db: DbSession = Depends(get_db),
+) -> User:
     user = db.scalar(
         select(User).where(
-            User.id == user_id,
+            User.id == session.user_id,
         )
     )
 
