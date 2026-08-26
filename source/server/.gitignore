@@ -16,3 +16,6 @@ __pycache__/
 .idea/
 
 *.log
+
+# JWT private keys
+*.pem
