@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DbSession
 
-from app.application.login_service import login_user
 from app.api.dependencies import get_db
+from app.application.login_service import login_user
 from app.domain.exceptions import InvalidCredentialsError
 
 
@@ -22,6 +22,8 @@ class LoginRequest(BaseModel):
 
 
 class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
     session_id: UUID
     user_id: UUID
     expires_at: datetime
@@ -36,7 +38,7 @@ def login(
     db: DbSession = Depends(get_db),
 ) -> LoginResponse:
     try:
-        session = login_user(
+        session, access_token = login_user(
             db=db,
             identifier=payload.identifier,
             password=payload.password,
@@ -48,6 +50,8 @@ def login(
         )
 
     return LoginResponse(
+        access_token=access_token,
+        token_type="Bearer",
         session_id=session.id,
         user_id=session.user_id,
         expires_at=session.expires_at,
