@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.database.models.session import Session
@@ -38,5 +39,29 @@ def revoke_session(
         session.status = "REVOKED"
         db.commit()
         db.refresh(session)
+
+    return session
+
+
+def get_active_session(
+    db: DbSession,
+    session_id: uuid.UUID,
+) -> Session | None:
+    statement = select(Session).where(
+        Session.id == session_id,
+    )
+
+    session = db.scalar(statement)
+
+    if session is None:
+        return None
+
+    now = datetime.now(timezone.utc)
+
+    if session.status != "ACTIVE":
+        return None
+
+    if session.expires_at <= now:
+        return None
 
     return session
