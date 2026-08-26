@@ -50,3 +50,4 @@ def create_access_token(
             "kid": settings.jwt_key_id,
         },
     )
+
