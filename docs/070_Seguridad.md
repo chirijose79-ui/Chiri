@@ -792,19 +792,21 @@ Cuando sea técnicamente posible, el servidor deberá almacenar una representaci
 
 ## 4.7.8 Rotación de Refresh Token
 
-La implementación deberá considerar la rotación del Refresh Token durante la renovación de sesión.
+La implementación deberá utilizar rotación del Refresh Token durante la renovación de sesión.
 
-Cuando un Refresh Token válido sea utilizado para renovar una sesión, el servidor podrá emitir un nuevo Refresh Token y dejar inválido el anterior.
+Cuando un Refresh Token válido sea utilizado para renovar una sesión, el servidor deberá emitir un nuevo Refresh Token y dejar inválido el anterior.
 
-La rotación deberá impedir que un Refresh Token utilizado anteriormente pueda reutilizarse indefinidamente.
+La rotación deberá impedir que un Refresh Token utilizado anteriormente pueda reutilizarse.
 
 Un intento de reutilización de un Refresh Token ya invalidado deberá considerarse un evento de seguridad.
 
-La política definitiva de rotación y detección de reutilización deberá implementarse junto con la entidad `Session`.
+Cuando se detecte la reutilización de un Refresh Token invalidado, la sesión asociada deberá ser revocada y no deberá permitirse la emisión de nuevas credenciales para dicha sesión.
+
+La rotación y detección de reutilización deberán implementarse junto con la entidad `Session`.
 
 ### Regla arquitectónica
 
-> **Los Refresh Tokens deberán poder invalidarse individualmente y su reutilización posterior a una rotación deberá considerarse una condición de seguridad.**
+> **Cada renovación válida deberá producir un nuevo Refresh Token e invalidar el anterior. La reutilización de un Refresh Token invalidado deberá considerarse una condición de seguridad y deberá provocar la revocación de la sesión asociada.**
 
 ## 4.7.9 Revocación de Access Tokens
 
