@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session as DbSession
 
 from app.database.models.refresh_token import RefreshToken
@@ -79,6 +79,51 @@ def get_refresh_token(
 
     statement = select(RefreshToken).where(
         RefreshToken.token_hash == token_hash,
+    )
+
+    return db.scalar(statement)
+
+
+def _revoke_all_session_refresh_tokens(
+    db: DbSession,
+    session_id: uuid.UUID,
+) -> None:
+    """
+    Revoke all refresh tokens associated with a session.
+
+    Used when refresh-token reuse or another invalid
+    refresh-token state is detected.
+    """
+
+    statement = (
+        update(RefreshToken)
+        .where(
+            RefreshToken.session_id == session_id,
+            RefreshToken.status == "ACTIVE",
+        )
+        .values(status="REVOKED")
+    )
+
+    db.execute(statement)
+
+
+def _get_refresh_token_for_update(
+    db: DbSession,
+    token: str,
+) -> RefreshToken | None:
+    """
+    Find a refresh token and lock its row
+    for the current database transaction.
+    """
+
+    token_hash = hash_refresh_token(token)
+
+    statement = (
+        select(RefreshToken)
+        .where(
+            RefreshToken.token_hash == token_hash,
+        )
+        .with_for_update()
     )
 
     return db.scalar(statement)
@@ -193,7 +238,7 @@ def rotate_refresh_token(
     replacement token are committed as one transaction.
     """
 
-    refresh_token = get_refresh_token(
+    refresh_token = _get_refresh_token_for_update(
         db=db,
         token=token,
     )
@@ -217,6 +262,11 @@ def rotate_refresh_token(
     if refresh_token.status in ("REVOKED", "EXPIRED"):
         session.status = "REVOKED"
 
+        _revoke_all_session_refresh_tokens(
+            db=db,
+            session_id=session.id,
+        )
+
         db.commit()
 
         raise RefreshTokenReuseError(
@@ -226,6 +276,11 @@ def rotate_refresh_token(
     # Token is not ACTIVE for any unexpected reason.
     if refresh_token.status != "ACTIVE":
         session.status = "REVOKED"
+
+        _revoke_all_session_refresh_tokens(
+            db=db,
+            session_id=session.id,
+        )
 
         db.commit()
 
