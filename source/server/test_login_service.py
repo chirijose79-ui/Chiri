@@ -8,6 +8,7 @@ from app.config.settings import settings
 from app.database.database import SessionLocal
 from app.database.models.session import Session
 from app.database.models.user import User
+from app.database.models.refresh_token import RefreshToken
 from app.domain.exceptions import InvalidCredentialsError
 from app.security.password import hash_password
 
@@ -31,11 +32,24 @@ def cleanup() -> None:
         ).all()
 
         if user_ids:
-            db.execute(
-                delete(Session).where(
+            session_ids = db.scalars(
+                select(Session.id).where(
                     Session.user_id.in_(user_ids)
                 )
-            )
+            ).all()
+
+            if session_ids:
+                db.execute(
+                    delete(RefreshToken).where(
+                        RefreshToken.session_id.in_(session_ids)
+                    )
+                )
+
+                db.execute(
+                    delete(Session).where(
+                        Session.id.in_(session_ids)
+                    )
+                )
 
         db.execute(
             delete(User).where(
@@ -63,7 +77,7 @@ try:
     db.commit()
     db.refresh(user)
 
-    session = login_user(
+    session, access_token, refresh_token, raw_refresh_token = login_user(
         db=db,
         identifier=TEST_USERNAME,
         password=TEST_PASSWORD,
