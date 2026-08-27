@@ -10,10 +10,17 @@ from app.database.models.session import Session
 SESSION_MAX_DAYS = 30
 
 
-def create_session(
+def _create_session_without_commit(
     db: DbSession,
     user_id: uuid.UUID,
 ) -> Session:
+    """
+    Create a session without committing.
+
+    This helper is used when session creation must be part
+    of a larger database transaction.
+    """
+
     now = datetime.now(timezone.utc)
 
     session = Session(
@@ -25,6 +32,25 @@ def create_session(
     )
 
     db.add(session)
+
+    return session
+
+
+def create_session(
+    db: DbSession,
+    user_id: uuid.UUID,
+) -> Session:
+    """
+    Create and persist an active session.
+
+    This function commits the transaction.
+    """
+
+    session = _create_session_without_commit(
+        db=db,
+        user_id=user_id,
+    )
+
     db.commit()
     db.refresh(session)
 
@@ -37,6 +63,7 @@ def revoke_session(
 ) -> Session:
     if session.status == "ACTIVE":
         session.status = "REVOKED"
+
         db.commit()
         db.refresh(session)
 
