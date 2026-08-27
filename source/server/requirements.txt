@@ -7,4 +7,4 @@ pydantic-settings
 argon2-cffi==25.1.0
 PyJWT[crypto]
 pytest
-httpx
+httpx2==2.12.0
