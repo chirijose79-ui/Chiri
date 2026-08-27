@@ -593,3 +593,87 @@ def test_me_rejects_jwt_missing_required_claim(test_user, claim):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid access token"
+
+def test_me_rejects_expired_session(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+
+    access_token = data["access_token"]
+    session_id = data["session_id"]
+
+    with DbSession(migration_engine) as db:
+        session = db.scalar(
+            select(Session).where(
+                Session.id == uuid.UUID(session_id)
+            )
+        )
+
+        assert session is not None
+
+        session.expires_at = (
+            datetime.now(timezone.utc)
+            - timedelta(minutes=1)
+        )
+
+        db.commit()
+
+    response = client.get(
+        "/auth/me",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Session is not active"
+
+def test_refresh_rejects_expired_session(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+
+    refresh_token = data["refresh_token"]
+    session_id = data["session_id"]
+
+    with DbSession(migration_engine) as db:
+        session = db.scalar(
+            select(Session).where(
+                Session.id == uuid.UUID(session_id)
+            )
+        )
+
+        assert session is not None
+
+        session.expires_at = (
+            datetime.now(timezone.utc)
+            - timedelta(minutes=1)
+        )
+
+        db.commit()
+
+    response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": refresh_token,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Session expired"

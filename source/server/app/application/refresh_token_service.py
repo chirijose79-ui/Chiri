@@ -21,6 +21,13 @@ class RefreshTokenReuseError(Exception):
     """
 
 
+class RefreshTokenValidationError(Exception):
+    """
+    Raised when a refresh token cannot be used because
+    its session or token state is invalid.
+    """
+
+
 def create_refresh_token(
     db: DbSession,
     session: Session,
@@ -35,7 +42,7 @@ def create_refresh_token(
     """
 
     if session.status != "ACTIVE":
-        raise ValueError(
+        raise RefreshTokenValidationError(
             "Cannot create refresh token for inactive session"
         )
 
@@ -193,7 +200,7 @@ def _create_refresh_token_without_commit(
     """
 
     if session.status != "ACTIVE":
-        raise ValueError(
+        raise RefreshTokenValidationError(
             "Cannot create refresh token for inactive session"
         )
 
@@ -244,7 +251,9 @@ def rotate_refresh_token(
     )
 
     if refresh_token is None:
-        raise ValueError("Invalid refresh token")
+        raise RefreshTokenValidationError(
+            "Invalid refresh token"
+        )
 
     session = db.scalar(
         select(Session).where(
@@ -253,12 +262,28 @@ def rotate_refresh_token(
     )
 
     if session is None:
-        raise ValueError("Refresh token session not found")
+        raise RefreshTokenValidationError(
+            "Refresh token session not found"
+        )
 
     now = datetime.now(timezone.utc)
 
-    # Previously invalidated token:
-    # possible refresh-token reuse attack.
+    # Previously invalidated token.
+    #
+    # A revoked session means the token was invalidated
+    # because of logout or session revocation. In that case
+    # the token must simply be rejected.
+    if session.status == "REVOKED":
+        if refresh_token.status == "ACTIVE":
+            refresh_token.status = "REVOKED"
+            db.commit()
+
+        raise RefreshTokenValidationError(
+            "Invalid refresh token"
+        )
+
+    # Previously invalidated token while the session is still
+    # active: possible refresh-token reuse attack.
     if refresh_token.status in ("REVOKED", "EXPIRED"):
         session.status = "REVOKED"
 
@@ -294,7 +319,9 @@ def rotate_refresh_token(
 
         db.commit()
 
-        raise ValueError("Session is not active")
+        raise RefreshTokenValidationError(
+            "Session is not active"
+        )
 
     if session.expires_at <= now:
         session.status = "EXPIRED"
@@ -302,7 +329,9 @@ def rotate_refresh_token(
 
         db.commit()
 
-        raise ValueError("Session expired")
+        raise RefreshTokenValidationError(
+            "Session expired"
+        )
 
     # Refresh token expiration.
     if refresh_token.expires_at <= now:
@@ -310,7 +339,9 @@ def rotate_refresh_token(
 
         db.commit()
 
-        raise ValueError("Refresh token expired")
+        raise RefreshTokenValidationError(
+            "Refresh token expired"
+        )
 
     # ---------------------------------------------------------
     # ATOMIC ROTATION

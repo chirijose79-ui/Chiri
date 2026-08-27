@@ -14,6 +14,7 @@ from app.api.dependencies import (
 from app.application.login_service import login_user
 from app.application.refresh_token_service import (
     RefreshTokenReuseError,
+    RefreshTokenValidationError,
     rotate_refresh_token,
 )
 from app.application.session_service import revoke_session
@@ -110,6 +111,12 @@ def refresh(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token reuse detected",
+        )
+
+    except RefreshTokenValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
         )
 
     except ValueError:
