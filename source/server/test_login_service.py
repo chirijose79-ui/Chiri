@@ -1,14 +1,15 @@
-﻿import uuid
+import uuid
 
+import pytest
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session as DbSession
 
 from app.application.login_service import login_user
 from app.config.settings import settings
 from app.database.database import SessionLocal
+from app.database.models.refresh_token import RefreshToken
 from app.database.models.session import Session
 from app.database.models.user import User
-from app.database.models.refresh_token import RefreshToken
 from app.domain.exceptions import InvalidCredentialsError
 from app.security.password import hash_password
 
@@ -60,10 +61,11 @@ def cleanup() -> None:
         db.commit()
 
 
-db = SessionLocal()
-
-try:
+@pytest.fixture
+def test_user():
     cleanup()
+
+    db = SessionLocal()
 
     user = User(
         id=uuid.uuid4(),
@@ -77,55 +79,62 @@ try:
     db.commit()
     db.refresh(user)
 
+    yield db, user
+
+    db.close()
+    cleanup()
+
+
+def test_login_success(test_user):
+    db, user = test_user
+
     session, access_token, refresh_token, raw_refresh_token = login_user(
         db=db,
         identifier=TEST_USERNAME,
         password=TEST_PASSWORD,
     )
 
-    print("LOGIN_CORRECT")
-    print("user_status=", user.status)
-    print("session_status=", session.status)
-    print("session_user_id=", session.user_id)
-    print("session_user_matches=", session.user_id == user.id)
+    assert user.status == "ACTIVE"
+    assert session.status == "ACTIVE"
+    assert session.user_id == user.id
 
-    try:
+    assert access_token
+    assert refresh_token.status == "ACTIVE"
+    assert raw_refresh_token
+    assert refresh_token.token_hash != raw_refresh_token
+
+
+def test_login_wrong_password_rejected(test_user):
+    db, _ = test_user
+
+    with pytest.raises(InvalidCredentialsError):
         login_user(
             db=db,
             identifier=TEST_USERNAME,
             password="WrongPassword-2026!",
         )
-    except InvalidCredentialsError:
-        print("WRONG_PASSWORD_REJECTED=True")
-    else:
-        print("WRONG_PASSWORD_REJECTED=False")
 
-    try:
+
+def test_login_unknown_user_rejected(test_user):
+    db, _ = test_user
+
+    with pytest.raises(InvalidCredentialsError):
         login_user(
             db=db,
             identifier="__does_not_exist__",
             password=TEST_PASSWORD,
         )
-    except InvalidCredentialsError:
-        print("UNKNOWN_USER_REJECTED=True")
-    else:
-        print("UNKNOWN_USER_REJECTED=False")
+
+
+def test_login_inactive_user_rejected(test_user):
+    db, user = test_user
 
     user.status = "INACTIVE"
     db.commit()
 
-    try:
+    with pytest.raises(InvalidCredentialsError):
         login_user(
             db=db,
             identifier=TEST_USERNAME,
             password=TEST_PASSWORD,
         )
-    except InvalidCredentialsError:
-        print("INACTIVE_USER_REJECTED=True")
-    else:
-        print("INACTIVE_USER_REJECTED=False")
-
-finally:
-    db.close()
-    cleanup()
-    migration_engine.dispose()

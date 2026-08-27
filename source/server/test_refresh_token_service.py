@@ -1,14 +1,16 @@
 import uuid
-from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session as DbSession
 
 from app.application.refresh_token_service import (
     RefreshTokenReuseError,
+    _create_refresh_token_without_commit,
     rotate_refresh_token,
 )
 from app.application.session_service import _create_session_without_commit
+from app.config.settings import settings
 from app.database.database import SessionLocal
 from app.database.models.refresh_token import RefreshToken
 from app.database.models.session import Session
@@ -22,7 +24,7 @@ TEST_PASSWORD = "TestPassword-2026!"
 
 
 migration_engine = create_engine(
-    __import__("app.config.settings", fromlist=["settings"]).settings.migration_database_url,
+    settings.migration_database_url,
 )
 
 
@@ -63,14 +65,11 @@ def cleanup() -> None:
         db.commit()
 
 
-db = SessionLocal()
-
-try:
+@pytest.fixture
+def refresh_context():
     cleanup()
 
-    # ---------------------------------------------------------
-    # CREATE TEST USER
-    # ---------------------------------------------------------
+    db = SessionLocal()
 
     user = User(
         id=uuid.uuid4(),
@@ -84,10 +83,6 @@ try:
     db.commit()
     db.refresh(user)
 
-    # ---------------------------------------------------------
-    # CREATE SESSION
-    # ---------------------------------------------------------
-
     session = _create_session_without_commit(
         db=db,
         user_id=user.id,
@@ -95,19 +90,9 @@ try:
 
     db.flush()
 
-    # ---------------------------------------------------------
-    # CREATE INITIAL REFRESH TOKEN
-    # ---------------------------------------------------------
-
-    from app.application.refresh_token_service import (
-        _create_refresh_token_without_commit,
-    )
-
-    refresh_token, raw_token = (
-        _create_refresh_token_without_commit(
-            db=db,
-            session=session,
-        )
+    refresh_token, raw_token = _create_refresh_token_without_commit(
+        db=db,
+        session=session,
     )
 
     db.commit()
@@ -115,16 +100,23 @@ try:
     db.refresh(session)
     db.refresh(refresh_token)
 
-    print("INITIAL_SESSION_ACTIVE=", session.status == "ACTIVE")
-    print("INITIAL_REFRESH_TOKEN_ACTIVE=", refresh_token.status == "ACTIVE")
-    print(
-        "INITIAL_TOKEN_HASHED=",
-        refresh_token.token_hash != raw_token,
-    )
+    yield db, user, session, refresh_token, raw_token
 
-    # ---------------------------------------------------------
-    # ROTATE REFRESH TOKEN
-    # ---------------------------------------------------------
+    db.close()
+    cleanup()
+
+
+def test_initial_refresh_token_is_active_and_hashed(refresh_context):
+    db, _, session, refresh_token, raw_token = refresh_context
+
+    assert session.status == "ACTIVE"
+    assert refresh_token.status == "ACTIVE"
+    assert refresh_token.session_id == session.id
+    assert refresh_token.token_hash != raw_token
+
+
+def test_refresh_token_rotation_revokes_old_token(refresh_context):
+    db, _, session, refresh_token, raw_token = refresh_context
 
     old_token_id = refresh_token.id
 
@@ -133,45 +125,34 @@ try:
         token=raw_token,
     )
 
-    print(
-        "OLD_TOKEN_REVOKED=",
-        db.scalar(
-            select(RefreshToken.status).where(
-                RefreshToken.id == old_token_id
-            )
-        ) == "REVOKED",
+    old_status = db.scalar(
+        select(RefreshToken.status).where(
+            RefreshToken.id == old_token_id
+        )
     )
 
-    print(
-        "NEW_TOKEN_ACTIVE=",
-        new_refresh_token.status == "ACTIVE",
+    assert old_status == "REVOKED"
+    assert new_refresh_token.status == "ACTIVE"
+    assert new_refresh_token.session_id == session.id
+    assert new_raw_token != raw_token
+    assert new_refresh_token.token_hash != new_raw_token
+
+
+def test_reuse_of_old_refresh_token_revokes_session(
+    refresh_context,
+):
+    db, _, session, refresh_token, raw_token = refresh_context
+
+    rotate_refresh_token(
+        db=db,
+        token=raw_token,
     )
 
-    print(
-        "NEW_TOKEN_DIFFERENT=",
-        new_raw_token != raw_token,
-    )
-
-    print(
-        "NEW_TOKEN_HASHED=",
-        new_refresh_token.token_hash != new_raw_token,
-    )
-
-    # ---------------------------------------------------------
-    # REUSE OLD TOKEN
-    # ---------------------------------------------------------
-
-    try:
+    with pytest.raises(RefreshTokenReuseError):
         rotate_refresh_token(
             db=db,
             token=raw_token,
         )
-
-    except RefreshTokenReuseError:
-        print("OLD_TOKEN_REUSE_REJECTED=True")
-
-    else:
-        print("OLD_TOKEN_REUSE_REJECTED=False")
 
     db.expire_all()
 
@@ -181,14 +162,27 @@ try:
         )
     )
 
-    print(
-        "SESSION_REVOKED_AFTER_REUSE=",
-        refreshed_session.status == "REVOKED",
+    assert refreshed_session is not None
+    assert refreshed_session.status == "REVOKED"
+
+
+def test_reuse_revokes_all_active_session_tokens(
+    refresh_context,
+):
+    db, _, session, refresh_token, raw_token = refresh_context
+
+    new_refresh_token, _ = rotate_refresh_token(
+        db=db,
+        token=raw_token,
     )
 
-    # ---------------------------------------------------------
-    # VERIFY ALL SESSION TOKENS ARE REVOKED
-    # ---------------------------------------------------------
+    with pytest.raises(RefreshTokenReuseError):
+        rotate_refresh_token(
+            db=db,
+            token=raw_token,
+        )
+
+    db.expire_all()
 
     active_tokens = db.scalars(
         select(RefreshToken).where(
@@ -197,13 +191,13 @@ try:
         )
     ).all()
 
-    print(
-        "NO_ACTIVE_TOKENS_AFTER_REUSE=",
-        len(active_tokens) == 0,
-    )
+    assert len(active_tokens) == 0
 
-finally:
-    db.close()
-    cleanup()
-    migration_engine.dispose()
-    
+    revoked_tokens = db.scalars(
+        select(RefreshToken).where(
+            RefreshToken.session_id == session.id,
+            RefreshToken.status == "REVOKED",
+        )
+    ).all()
+
+    assert len(revoked_tokens) == 2
