@@ -1,8 +1,9 @@
-﻿import uuid
+import uuid
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session as DbSession
 
+from app.application.refresh_token_service import create_refresh_token
 from app.application.session_service import create_session
 from app.database.models.user import User
 from app.domain.exceptions import InvalidCredentialsError
@@ -38,9 +39,19 @@ def login_user(
         user_id=uuid.UUID(str(user.id)),
     )
 
+    refresh_token, raw_refresh_token = create_refresh_token(
+        db=db,
+        session=session,
+    )
+
     access_token = create_access_token(
         user_id=session.user_id,
         session_id=session.id,
     )
 
-    return session, access_token
+    return (
+        session,
+        access_token,
+        refresh_token,
+        raw_refresh_token,
+    )

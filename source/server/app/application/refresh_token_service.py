@@ -30,10 +30,14 @@ def create_refresh_token(
 
     The raw token is returned only once.
     Only its hash is persisted in the database.
+
+    This function commits the transaction.
     """
 
     if session.status != "ACTIVE":
-        raise ValueError("Cannot create refresh token for inactive session")
+        raise ValueError(
+            "Cannot create refresh token for inactive session"
+        )
 
     now = datetime.now(timezone.utc)
 
@@ -105,8 +109,10 @@ def get_active_refresh_token(
 
     if refresh_token.expires_at <= now:
         refresh_token.status = "EXPIRED"
+
         db.commit()
         db.refresh(refresh_token)
+
         return None
 
     return refresh_token
@@ -122,10 +128,52 @@ def revoke_refresh_token(
 
     if refresh_token.status == "ACTIVE":
         refresh_token.status = "REVOKED"
+
         db.commit()
         db.refresh(refresh_token)
 
     return refresh_token
+
+
+def _create_refresh_token_without_commit(
+    db: DbSession,
+    session: Session,
+) -> tuple[RefreshToken, str]:
+    """
+    Create a refresh token without committing.
+
+    This helper is used by rotation so that revocation
+    of the old token and creation of the new token
+    happen inside the same database transaction.
+    """
+
+    if session.status != "ACTIVE":
+        raise ValueError(
+            "Cannot create refresh token for inactive session"
+        )
+
+    now = datetime.now(timezone.utc)
+
+    expires_at = min(
+        now + timedelta(days=REFRESH_TOKEN_MAX_DAYS),
+        session.expires_at,
+    )
+
+    raw_token = generate_refresh_token()
+    token_hash = hash_refresh_token(raw_token)
+
+    refresh_token = RefreshToken(
+        id=uuid.uuid4(),
+        session_id=session.id,
+        token_hash=token_hash,
+        created_at=now,
+        expires_at=expires_at,
+        status="ACTIVE",
+    )
+
+    db.add(refresh_token)
+
+    return refresh_token, raw_token
 
 
 def rotate_refresh_token(
@@ -133,12 +181,16 @@ def rotate_refresh_token(
     token: str,
 ) -> tuple[RefreshToken, str]:
     """
-    Rotate a refresh token.
+    Rotate a refresh token atomically.
 
-    A valid ACTIVE token is revoked and replaced by a new token.
+    A valid ACTIVE token is revoked and replaced
+    by a new token.
 
-    Reuse of a previously invalidated token is treated as a
-    security event and revokes the associated session.
+    Reuse of a previously invalidated token is treated
+    as a security event and revokes the associated session.
+
+    The revocation of the old token and creation of the
+    replacement token are committed as one transaction.
     """
 
     refresh_token = get_refresh_token(
@@ -205,15 +257,28 @@ def rotate_refresh_token(
 
         raise ValueError("Refresh token expired")
 
-    # Rotation:
-    # invalidate the current token before issuing the replacement.
+    # ---------------------------------------------------------
+    # ATOMIC ROTATION
+    # ---------------------------------------------------------
+    #
+    # The old token is revoked and the new token is created
+    # without an intermediate commit.
+    #
+    # A single commit below persists both changes together.
+    #
+
     refresh_token.status = "REVOKED"
 
-    db.flush()
-
-    new_refresh_token, raw_token = create_refresh_token(
-        db=db,
-        session=session,
+    new_refresh_token, raw_token = (
+        _create_refresh_token_without_commit(
+            db=db,
+            session=session,
+        )
     )
+
+    db.commit()
+
+    db.refresh(refresh_token)
+    db.refresh(new_refresh_token)
 
     return new_refresh_token, raw_token
