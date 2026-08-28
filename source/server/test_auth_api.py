@@ -499,6 +499,40 @@ def test_me_rejects_expired_access_token(test_user):
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid access token"
 
+def test_login_access_token_expires_in_15_minutes(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    access_token = login_response.json()["access_token"]
+
+    payload = jwt.decode(
+        access_token,
+        options={
+            "verify_signature": False,
+        },
+    )
+
+    issued_at = datetime.fromtimestamp(
+        payload["iat"],
+        timezone.utc,
+    )
+
+    expires_at = datetime.fromtimestamp(
+        payload["exp"],
+        timezone.utc,
+    )
+
+    lifetime = expires_at - issued_at
+
+    assert lifetime == timedelta(minutes=15)
+
 def test_me_rejects_jwt_with_invalid_iat(test_user):
     login_response = client.post(
         "/auth/login",
