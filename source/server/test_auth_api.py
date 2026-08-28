@@ -767,3 +767,53 @@ def test_refresh_rejects_expired_refresh_token(test_user):
 
         assert db_refresh_token is not None
         assert db_refresh_token.status == "EXPIRED"
+
+def test_refresh_rotation_does_not_extend_session_expiration(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+
+    refresh_token = data["refresh_token"]
+    session_id = data["session_id"]
+
+    with DbSession(migration_engine) as db:
+        session = db.scalar(
+            select(Session).where(
+                Session.id == uuid.UUID(session_id)
+            )
+        )
+
+        assert session is not None
+
+        session.expires_at = (
+            datetime.now(timezone.utc)
+            + timedelta(minutes=5)
+        )
+
+        expected_expires_at = session.expires_at
+
+        db.commit()
+
+    refresh_response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": refresh_token,
+        },
+    )
+
+    assert refresh_response.status_code == 200
+
+    refresh_data = refresh_response.json()
+
+    assert refresh_data["session_id"] == session_id
+    assert datetime.fromisoformat(
+        refresh_data["expires_at"].replace("Z", "+00:00")
+    ) == expected_expires_at
