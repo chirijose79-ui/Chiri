@@ -884,3 +884,43 @@ def test_refresh_token_reuse_after_rotation_revokes_session(test_user):
             refresh_token.status == "REVOKED"
             for refresh_token in refresh_tokens
         )
+
+def test_login_refresh_token_does_not_outlive_session(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+
+    session_id = data["session_id"]
+    refresh_token = data["refresh_token"]
+
+    with DbSession(migration_engine) as db:
+        session = db.scalar(
+            select(Session).where(
+                Session.id == uuid.UUID(session_id)
+            )
+        )
+
+        assert session is not None
+        assert session.status == "ACTIVE"
+
+        db_refresh_token = db.scalar(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == hash_refresh_token(
+                    refresh_token
+                )
+            )
+        )
+
+        assert db_refresh_token is not None
+        assert db_refresh_token.status == "ACTIVE"
+        assert db_refresh_token.session_id == session.id
+
+        assert db_refresh_token.expires_at <= session.expires_at
