@@ -18,6 +18,7 @@ from app.security.jwt import (
     JWT_ALGORITHM,
     _load_private_key,
 )
+from app.security.refresh_token import hash_refresh_token
 
 
 TEST_USERNAME = "__api_test__"
@@ -711,3 +712,58 @@ def test_refresh_rejects_expired_session(test_user):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Session expired"
+
+def test_refresh_rejects_expired_refresh_token(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+
+    refresh_token = data["refresh_token"]
+
+    with DbSession(migration_engine) as db:
+        db_refresh_token = db.scalar(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == hash_refresh_token(
+                    refresh_token
+                )
+            )
+        )
+
+        assert db_refresh_token is not None
+
+        db_refresh_token.expires_at = (
+            datetime.now(timezone.utc)
+            - timedelta(minutes=1)
+        )
+
+        db.commit()
+
+    response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": refresh_token,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Refresh token expired"
+
+    with DbSession(migration_engine) as db:
+        db_refresh_token = db.scalar(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == hash_refresh_token(
+                    refresh_token
+                )
+            )
+        )
+
+        assert db_refresh_token is not None
+        assert db_refresh_token.status == "EXPIRED"
