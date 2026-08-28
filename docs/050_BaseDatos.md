@@ -141,7 +141,7 @@ La base de datos utilizará:
 
 ## Migraciones
 
-* Herramienta de migración definida posteriormente.
+* Alembic.
 
 ## Ejecución
 
@@ -229,20 +229,18 @@ PostgreSQL permitirá organizar información mediante esquemas.
 La estructura inicial será conceptual:
 
 ```text id="8k5p2m"
-chiri
+PostgreSQL Chiri
 
 ├── identity
-
-├── security
-
-├── configuration
-
-├── integration
-
-└── audit
+│   └── user
+│
+└── security
+    ├── session
+    └── refresh_token
 ```
 
-La definición final de esquemas se realizará cuando se diseñen las entidades específicas.
+Los esquemas configuration, integration y audit
+pertenecen a etapas futuras y todavía no están implementados.
 
 ---
 
@@ -252,9 +250,12 @@ Responsabilidad:
 
 Gestionar la identidad dentro de Chiri.
 
-Ejemplos futuros:
+Actualmente implementado:
 
-* usuarios.
+* user
+
+Futuro:
+
 * perfiles.
 * preferencias básicas.
 
@@ -270,12 +271,16 @@ Responsabilidad:
 
 Gestionar elementos relacionados con seguridad.
 
-Ejemplos:
+Actualmente implementado:
 
 * sesiones.
+* refresh tokens.
+
+Futuro:
+
 * permisos.
 * roles.
-* accesos.
+* autorización granular.
 
 Su objetivo será controlar qué puede hacer cada usuario dentro de Chiri.
 
@@ -340,15 +345,13 @@ Ejemplo:
 
 ```mermaid id="7m2q5x"
 erDiagram
-
-    USER ||--o{ SESSION : creates
-
-    USER ||--o{ AUDIT_EVENT : generates
-
-    USER ||--o{ USER_SETTING : owns
+    USER ||--o{ SESSION : owns
+    SESSION ||--o{ REFRESH_TOKEN : has
 ```
 
----
+Las entidades de auditoría, configuración y otras relaciones
+mostradas en la arquitectura futura aún no están implementadas.
+
 
 # 2.9 Normalización
 
@@ -689,30 +692,26 @@ IS 'Usuarios registrados en Chiri Platform';
 
 # 3.13 Migraciones
 
-Los cambios de estructura deberán realizarse mediante migraciones.
+Los cambios de estructura deberán realizarse mediante migraciones, con Alembic.
 
 No se modificarán tablas manualmente en producción.
 
 Flujo:
 
-```mermaid id="5k9m2x"
+```mermaid
 flowchart LR
 
     Change["Cambio Modelo"]
-
-    Migration["Migración"]
-
-    Test["Prueba"]
-
-    Production["Producción"]
-
+    Migration["Migración Alembic"]
+    Test["Pruebas"]
+    Upgrade["Upgrade"]
+    Verification["Verificación"]
 
     Change --> Migration
     Migration --> Test
-    Test --> Production
+    Test --> Upgrade
+    Upgrade --> Verification
 ```
-
----
 
 # 3.14 Principio Arquitectónico
 
@@ -722,12 +721,34 @@ El diseño de base de datos deberá cumplir:
 
 # 4. Entidades Principales de Chiri
 
+Las entidades se dividen entre las actualmente implementadas
+y las previstas para futuras etapas.
+
+## Entidades actualmente implementadas
+
+* User
+* Session
+* RefreshToken
+
+## Entidades futuras
+
+* Profile
+* Role
+* Permission
+* Configuration
+* Integration
+* Logical Device
+* Audit
+
 La base de datos de Chiri Platform deberá representar únicamente conceptos propios de la plataforma.
 
 Las entidades iniciales estarán diseñadas para soportar:
 
 * identidad de usuarios.
 * seguridad.
+
+Las siguientes capacidades corresponden a futuras etapas:
+
 * configuración.
 * integraciones.
 * auditoría.
@@ -740,14 +761,17 @@ El modelo podrá evolucionar cuando aparezcan nuevos módulos, respetando la arq
 
 La entidad Usuario representa una persona registrada dentro de Chiri.
 
-Responsabilidades:
+Responsabilidades actualmente implementadas:
 
 * identificar usuarios.
+
+Responsabilidades previstas para futuras etapas:
+
 * relacionar preferencias.
 * asociar permisos.
 * registrar actividad.
 
-Ejemplo conceptual:
+Modelo actual:
 
 ```mermaid
 erDiagram
@@ -756,11 +780,12 @@ erDiagram
         uuid id
         string username
         string email
+        string password_hash
+        string status
         timestamp created_at
+        timestamp updated_at
     }
 ```
-
----
 
 # 4.2 Entidad Perfil
 
@@ -902,9 +927,57 @@ erDiagram
     }
 ```
 
----
+# 4.9 Entidad Sesión
 
-# 4.9 Relación General del Dominio
+La sesión representa una sesión autenticada de un usuario.
+
+Campos actuales:
+
+* id
+* user_id
+* created_at
+* expires_at
+* status
+
+Estados permitidos:
+
+* ACTIVE
+* REVOKED
+* EXPIRED
+
+```mermaid
+erDiagram
+    USER ||--o{ SESSION : owns
+```
+
+# 4.10 Entidad Refresh Token
+
+El refresh token pertenece a una sesión.
+
+Campos actuales:
+
+* id
+* session_id
+* token_hash
+* created_at
+* expires_at
+* status
+
+Estados permitidos:
+
+* ACTIVE
+* REVOKED
+* EXPIRED
+
+```mermaid
+erDiagram
+    SESSION ||--o{ REFRESH_TOKEN : has
+```
+
+El valor original del refresh token no se almacena.
+La base de datos almacena únicamente su hash.
+
+# 4.11 Relación General del Dominio
 
 Modelo conceptual inicial:
 
@@ -924,9 +997,19 @@ erDiagram
     INTEGRATION ||--o{ DEVICE : manages
 ```
 
----
+Las relaciones mostradas en este modelo corresponden a entidades
+previstas para futuras etapas y no forman parte del modelo de datos
+actual.
 
-# 4.10 Entidades Futuras
+Las relaciones actualmente implementadas son:
+
+```mermaid
+erDiagram
+    USER ||--o{ SESSION : owns
+    SESSION ||--o{ REFRESH_TOKEN : has
+```
+
+# 4.12 Entidades Futuras
 
 La arquitectura permitirá agregar posteriormente entidades como:
 
@@ -940,7 +1023,7 @@ Estas entidades serán creadas solamente cuando exista una necesidad real.
 
 ---
 
-# 4.11 Regla de Diseño
+# 4.13 Regla de Diseño
 
 Una entidad nueva deberá responder:
 
@@ -950,7 +1033,7 @@ Si pertenece a un servicio externo, Chiri deberá integrarlo, no replicarlo.
 
 ---
 
-# 4.12 Principio Arquitectónico
+# 4.14 Principio Arquitectónico
 
 El modelo de datos de Chiri deberá representar:
 
