@@ -26,9 +26,14 @@ Su diseño deberá permitir:
 
 PostgreSQL será utilizado para almacenar información que pertenece al dominio de Chiri.
 
-Ejemplos:
+Actualmente implementado:
 
 * usuarios.
+* sesiones.
+* refresh tokens.
+
+En futuras etapas se incorporarán otras entidades propias del dominio, como:
+
 * configuraciones propias.
 * permisos.
 * preferencias.
@@ -195,9 +200,17 @@ Los datos deberán organizarse por responsabilidad funcional.
 
 Cada módulo de Chiri tendrá sus propias entidades relacionadas.
 
-Ejemplo conceptual:
+La organización inicial implementada comprende los dominios de:
 
-```mermaid id="4n7m2x"
+* Usuarios.
+* Seguridad.
+
+Otros dominios, como Configuración, Integraciones e Historial,
+corresponden a futuras etapas y todavía no están implementados.
+
+Ejemplo conceptual de la organización prevista:
+
+```mermaid
 flowchart TB
 
     DB["PostgreSQL Chiri"]
@@ -219,8 +232,6 @@ flowchart TB
     DB --> Integration
     DB --> History
 ```
-
----
 
 # 2.2 Separación por Esquemas
 
@@ -288,6 +299,8 @@ Su objetivo será controlar qué puede hacer cada usuario dentro de Chiri.
 
 # 2.5 Dominio Configuration
 
+**Estado: Futuro — no implementado actualmente.**
+
 Responsabilidad:
 
 Almacenar configuraciones propias de la plataforma.
@@ -301,6 +314,8 @@ Ejemplos:
 ---
 
 # 2.6 Dominio Integration
+
+**Estado: Futuro — no implementado actualmente.**
 
 Responsabilidad:
 
@@ -316,9 +331,9 @@ No almacenará:
 
 * la base completa del servicio externo.
 
----
-
 # 2.7 Dominio Audit
+
+**Estado: Futuro — no implementado actualmente.**
 
 Responsabilidad:
 
@@ -525,11 +540,9 @@ Características:
 
 * única.
 * estable.
-* generada por el sistema.
+* generada por la aplicación.
 
 La clave primaria no deberá depender de identificadores externos.
-
----
 
 # 3.5 Claves Externas
 
@@ -573,8 +586,15 @@ timestamp with time zone
 Estados:
 
 ```sql
-boolean
-enum
+text
+```
+
+Los estados deberán validarse mediante restricciones `CHECK`.
+
+Ejemplo:
+
+```sql
+status IN ('ACTIVE', 'INACTIVE', 'DELETED')
 ```
 
 Identificadores:
@@ -584,8 +604,6 @@ uuid
 ```
 
 cuando corresponda.
-
----
 
 # 3.7 Manejo de Fechas
 
@@ -672,8 +690,11 @@ La base de datos deberá proteger la integridad mediante:
 Ejemplo:
 
 ```sql
-email varchar UNIQUE NOT NULL
+email TEXT UNIQUE NOT NULL
 ```
+
+Las restricciones `CHECK` se utilizarán para validar valores permitidos,
+como los estados de las entidades.
 
 ---
 
