@@ -817,3 +817,70 @@ def test_refresh_rotation_does_not_extend_session_expiration(test_user):
     assert datetime.fromisoformat(
         refresh_data["expires_at"].replace("Z", "+00:00")
     ) == expected_expires_at
+
+def test_refresh_token_reuse_after_rotation_revokes_session(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+
+    refresh_token = data["refresh_token"]
+    session_id = data["session_id"]
+
+    rotation_response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": refresh_token,
+        },
+    )
+
+    assert rotation_response.status_code == 200
+
+    rotated_data = rotation_response.json()
+
+    new_refresh_token = rotated_data["refresh_token"]
+
+    assert new_refresh_token
+    assert new_refresh_token != refresh_token
+    assert rotated_data["session_id"] == session_id
+
+    reuse_response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": refresh_token,
+        },
+    )
+
+    assert reuse_response.status_code == 401
+    assert reuse_response.json()["detail"] == (
+        "Refresh token reuse detected"
+    )
+
+    with DbSession(migration_engine) as db:
+        db_session = db.scalar(
+            select(Session).where(
+                Session.id == uuid.UUID(session_id)
+            )
+        )
+
+        assert db_session is not None
+        assert db_session.status == "REVOKED"
+
+        refresh_tokens = db.scalars(
+            select(RefreshToken).where(
+                RefreshToken.session_id == db_session.id
+            )
+        ).all()
+
+        assert len(refresh_tokens) == 2
+        assert all(
+            refresh_token.status == "REVOKED"
+            for refresh_token in refresh_tokens
+        )
