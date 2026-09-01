@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import android.util.Log
 import androidx.navigation.NavController
 import com.chirihome.platform.R
 import com.chirihome.platform.session.SessionManager
@@ -23,13 +24,44 @@ fun SplashScreen(
     sessionManager: SessionManager
 ) {
     LaunchedEffect(Unit) {
-        val sessionIsValid = sessionManager.isSessionValid()
+        Log.e("ChiriSplash", "SPLASH EJECUTADO")
+
+        val sessionIsValid = try {
+            Log.e("ChiriSplash", "Consultando /auth/me")
+
+            val currentUser = sessionManager.getCurrentUser()
+
+            Log.e(
+                "ChiriSplash",
+                "Respuesta /auth/me: $currentUser"
+            )
+
+            currentUser != null
+        } catch (exception: Exception) {
+            Log.e(
+                "ChiriSplash",
+                "Error validando sesión",
+                exception
+            )
+            false
+        }
+
+        Log.e(
+            "ChiriSplash",
+            "sessionIsValid = $sessionIsValid"
+        )
 
         val destination = if (sessionIsValid) {
             Routes.HOME
         } else {
+            sessionManager.clearSession()
             Routes.LOGIN
         }
+
+        Log.e(
+            "ChiriSplash",
+            "Destino = $destination"
+        )
 
         navController.navigate(destination) {
             popUpTo(Routes.SPLASH) {

@@ -105,6 +105,12 @@ class SecureSessionStorage(
             .putString("${key}_iv", iv)
             .putString(key, data)
             .apply()
+
+        android.util.Log.e(
+            "ChiriStorage",
+            "Token guardado: $key, longitud=${value.length}"
+        )
+
     }
 
     private fun getDecrypted(
@@ -145,6 +151,11 @@ class SecureSessionStorage(
                 StandardCharsets.UTF_8
             )
         } catch (exception: Exception) {
+            android.util.Log.e(
+                "ChiriStorage",
+                "Error desencriptando: $key",
+                exception
+            )
             null
         }
     }

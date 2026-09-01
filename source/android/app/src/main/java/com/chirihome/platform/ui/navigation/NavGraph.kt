@@ -27,11 +27,16 @@ fun ChiriNavGraph(
         }
 
         composable(Routes.LOGIN) {
-            LoginScreen()
+            LoginScreen(
+                navController = navController,
+                sessionManager = sessionManager
+            )
         }
 
         composable(Routes.HOME) {
-            HomeScreen()
+            HomeScreen(
+                sessionManager = sessionManager
+            )
         }
     }
 }
