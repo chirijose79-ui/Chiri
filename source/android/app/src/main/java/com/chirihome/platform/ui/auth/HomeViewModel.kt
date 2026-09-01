@@ -2,14 +2,14 @@ package com.chirihome.platform.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.chirihome.platform.session.SessionManager
+import com.chirihome.platform.domain.auth.LogoutUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
-    private val sessionManager: SessionManager
+    private val logoutUseCase: LogoutUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -29,7 +29,7 @@ class HomeViewModel(
             )
 
             try {
-                sessionManager.logout()
+                logoutUseCase()
                 onSuccess()
             } catch (exception: Exception) {
                 _uiState.value = _uiState.value.copy(

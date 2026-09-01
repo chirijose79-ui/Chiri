@@ -2,10 +2,10 @@ package com.chirihome.platform.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.chirihome.platform.session.SessionManager
+import com.chirihome.platform.domain.auth.LogoutUseCase
 
 class HomeViewModelFactory(
-    private val sessionManager: SessionManager
+    private val logoutUseCase: LogoutUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -13,7 +13,9 @@ class HomeViewModelFactory(
         modelClass: Class<T>
     ): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
-            return HomeViewModel(sessionManager) as T
+            return HomeViewModel(
+                logoutUseCase = logoutUseCase
+            ) as T
         }
 
         throw IllegalArgumentException(

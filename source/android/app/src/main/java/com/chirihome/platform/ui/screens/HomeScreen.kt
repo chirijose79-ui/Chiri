@@ -33,7 +33,7 @@ fun HomeScreen(
 
     val viewModel: HomeViewModel = viewModel(
         factory = HomeViewModelFactory(
-            sessionManager = application.sessionManager
+            logoutUseCase = application.logoutUseCase
         )
     )
 
