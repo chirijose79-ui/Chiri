@@ -33,7 +33,7 @@ fun SplashScreen(
 
     val viewModel: SplashViewModel = viewModel(
         factory = SplashViewModelFactory(
-            sessionManager = application.sessionManager
+            validateSessionUseCase = application.validateSessionUseCase
         )
     )
 

@@ -2,10 +2,10 @@ package com.chirihome.platform.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.chirihome.platform.session.SessionManager
+import com.chirihome.platform.domain.auth.ValidateSessionUseCase
 
 class SplashViewModelFactory(
-    private val sessionManager: SessionManager
+    private val validateSessionUseCase: ValidateSessionUseCase
 ) : ViewModelProvider.Factory {
 
     @Suppress("UNCHECKED_CAST")
@@ -13,7 +13,9 @@ class SplashViewModelFactory(
         modelClass: Class<T>
     ): T {
         if (modelClass.isAssignableFrom(SplashViewModel::class.java)) {
-            return SplashViewModel(sessionManager) as T
+            return SplashViewModel(
+                validateSessionUseCase = validateSessionUseCase
+            ) as T
         }
 
         throw IllegalArgumentException(
