@@ -2,12 +2,13 @@ package com.chirihome.platform.session
 
 import com.chirihome.platform.network.ApiClient
 import com.chirihome.platform.network.CurrentUserResponse
+import com.chirihome.platform.network.LoginResponse
+import com.chirihome.platform.network.RefreshRequest
 import com.chirihome.platform.storage.SessionStorage
 
-import android.util.Log
-
 class SessionManager(
-    private val sessionStorage: SessionStorage
+    private val sessionStorage: SessionStorage,
+    private val apiClient: ApiClient
 ) {
 
     suspend fun isSessionValid(): Boolean {
@@ -23,38 +24,9 @@ class SessionManager(
     }
 
     suspend fun getCurrentUser(): CurrentUserResponse? {
-        val accessToken = sessionStorage.getAccessToken()
-
-        if (accessToken.isNullOrBlank()) {
-            Log.e(
-                "ChiriSession",
-                "NO hay access token guardado"
-            )
-            return null
-        }
-
-        Log.e(
-            "ChiriSession",
-            "Access token encontrado. Longitud: ${accessToken.length}"
-        )
-
         return try {
-            val response = ApiClient.authApi.me(
-                authorization = "Bearer $accessToken"
-            )
-
-            Log.e(
-                "ChiriSession",
-                "/auth/me exitoso: $response"
-            )
-
-            response
+            apiClient.authApi.me()
         } catch (exception: Exception) {
-            Log.e(
-                "ChiriSession",
-                "Error en /auth/me",
-                exception
-            )
             null
         }
     }
@@ -67,21 +39,11 @@ class SessionManager(
         val refreshToken = sessionStorage.getRefreshToken()
             ?: return false
 
-        Log.e(
-            "ChiriSession",
-            "Refresh token encontrado. Longitud: ${refreshToken.length}"
-        )
-
         return try {
-            val response = ApiClient.authApi.refresh(
-                com.chirihome.platform.network.RefreshRequest(
+            val response = apiClient.authApi.refresh(
+                RefreshRequest(
                     refresh_token = refreshToken
                 )
-            )
-
-            android.util.Log.e(
-                "ChiriSession",
-                "Refresh exitoso. Nuevo access token: ${response.access_token.length} caracteres"
             )
 
             saveSession(
@@ -91,12 +53,27 @@ class SessionManager(
 
             true
         } catch (exception: Exception) {
-            android.util.Log.e(
-                "ChiriSession",
-                "Error durante refresh",
-                exception
-            )
             false
+        }
+    }
+
+    suspend fun login(
+        identifier: String,
+        password: String
+    ): LoginResponse {
+        return apiClient.authApi.login(
+            com.chirihome.platform.network.LoginRequest(
+                identifier = identifier,
+                password = password
+            )
+        )
+    }
+
+    suspend fun logout() {
+        try {
+            apiClient.authApi.logout()
+        } finally {
+            sessionStorage.clearSession()
         }
     }
 }

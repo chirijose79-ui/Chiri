@@ -35,8 +35,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.chirihome.platform.R
-import com.chirihome.platform.network.ApiClient
-import com.chirihome.platform.network.LoginRequest
 import com.chirihome.platform.session.SessionManager
 import com.chirihome.platform.ui.navigation.Routes
 import kotlinx.coroutines.launch
@@ -191,11 +189,9 @@ fun LoginScreen(
                     errorMessage = null
 
                     try {
-                        val response = ApiClient.authApi.login(
-                            LoginRequest(
-                                identifier = usernameOrEmail.trim(),
-                                password = password
-                            )
+                        val response = sessionManager.login(
+                            identifier = usernameOrEmail.trim(),
+                            password = password
                         )
 
                         // Guardamos los tokens de la sesión autenticada.
@@ -210,11 +206,6 @@ fun LoginScreen(
                             }
                         }
                     } catch (exception: Exception) {
-                        android.util.Log.e(
-                            "ChiriLogin",
-                            "Error durante login",
-                            exception
-                        )
                         errorMessage = "No se pudo iniciar sesión."
                     } finally {
                         isLoading = false

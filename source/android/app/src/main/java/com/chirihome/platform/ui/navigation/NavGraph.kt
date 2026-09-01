@@ -35,6 +35,7 @@ fun ChiriNavGraph(
 
         composable(Routes.HOME) {
             HomeScreen(
+                navController = navController,
                 sessionManager = sessionManager
             )
         }

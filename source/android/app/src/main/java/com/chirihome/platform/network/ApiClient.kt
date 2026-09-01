@@ -1,17 +1,34 @@
-﻿package com.chirihome.platform.network
+package com.chirihome.platform.network
 
+import com.chirihome.platform.storage.SessionStorage
+import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
-object ApiClient {
+class ApiClient(
+    sessionStorage: SessionStorage
+) {
 
-    private const val BASE_URL = "http://192.168.1.88:8000/"
+    private val httpClient = OkHttpClient.Builder()
+        .addInterceptor(
+            AuthInterceptor(sessionStorage)
+        )
+        .authenticator(
+            AuthAuthenticator(sessionStorage)
+        )
+        .build()
 
-    val authApi: AuthApi by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(AuthApi::class.java)
+    private val retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .client(httpClient)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+
+    val authApi: AuthApi =
+        retrofit.create(AuthApi::class.java)
+
+    companion object {
+        private const val BASE_URL =
+            "http://192.168.1.88:8000/"
     }
 }

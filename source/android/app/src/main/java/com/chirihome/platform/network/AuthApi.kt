@@ -2,7 +2,6 @@
 
 import retrofit2.http.Body
 import retrofit2.http.GET
-import retrofit2.http.Header
 import retrofit2.http.POST
 
 interface AuthApi {
@@ -13,12 +12,13 @@ interface AuthApi {
     ): LoginResponse
 
     @GET("auth/me")
-    suspend fun me(
-        @Header("Authorization") authorization: String
-    ): CurrentUserResponse
+    suspend fun me(): CurrentUserResponse
 
     @POST("auth/refresh")
     suspend fun refresh(
         @Body request: RefreshRequest
     ): RefreshResponse
+
+    @POST("auth/logout")
+    suspend fun logout(): LogoutResponse
 }

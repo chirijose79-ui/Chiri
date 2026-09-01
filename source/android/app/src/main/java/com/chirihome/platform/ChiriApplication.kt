@@ -1,6 +1,7 @@
 package com.chirihome.platform
 
 import android.app.Application
+import com.chirihome.platform.network.ApiClient
 import com.chirihome.platform.session.SessionManager
 import com.chirihome.platform.storage.SecureSessionStorage
 
@@ -14,8 +15,13 @@ class ChiriApplication : Application() {
 
         val sessionStorage = SecureSessionStorage(this)
 
-        sessionManager = SessionManager(
+        val apiClient = ApiClient(
             sessionStorage = sessionStorage
+        )
+
+        sessionManager = SessionManager(
+            sessionStorage = sessionStorage,
+            apiClient = apiClient
         )
     }
 }

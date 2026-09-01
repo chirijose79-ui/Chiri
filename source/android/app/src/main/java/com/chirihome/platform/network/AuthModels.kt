@@ -32,3 +32,7 @@ data class RefreshResponse(
     val user_id: String,
     val expires_at: String
 )
+
+data class LogoutResponse(
+    val message: String
+)
