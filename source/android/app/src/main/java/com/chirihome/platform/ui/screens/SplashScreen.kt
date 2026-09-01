@@ -8,39 +8,55 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.chirihome.platform.ChiriApplication
 import com.chirihome.platform.R
-import com.chirihome.platform.session.SessionManager
+import com.chirihome.platform.ui.auth.SplashUiState
+import com.chirihome.platform.ui.auth.SplashViewModel
+import com.chirihome.platform.ui.auth.SplashViewModelFactory
 import com.chirihome.platform.ui.navigation.Routes
 
 @Composable
 fun SplashScreen(
-    navController: NavController,
-    sessionManager: SessionManager
+    navController: NavController
 ) {
-    LaunchedEffect(Unit) {
+    val application =
+        LocalContext.current.applicationContext as ChiriApplication
 
-        val sessionIsValid = try {
-            val currentUser = sessionManager.getCurrentUser()
-            currentUser != null
-        } catch (exception: Exception) {
-            false
-        }
+    val viewModel: SplashViewModel = viewModel(
+        factory = SplashViewModelFactory(
+            sessionManager = application.sessionManager
+        )
+    )
 
-        val destination = if (sessionIsValid) {
-            Routes.HOME
-        } else {
-            sessionManager.clearSession()
-            Routes.LOGIN
-        }
+    val uiState by viewModel.uiState.collectAsState()
 
-        navController.navigate(destination) {
-            popUpTo(Routes.SPLASH) {
-                inclusive = true
+    LaunchedEffect(uiState) {
+        when (uiState) {
+            SplashUiState.Loading -> Unit
+
+            SplashUiState.Authenticated -> {
+                navController.navigate(Routes.HOME) {
+                    popUpTo(Routes.SPLASH) {
+                        inclusive = true
+                    }
+                }
+            }
+
+            SplashUiState.Unauthenticated -> {
+                navController.navigate(Routes.LOGIN) {
+                    popUpTo(Routes.SPLASH) {
+                        inclusive = true
+                    }
+                }
             }
         }
     }

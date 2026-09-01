@@ -21,50 +21,38 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.chirihome.platform.ChiriApplication
 import com.chirihome.platform.R
-import com.chirihome.platform.session.SessionManager
+import com.chirihome.platform.ui.auth.LoginViewModel
+import com.chirihome.platform.ui.auth.LoginViewModelFactory
 import com.chirihome.platform.ui.navigation.Routes
-import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(
-    navController: NavController,
-    sessionManager: SessionManager
+    navController: NavController
 ) {
-    var usernameOrEmail by remember {
-        mutableStateOf("")
-    }
+    val application =
+        LocalContext.current.applicationContext as ChiriApplication
 
-    var password by remember {
-        mutableStateOf("")
-    }
+    val viewModel: LoginViewModel = viewModel(
+        factory = LoginViewModelFactory(
+            sessionManager = application.sessionManager
+        )
+    )
 
-    var passwordVisible by remember {
-        mutableStateOf(false)
-    }
-
-    var isLoading by remember {
-        mutableStateOf(false)
-    }
-
-    var errorMessage by remember {
-        mutableStateOf<String?>(null)
-    }
-
-    val coroutineScope = rememberCoroutineScope()
+    val uiState by viewModel.uiState.collectAsState()
 
     Column(
         modifier = Modifier
@@ -97,17 +85,14 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(28.dp))
 
         OutlinedTextField(
-            value = usernameOrEmail,
-            onValueChange = {
-                usernameOrEmail = it
-                errorMessage = null
-            },
+            value = uiState.usernameOrEmail,
+            onValueChange = viewModel::onUsernameOrEmailChanged,
             label = {
                 Text("Usuario o correo")
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !isLoading,
+            enabled = !uiState.isLoading,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Email
             )
@@ -116,36 +101,31 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(14.dp))
 
         OutlinedTextField(
-            value = password,
-            onValueChange = {
-                password = it
-                errorMessage = null
-            },
+            value = uiState.password,
+            onValueChange = viewModel::onPasswordChanged,
             label = {
                 Text("Contraseña")
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            enabled = !isLoading,
-            visualTransformation = if (passwordVisible) {
+            enabled = !uiState.isLoading,
+            visualTransformation = if (uiState.passwordVisible) {
                 VisualTransformation.None
             } else {
                 PasswordVisualTransformation()
             },
             trailingIcon = {
                 IconButton(
-                    onClick = {
-                        passwordVisible = !passwordVisible
-                    },
-                    enabled = !isLoading
+                    onClick = viewModel::onPasswordVisibilityChanged,
+                    enabled = !uiState.isLoading
                 ) {
                     Icon(
-                        imageVector = if (passwordVisible) {
+                        imageVector = if (uiState.passwordVisible) {
                             Icons.Default.VisibilityOff
                         } else {
                             Icons.Default.Visibility
                         },
-                        contentDescription = if (passwordVisible) {
+                        contentDescription = if (uiState.passwordVisible) {
                             "Ocultar contraseña"
                         } else {
                             "Mostrar contraseña"
@@ -167,7 +147,7 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        errorMessage?.let { message ->
+        uiState.errorMessage?.let { message ->
             Text(
                 text = message,
                 color = MaterialTheme.colorScheme.error,
@@ -179,43 +159,20 @@ fun LoginScreen(
 
         Button(
             onClick = {
-                if (usernameOrEmail.isBlank() || password.isBlank()) {
-                    errorMessage = "Ingresa usuario y contraseña."
-                    return@Button
-                }
-
-                coroutineScope.launch {
-                    isLoading = true
-                    errorMessage = null
-
-                    try {
-                        val response = sessionManager.login(
-                            identifier = usernameOrEmail.trim(),
-                            password = password
-                        )
-
-                        // Guardamos los tokens de la sesión autenticada.
-                        sessionManager.saveSession(
-                            accessToken = response.access_token,
-                            refreshToken = response.refresh_token
-                        )
-
+                viewModel.login(
+                    onSuccess = {
                         navController.navigate(Routes.HOME) {
                             popUpTo(Routes.LOGIN) {
                                 inclusive = true
                             }
                         }
-                    } catch (exception: Exception) {
-                        errorMessage = "No se pudo iniciar sesión."
-                    } finally {
-                        isLoading = false
                     }
-                }
+                )
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !isLoading
+            enabled = !uiState.isLoading
         ) {
-            if (isLoading) {
+            if (uiState.isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
                     strokeWidth = 2.dp

@@ -2,6 +2,7 @@ package com.chirihome.platform
 
 import android.app.Application
 import com.chirihome.platform.network.ApiClient
+import com.chirihome.platform.repository.auth.AuthRepositoryImpl
 import com.chirihome.platform.session.SessionManager
 import com.chirihome.platform.storage.SecureSessionStorage
 
@@ -19,9 +20,13 @@ class ChiriApplication : Application() {
             sessionStorage = sessionStorage
         )
 
+        val authRepository = AuthRepositoryImpl(
+            authApi = apiClient.authApi
+        )
+
         sessionManager = SessionManager(
             sessionStorage = sessionStorage,
-            apiClient = apiClient
+            authRepository = authRepository
         )
     }
 }

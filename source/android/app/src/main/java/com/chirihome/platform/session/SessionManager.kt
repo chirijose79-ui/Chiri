@@ -1,14 +1,13 @@
 package com.chirihome.platform.session
 
-import com.chirihome.platform.network.ApiClient
 import com.chirihome.platform.network.CurrentUserResponse
 import com.chirihome.platform.network.LoginResponse
-import com.chirihome.platform.network.RefreshRequest
+import com.chirihome.platform.repository.auth.AuthRepository
 import com.chirihome.platform.storage.SessionStorage
 
 class SessionManager(
     private val sessionStorage: SessionStorage,
-    private val apiClient: ApiClient
+    private val authRepository: AuthRepository
 ) {
 
     suspend fun isSessionValid(): Boolean {
@@ -25,7 +24,7 @@ class SessionManager(
 
     suspend fun getCurrentUser(): CurrentUserResponse? {
         return try {
-            apiClient.authApi.me()
+            authRepository.getCurrentUser()
         } catch (exception: Exception) {
             null
         }
@@ -40,11 +39,7 @@ class SessionManager(
             ?: return false
 
         return try {
-            val response = apiClient.authApi.refresh(
-                RefreshRequest(
-                    refresh_token = refreshToken
-                )
-            )
+            val response = authRepository.refresh(refreshToken)
 
             saveSession(
                 accessToken = response.access_token,
@@ -61,17 +56,15 @@ class SessionManager(
         identifier: String,
         password: String
     ): LoginResponse {
-        return apiClient.authApi.login(
-            com.chirihome.platform.network.LoginRequest(
-                identifier = identifier,
-                password = password
-            )
+        return authRepository.login(
+            identifier = identifier,
+            password = password
         )
     }
 
     suspend fun logout() {
         try {
-            apiClient.authApi.logout()
+            authRepository.logout()
         } finally {
             sessionStorage.clearSession()
         }
