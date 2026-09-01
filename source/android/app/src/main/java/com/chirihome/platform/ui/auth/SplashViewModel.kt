@@ -2,6 +2,7 @@ package com.chirihome.platform.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chirihome.platform.domain.auth.SessionValidationResult
 import com.chirihome.platform.domain.auth.ValidateSessionUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,18 +22,23 @@ class SplashViewModel(
         validateSession()
     }
 
-    private fun validateSession() {
+    fun validateSession() {
         viewModelScope.launch {
-            val sessionIsValid = try {
-                validateSessionUseCase()
-            } catch (exception: Exception) {
-                false
-            }
+            when (val result = validateSessionUseCase()) {
 
-            _uiState.value = if (sessionIsValid) {
-                SplashUiState.Authenticated
-            } else {
-                SplashUiState.Unauthenticated
+                SessionValidationResult.Authenticated -> {
+                    _uiState.value = SplashUiState.Authenticated
+                }
+
+                SessionValidationResult.Unauthenticated -> {
+                    _uiState.value = SplashUiState.Unauthenticated
+                }
+
+                is SessionValidationResult.Error -> {
+                    _uiState.value = SplashUiState.Error(
+                        result.exception
+                    )
+                }
             }
         }
     }

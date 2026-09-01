@@ -5,7 +5,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -58,6 +62,8 @@ fun SplashScreen(
                     }
                 }
             }
+
+            is SplashUiState.Error -> Unit
         }
     }
 
@@ -71,9 +77,38 @@ fun SplashScreen(
             contentDescription = "Chiri Platform",
             modifier = Modifier.size(220.dp)
         )
-
-        Text(
-            text = "Inicializando..."
-        )
+        when (uiState) {
+            SplashUiState.Loading -> {
+                Text(
+                    text = "Inicializando..."
+                )
+            }
+            SplashUiState.Authenticated -> {
+                Text(
+                    text = "Sesión verificada"
+                )
+            }
+            SplashUiState.Unauthenticated -> {
+                Text(
+                    text = "Sesión no válida"
+                )
+            }
+            is SplashUiState.Error -> {
+                Text(
+                    text = "No se pudo verificar la sesión.",
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(
+                    modifier = Modifier.height(16.dp)
+                )
+                Button(
+                    onClick = {
+                        viewModel.validateSession()
+                    }
+                ) {
+                    Text("Reintentar")
+                }
+            }
+        }
     }
 }
