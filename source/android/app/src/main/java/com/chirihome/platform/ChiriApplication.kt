@@ -37,8 +37,7 @@ class ChiriApplication : Application() {
         )
 
         sessionManager = SessionManager(
-            sessionStorage = sessionStorage,
-            authRepository = authRepository
+            sessionStorage = sessionStorage
         )
 
         loginUseCase = LoginUseCase(
