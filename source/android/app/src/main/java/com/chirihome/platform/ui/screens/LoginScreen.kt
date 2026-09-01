@@ -48,6 +48,7 @@ fun LoginScreen(
 
     val viewModel: LoginViewModel = viewModel(
         factory = LoginViewModelFactory(
+            loginUseCase = application.loginUseCase,
             sessionManager = application.sessionManager
         )
     )

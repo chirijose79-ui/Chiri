@@ -2,6 +2,7 @@ package com.chirihome.platform.ui.auth
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.chirihome.platform.domain.auth.LoginUseCase
 import com.chirihome.platform.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -9,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class LoginViewModel(
+    private val loginUseCase: LoginUseCase,
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
@@ -57,7 +59,7 @@ class LoginViewModel(
             )
 
             try {
-                val response = sessionManager.login(
+                val response = loginUseCase(
                     identifier = currentState.usernameOrEmail.trim(),
                     password = currentState.password
                 )
