@@ -32,7 +32,9 @@ Actualmente implementado:
 * sesiones.
 * refresh tokens.
 
-Para v1.0 se incorporarán las entidades necesarias para autorización y consulta de funcionalidades:
+La autorización granular mediante roles y permisos corresponde a una capacidad futura de Chiri Platform y todavía no forma parte de la implementación actual de v1.0.
+
+En futuras etapas se incorporarán las entidades necesarias para:
 
 * roles.
 * permisos.
@@ -41,7 +43,7 @@ Para v1.0 se incorporarán las entidades necesarias para autorización y consult
 * módulos.
 * funcionalidades.
 
-En futuras etapas se incorporarán otras entidades propias del dominio, como:
+En futuras etapas también se incorporarán otras entidades propias del dominio, como:
 
 * configuraciones propias.
 * preferencias.
@@ -109,6 +111,15 @@ flowchart TB
 
 Cada dato deberá tener un único propietario.
 
+Para los datos propios de Chiri:
+
+```text
+PostgreSQL Chiri
+        |
+        v
+Fuente oficial
+```
+
 Ejemplo:
 
 Usuario:
@@ -119,6 +130,8 @@ PostgreSQL Chiri
         v
 Fuente oficial
 ```
+
+Los datos pertenecientes a servicios externos deberán permanecer bajo la responsabilidad del servicio correspondiente.
 
 Música:
 
@@ -137,6 +150,8 @@ Home Assistant
         v
 Fuente oficial
 ```
+
+Chiri podrá consultar o coordinar información de estos servicios sin convertirse en la fuente de verdad de sus datos internos.
 
 ---
 
@@ -179,10 +194,15 @@ La base de datos seguirá:
 
 La base de datos deberá considerar:
 
-* usuarios con permisos mínimos.
-* acceso únicamente desde Backend.
+* cuentas de acceso con privilegios mínimos.
+* acceso únicamente desde los componentes autorizados del Backend.
 * protección de credenciales.
 * copias de seguridad.
+* separación entre credenciales de aplicación y otros accesos administrativos.
+
+La Base de Datos no deberá utilizarse como mecanismo de autorización de clientes.
+
+La autenticación y autorización de las operaciones de Chiri serán responsabilidad del Backend.
 
 ---
 
@@ -380,7 +400,9 @@ Un módulo representa un área funcional de la plataforma.
 
 Una funcionalidad representa una capacidad concreta perteneciente a un módulo.
 
-El catálogo funcional permitirá al Backend determinar qué funcionalidades están disponibles para un usuario según sus permisos.
+El catálogo funcional permitirá al Backend identificar las funcionalidades disponibles en Chiri y relacionarlas con el modelo de autorización cuando este sea aplicado.
+
+La definición de qué usuario puede ejecutar una funcionalidad corresponderá al dominio **Authorization**.
 
 ---
 
@@ -451,22 +473,15 @@ Relaciones principales:
 erDiagram
 
     USER ||--o{ SESSION : owns
-
     SESSION ||--o{ REFRESH_TOKEN : has
-
     USER ||--o{ USER_ROLE : assigned
-
     ROLE ||--o{ USER_ROLE : contains
-
     ROLE ||--o{ ROLE_PERMISSION : grants
-
     PERMISSION ||--o{ ROLE_PERMISSION : assigned
-
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
 
-Las entidades de auditoría, configuración y otras relaciones
-mostradas como futuras aún no están implementadas.
+Las entidades de auditoría, configuración y otras relaciones mostradas como futuras aún no están implementadas.
 
 ---
 
@@ -480,8 +495,6 @@ El diseño deberá buscar equilibrio entre:
 
 No se aplicará normalización extrema si perjudica la simplicidad.
 
----
-
 # 2.12 Identificadores
 
 Las entidades deberán utilizar identificadores consistentes.
@@ -492,6 +505,10 @@ Principios:
 * estables.
 * independientes de sistemas externos.
 
+Los identificadores propios de Chiri deberán utilizarse como claves principales de las entidades correspondientes.
+
+Los identificadores provenientes de servicios externos deberán almacenarse como referencias externas cuando sean necesarios, pero no deberán sustituir al identificador principal de Chiri.
+
 Ejemplo:
 
 Correcto:
@@ -500,15 +517,17 @@ Correcto:
 chiri_user_id
 ```
 
+como identificador principal de un usuario.
+
 Incorrecto:
 
 ```text
 homeassistant_entity_id
 ```
 
-como identificador principal.
+como identificador principal de un usuario o entidad propia de Chiri.
 
----
+Los identificadores externos podrán conservarse como datos de integración cuando corresponda.
 
 # 2.13 Fechas y Auditoría
 
@@ -525,6 +544,8 @@ created_at
 updated_at
 created_by
 ```
+
+Los campos de auditoría deberán utilizarse únicamente cuando aporten información relevante sobre el ciclo de vida o responsabilidad de la entidad.
 
 ---
 
@@ -550,7 +571,7 @@ La base de datos PostgreSQL de Chiri Platform deberá seguir convenciones unifor
 Se utilizará:
 
 * nombres descriptivos.
-* formato snake_case.
+* formato `snake_case`.
 * nombres en inglés para objetos técnicos.
 
 Ejemplos:
@@ -559,19 +580,15 @@ Correcto:
 
 ```sql
 user_account
-
 created_at
-
 integration_status
 ```
 
 Incorrecto:
 
-```sql
+```text
 tablaUsuario
-
 fechaCreacion
-
 EstadoConexion
 ```
 
@@ -591,17 +608,11 @@ Correcto:
 
 ```text
 user
-
 role
-
 permission
-
 module
-
 functionality
-
 device
-
 integration
 ```
 
@@ -609,9 +620,7 @@ Evitar:
 
 ```text
 tbl_users
-
 data_user
-
 tmp_information
 ```
 
@@ -629,11 +638,8 @@ Ejemplos:
 
 ```text
 first_name
-
 last_name
-
 created_at
-
 updated_at
 ```
 
@@ -653,9 +659,11 @@ Características:
 
 * única.
 * estable.
-* generada por la aplicación.
+* propia de la entidad.
 
 La clave primaria no deberá depender de identificadores externos.
+
+Cuando corresponda, el identificador podrá ser generado por la aplicación o por el mecanismo definido para la persistencia.
 
 ---
 
@@ -667,17 +675,11 @@ Ejemplo:
 
 ```sql
 user_id
-
 role_id
-
 permission_id
-
 module_id
-
 functionality_id
-
 integration_id
-
 device_id
 ```
 
@@ -689,7 +691,7 @@ Esto permitirá:
 
 Las claves foráneas deberán utilizarse para representar las relaciones entre entidades propias de Chiri.
 
-Ejemplos:
+Relaciones actualmente definidas:
 
 ```text
 user_role.user_id
@@ -701,11 +703,11 @@ role_permission.permission_id
 functionality.module_id
 ```
 
----
+Las referencias hacia entidades de dominios futuros, como `integration_id` o `device_id`, solo deberán incorporarse cuando dichas entidades formen parte del modelo implementado.
 
 # 3.6 Tipos de Datos
 
-Se deberán utilizar tipos adecuados de PostgreSQL.
+Se deberán utilizar tipos de datos adecuados de PostgreSQL según la naturaleza de cada atributo.
 
 Ejemplos:
 
@@ -713,11 +715,10 @@ Texto:
 
 ```sql
 varchar
-
 text
 ```
 
-Fechas:
+Fechas y tiempo:
 
 ```sql
 timestamp with time zone
@@ -745,33 +746,41 @@ uuid
 
 cuando corresponda.
 
+La elección del tipo de dato deberá priorizar:
+
+* representación correcta del valor.
+* integridad de los datos.
+* compatibilidad con el Backend.
+* mantenimiento sencillo.
+
 ---
 
 # 3.7 Manejo de Fechas
 
-Las entidades importantes deberán registrar tiempo.
+Las entidades importantes deberán registrar información temporal cuando corresponda.
 
 Convención:
 
 ```sql
 created_at
-
 updated_at
 ```
 
-Utilizando:
+Los valores de fecha y hora deberán utilizar:
 
 ```text
 UTC como referencia interna
 ```
 
-La presentación en usuario será responsabilidad de la aplicación.
+La persistencia deberá utilizar tipos compatibles con fecha y hora con zona horaria.
+
+La conversión y presentación de fechas en la zona horaria del usuario será responsabilidad de la aplicación.
 
 ---
 
 # 3.8 Campos de Estado
 
-Los estados deberán ser claros.
+Los estados deberán ser claros, descriptivos y consistentes con el modelo de la entidad.
 
 Ejemplo:
 
@@ -787,13 +796,15 @@ Evitar:
 estado = 1
 ```
 
-sin documentación.
+sin documentación que defina su significado.
+
+Cuando los estados formen parte de una lista cerrada, deberán validarse mediante restricciones apropiadas.
 
 ---
 
-# 3.9 Campos Eliminación Lógica
+# 3.9 Campos de Eliminación Lógica
 
-Cuando sea necesario conservar historial podrá utilizarse eliminación lógica.
+Cuando sea necesario conservar información histórica podrá utilizarse eliminación lógica.
 
 Ejemplo:
 
@@ -801,9 +812,14 @@ Ejemplo:
 deleted_at
 ```
 
-No se aplicará automáticamente a todas las tablas.
+La eliminación lógica no se aplicará automáticamente a todas las tablas.
 
-Se evaluará según necesidad.
+Su utilización deberá evaluarse según:
+
+* necesidad de conservar historial.
+* requisitos de integridad.
+* comportamiento de la entidad.
+* necesidades de auditoría.
 
 ---
 
@@ -816,8 +832,11 @@ Criterios:
 * consultas frecuentes.
 * relaciones importantes.
 * búsquedas habituales.
+* restricciones que requieran soporte mediante índices.
 
 No se crearán índices innecesarios.
+
+La creación de índices deberá considerar el equilibrio entre rendimiento de lectura y coste de escritura y almacenamiento.
 
 ---
 
@@ -825,10 +844,10 @@ No se crearán índices innecesarios.
 
 La base de datos deberá proteger la integridad mediante:
 
-* NOT NULL.
-* UNIQUE.
-* FOREIGN KEY.
-* CHECK.
+* `NOT NULL`.
+* `UNIQUE`.
+* `FOREIGN KEY`.
+* `CHECK`.
 
 Ejemplo:
 
@@ -836,29 +855,30 @@ Ejemplo:
 email TEXT UNIQUE NOT NULL
 ```
 
-Las restricciones `CHECK` se utilizarán para validar valores permitidos,
+Las restricciones `CHECK` se utilizarán para validar valores permitidos, como los estados de las entidades.
 
-como los estados de las entidades.
+Las restricciones deberán utilizarse como una segunda capa de protección de la integridad, sin sustituir las validaciones realizadas por el Backend.
 
 ---
 
 # 3.12 Comentarios de Base de Datos
 
-Cuando una entidad tenga reglas complejas deberá documentarse.
+Cuando una entidad tenga reglas complejas o requiera contexto adicional, deberá documentarse mediante comentarios de base de datos cuando resulte útil.
 
 Ejemplo:
 
 ```sql
 COMMENT ON TABLE user_account
-
 IS 'Usuarios registrados en Chiri Platform';
 ```
+
+Los comentarios deberán complementar la documentación arquitectónica y no sustituirla.
 
 ---
 
 # 3.13 Migraciones
 
-Los cambios de estructura deberán realizarse mediante migraciones, con Alembic.
+Los cambios de estructura deberán realizarse mediante migraciones gestionadas con Alembic.
 
 No se modificarán tablas manualmente en producción.
 
@@ -878,13 +898,20 @@ flowchart LR
     Verification["Verificación"]
 
     Change --> Migration
-
     Migration --> Test
-
     Test --> Upgrade
-
     Upgrade --> Verification
 ```
+
+Las migraciones deberán:
+
+* estar versionadas.
+* mantener trazabilidad.
+* probarse antes de aplicarse.
+* conservar la compatibilidad necesaria con el Backend.
+* evitar cambios manuales fuera del mecanismo de migración establecido.
+
+---
 
 # 3.14 Principio Arquitectónico
 
@@ -894,8 +921,7 @@ El diseño de base de datos deberá cumplir:
 
 # 4. Entidades Principales de Chiri
 
-Las entidades se dividen entre las actualmente implementadas,
-las incorporadas al modelo de v1.0 y las previstas para futuras etapas.
+Las entidades se dividen entre las actualmente implementadas, las incorporadas al modelo de v1.0 y las previstas para futuras etapas.
 
 ## Entidades actualmente implementadas
 
@@ -944,17 +970,17 @@ El modelo podrá evolucionar cuando aparezcan nuevos módulos, respetando la arq
 
 La entidad Usuario representa una persona registrada dentro de Chiri.
 
-Responsabilidades actualmente implementadas:
+Responsabilidad actualmente implementada:
 
 * identificar usuarios.
 
-Responsabilidades previstas:
+Capacidades previstas:
 
-* relacionar preferencias.
 * asociar roles.
-* registrar actividad.
+* relacionar preferencias mediante entidades futuras.
+* participar en mecanismos de actividad y auditoría cuando estos sean implementados.
 
-Modelo actual:
+Modelo actualmente implementado:
 
 ```mermaid
 erDiagram
@@ -966,7 +992,6 @@ erDiagram
         string password_hash
         string status
         timestamp created_at
-        timestamp updated_at
     }
 ```
 
@@ -980,7 +1005,7 @@ El perfil representa información adicional asociada al usuario.
 
 Separar Usuario y Perfil permite:
 
-* mantener identidad separada de información personal.
+* mantener la identidad separada de información personal.
 * ampliar información futura.
 * evitar tablas demasiado grandes.
 
@@ -1006,13 +1031,15 @@ Los roles representan conjuntos de capacidades dentro de Chiri.
 
 Un rol no representa una persona.
 
-Representa un nivel de acceso.
+Representa un conjunto de capacidades que podrá asignarse a uno o más usuarios.
 
-Roles iniciales:
+Los perfiles conceptuales considerados para el modelo son:
 
 * ADMIN.
 * USER.
 * GUEST.
+
+Estos perfiles representan una definición conceptual del modelo de autorización y **no deberán considerarse perfiles actualmente implementados** hasta que exista el modelo correspondiente en el Backend y haya sido validado mediante pruebas.
 
 La asignación de roles a usuarios se realizará mediante la entidad `UserRole`.
 
@@ -1078,7 +1105,6 @@ Ejemplos:
 * Multimedia.
 * Inteligencia Artificial.
 * Personal.
-* Configuración.
 
 Un módulo puede contener múltiples funcionalidades.
 
@@ -1089,8 +1115,6 @@ erDiagram
 
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
-
----
 
 # 4.8 Entidad Funcionalidad
 
@@ -1105,7 +1129,12 @@ Ejemplos conceptuales:
 
 Una funcionalidad pertenece a un módulo.
 
-La relación entre funcionalidades y permisos se definirá de acuerdo con las necesidades de autorización de la plataforma.
+La relación entre funcionalidades y permisos se definirá de acuerdo con las
+necesidades de autorización de la plataforma.
+
+No deberá asumirse una relación adicional entre funcionalidades y permisos
+hasta que dicha relación sea definida mediante una decisión arquitectónica
+y el correspondiente contrato de implementación.
 
 ---
 
@@ -1139,7 +1168,7 @@ Ejemplos:
 
 Su responsabilidad será almacenar información necesaria para integración.
 
-No almacenará los datos completos del servicio.
+No almacenará los datos completos del servicio externo.
 
 ---
 
@@ -1153,13 +1182,9 @@ Ejemplo:
 
 ```text
 Chiri
-
     |
-
 Dispositivo lógico
-
     |
-
 Home Assistant Entity
 ```
 
@@ -1193,6 +1218,8 @@ erDiagram
     }
 ```
 
+La implementación concreta de auditoría se definirá en una etapa posterior.
+
 ---
 
 # 4.13 Entidad Sesión
@@ -1201,22 +1228,26 @@ La sesión representa una sesión autenticada de un usuario.
 
 Campos actuales:
 
-* id
-* user_id
-* created_at
-* expires_at
-* status
+* id.
+* user_id.
+* created_at.
+* expires_at.
+* status.
 
 Estados permitidos:
 
-* ACTIVE
-* REVOKED
-* EXPIRED
+* ACTIVE.
+* REVOKED.
+* EXPIRED.
 
 ```mermaid
 erDiagram
+
     USER ||--o{ SESSION : owns
 ```
+
+La entidad Session forma parte de la implementación actual de seguridad
+del Backend.
 
 ---
 
@@ -1226,21 +1257,22 @@ El refresh token pertenece a una sesión.
 
 Campos actuales:
 
-* id
-* session_id
-* token_hash
-* created_at
-* expires_at
-* status
+* id.
+* session_id.
+* token_hash.
+* created_at.
+* expires_at.
+* status.
 
 Estados permitidos:
 
-* ACTIVE
-* REVOKED
-* EXPIRED
+* ACTIVE.
+* REVOKED.
+* EXPIRED.
 
 ```mermaid
 erDiagram
+
     SESSION ||--o{ REFRESH_TOKEN : has
 ```
 
@@ -1248,11 +1280,15 @@ El valor original del refresh token no se almacena.
 
 La base de datos almacena únicamente su hash.
 
+La entidad RefreshToken forma parte de la implementación actual de seguridad
+del Backend.
+
 ---
 
 # 4.15 Relación General del Dominio
 
-Modelo conceptual de las entidades actuales y de v1.0:
+Modelo conceptual de las entidades actualmente implementadas y de las
+entidades incorporadas al modelo v1.0:
 
 ```mermaid
 erDiagram
@@ -1272,8 +1308,13 @@ erDiagram
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
 
-Las entidades de configuración, integración, dispositivo lógico,
-auditoría y perfil corresponden a futuras etapas.
+Las entidades de configuración, integración, dispositivo lógico, auditoría
+y perfil corresponden a futuras etapas.
+
+Las entidades Role, Permission, UserRole, RolePermission, Module y
+Functionality forman parte del modelo previsto de v1.0, pero no deberán
+considerarse implementadas hasta que exista su implementación correspondiente
+en el Backend y haya sido validada mediante pruebas.
 
 ---
 
@@ -1289,6 +1330,9 @@ La arquitectura permitirá agregar posteriormente entidades como:
 
 Estas entidades serán creadas solamente cuando exista una necesidad real.
 
+La incorporación de nuevas entidades deberá respetar la arquitectura,
+el modelo de dominio y las reglas de fuente de verdad establecidas.
+
 ---
 
 # 4.17 Regla de Diseño
@@ -1297,7 +1341,11 @@ Una entidad nueva deberá responder:
 
 > ¿Este concepto pertenece al dominio de Chiri o pertenece a un servicio externo?
 
-Si pertenece a un servicio externo, Chiri deberá integrarlo, no replicarlo.
+Si pertenece al dominio de Chiri, podrá formar parte del modelo de datos
+de la plataforma.
+
+Si pertenece a un servicio externo, Chiri deberá integrarlo y referenciarlo
+cuando sea necesario, pero no deberá replicar su modelo interno.
 
 ---
 
@@ -1307,6 +1355,14 @@ El modelo de datos de Chiri deberá representar:
 
 > El conocimiento y estado propio de la plataforma, manteniendo separados los dominios de los sistemas integrados.
 
+Cada entidad deberá tener un propósito claro dentro del dominio de Chiri y
+una única responsabilidad dentro del modelo de datos.
+
+## Versión corregida de 5.1–5.8
+
+Esta sería la versión que te recomiendo dejar:
+
+````markdown
 # 5. Diseño Físico de Base de Datos
 
 El diseño físico define la organización real de PostgreSQL para Chiri Platform.
@@ -1330,23 +1386,38 @@ La base de datos utilizará esquemas PostgreSQL para separar responsabilidades.
 
 Estructura física actual y prevista:
 
-```text id="j4t8kp"
+```text
 PostgreSQL
-
 └── chiri
-
     ├── identity
+    │   └── user
     │
     ├── security
+    │   ├── session
+    │   └── refresh_token
+    │
+    ├── authorization
+    │   ├── role
+    │   ├── permission
+    │   ├── user_role
+    │   └── role_permission
+    │
+    ├── platform
+    │   ├── module
+    │   └── functionality
     │
     ├── configuration
     │
     ├── integration
     │
     └── audit
-```
+````
 
-Los esquemas `configuration`, `integration` y `audit` corresponden a futuras etapas y todavía no contienen las entidades definidas en este documento.
+Los esquemas `configuration`, `integration` y `audit` corresponden a futuras
+etapas y todavía no contienen las entidades definidas en este documento.
+
+Los esquemas `authorization` y `platform` forman parte del modelo previsto
+de Chiri Platform v1.0.
 
 ---
 
@@ -1358,17 +1429,15 @@ Gestionar la identidad de usuarios dentro de Chiri.
 
 Estructura actual:
 
-```text id="q6m2vx"
+```text
 identity
-
 └── user
 ```
 
 Estructura futura:
 
-```text id="r8k4zp"
+```text
 identity
-
 └── profile
 ```
 
@@ -1382,9 +1451,9 @@ Responsabilidad:
 
 Representar usuarios registrados dentro de Chiri.
 
-Estructura actual:
+Estructura actualmente implementada:
 
-```text id="w3n7mc"
+```text
 user
 
 id
@@ -1393,6 +1462,11 @@ email
 password_hash
 status
 created_at
+```
+
+Campos previstos:
+
+```text
 updated_at
 ```
 
@@ -1404,8 +1478,11 @@ Reglas:
 * `password_hash` almacena únicamente el hash de la contraseña.
 * `status` representa el estado del usuario.
 * `created_at` registra la creación.
-* `updated_at` registra la última modificación cuando corresponda.
+* `updated_at` registrará la última modificación cuando sea incorporado.
 * `email` deberá ser único.
+
+La estructura física deberá mantenerse alineada con el modelo implementado
+y sus migraciones Alembic.
 
 ---
 
@@ -1419,7 +1496,7 @@ Almacenar información complementaria del usuario.
 
 Estructura conceptual:
 
-```text id="a5q9ns"
+```text
 profile
 
 id
@@ -1432,13 +1509,14 @@ updated_at
 
 Relación:
 
-```mermaid id="c7v3lm"
+```mermaid
 erDiagram
 
     USER ||--|| PROFILE : has
 ```
 
-La estructura será implementada mediante una migración cuando esta funcionalidad sea necesaria.
+La estructura será implementada mediante una migración cuando esta
+funcionalidad sea necesaria.
 
 ---
 
@@ -1446,29 +1524,20 @@ La estructura será implementada mediante una migración cuando esta funcionalid
 
 Responsabilidad:
 
-Gestionar sesiones, tokens y autorización dentro de Chiri.
+Gestionar elementos relacionados con la seguridad de las sesiones.
 
-Estructura actual:
+Estructura actualmente implementada:
 
-```text id="n2x8qd"
+```text
 security
-
 ├── session
 └── refresh_token
 ```
 
-Estructura incorporada al modelo v1.0:
+El esquema `security` no será utilizado para almacenar las entidades
+propias de autorización.
 
-```text id="p6m4zr"
-security
-
-├── session
-├── refresh_token
-├── role
-├── permission
-├── user_role
-└── role_permission
-```
+Las entidades de autorización pertenecerán al esquema `authorization`.
 
 ---
 
@@ -1478,9 +1547,9 @@ Responsabilidad:
 
 Representar una sesión autenticada de un usuario.
 
-Estructura actual:
+Estructura actualmente implementada:
 
-```text id="f8k3tw"
+```text
 session
 
 id
@@ -1492,7 +1561,7 @@ status
 
 Estados permitidos:
 
-```text id="y5c9mr"
+```text
 ACTIVE
 REVOKED
 EXPIRED
@@ -1500,11 +1569,14 @@ EXPIRED
 
 Relación:
 
-```mermaid id="v2n7qs"
+```mermaid
 erDiagram
 
     USER ||--o{ SESSION : owns
 ```
+
+La tabla `session` forma parte de la implementación actual de seguridad
+del Backend.
 
 ---
 
@@ -1514,9 +1586,9 @@ Responsabilidad:
 
 Representar los refresh tokens asociados a una sesión.
 
-Estructura actual:
+Estructura actualmente implementada:
 
-```text id="h4p8zk"
+```text
 refresh_token
 
 id
@@ -1529,7 +1601,7 @@ status
 
 Estados permitidos:
 
-```text id="m7q2vc"
+```text
 ACTIVE
 REVOKED
 EXPIRED
@@ -1537,7 +1609,7 @@ EXPIRED
 
 Relación:
 
-```mermaid id="u9s5kx"
+```mermaid
 erDiagram
 
     SESSION ||--o{ REFRESH_TOKEN : has
@@ -1547,27 +1619,59 @@ El valor original del refresh token no se almacena.
 
 La base de datos almacena únicamente su hash.
 
+La tabla `refresh_token` forma parte de la implementación actual de seguridad
+del Backend.
+
 ---
 
-# 5.8 Tabla Role
+# 5.8 Esquema Authorization
+
+**Estado: Modelo v1.0 — implementación pendiente.**
+
+Responsabilidad:
+
+Gestionar roles y permisos utilizados por el Backend para determinar
+las capacidades autorizadas de los usuarios.
+
+Estructura prevista:
+
+```text
+authorization
+├── role
+├── permission
+├── user_role
+└── role_permission
+```
+
+Estas entidades no deberán considerarse implementadas hasta que exista
+su correspondiente implementación mediante modelos, migraciones y pruebas
+del Backend.
+
+---
+
+# 5.9 Tabla Role
 
 Responsabilidad:
 
 Representar niveles de acceso dentro de Chiri.
 
-Ejemplos conceptuales:
+Roles previstos inicialmente:
 
-```text id="x6m3pt"
+```text
 ADMIN
 USER
 GUEST
 ```
 
-La estructura física definitiva será establecida mediante la migración correspondiente.
+La estructura física definitiva será establecida mediante la migración
+correspondiente.
 
----
+Los roles no deberán considerarse implementados hasta que exista el modelo
+de autorización correspondiente y haya sido validado mediante pruebas.
 
 # 5.9 Tabla Permission
+
+**Estado: Modelo v1.0 — implementación pendiente.**
 
 Responsabilidad:
 
@@ -1575,17 +1679,22 @@ Representar acciones específicas que pueden ejecutarse dentro de Chiri.
 
 Ejemplos conceptuales:
 
-```text id="k8q4vz"
+```text
 MANAGE_USERS
 CONTROL_DEVICES
 MANAGE_CONFIGURATION
-```
+````
 
 La estructura física definitiva será establecida mediante la migración correspondiente.
+
+Los permisos no deberán considerarse implementados hasta que exista el modelo
+correspondiente en el Backend y haya sido validado mediante pruebas.
 
 ---
 
 # 5.10 Tabla User Role
+
+**Estado: Modelo v1.0 — implementación pendiente.**
 
 Responsabilidad:
 
@@ -1603,9 +1712,13 @@ erDiagram
 
 Esta tabla representa la relación entre `user` y `role`.
 
+La asignación deberá respetar las reglas de autorización definidas por el Backend.
+
 ---
 
 # 5.11 Tabla Role Permission
+
+**Estado: Modelo v1.0 — implementación pendiente.**
 
 Responsabilidad:
 
@@ -1627,13 +1740,15 @@ Esta tabla representa la relación entre `role` y `permission`.
 
 # 5.12 Tabla Module
 
+**Estado: Modelo v1.0 — implementación pendiente.**
+
 Responsabilidad:
 
 Representar un área funcional de Chiri.
 
 Ejemplos conceptuales:
 
-```text id="q7m4xn"
+```text
 HOME
 MEDIA
 AI
@@ -1643,9 +1758,13 @@ SETTINGS
 
 Un módulo puede contener múltiples funcionalidades.
 
+La estructura física definitiva será establecida mediante la migración correspondiente.
+
 ---
 
 # 5.13 Tabla Functionality
+
+**Estado: Modelo v1.0 — implementación pendiente.**
 
 Responsabilidad:
 
@@ -1659,9 +1778,12 @@ erDiagram
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
 
-La relación entre `functionality` y `permission` no se establece todavía como relación física.
+La relación entre `functionality` y `permission` no se establece todavía como
+relación física.
 
 Será definida cuando se determine el modelo definitivo de autorización funcional.
+
+La estructura física definitiva será establecida mediante la migración correspondiente.
 
 ---
 
@@ -1675,9 +1797,8 @@ Gestionar configuraciones propias de Chiri.
 
 Estructura prevista:
 
-```text id="t4p8mc"
+```text
 configuration
-
 ├── system_setting
 └── user_setting
 ```
@@ -1696,9 +1817,8 @@ Gestionar información necesaria para conectar servicios externos.
 
 Estructura prevista:
 
-```text id="v8q3mz"
+```text
 integration
-
 ├── service
 └── connection
 ```
@@ -1719,19 +1839,20 @@ Registrar eventos importantes de la plataforma.
 
 Estructura prevista:
 
-```text id="b5n9rx"
+```text
 audit
-
 └── event
 ```
 
 Ejemplos futuros:
 
-```text id="c7m2kp"
+```text
 user_login
 configuration_change
 permission_change
 ```
+
+La estructura física de auditoría será definida cuando esta capacidad sea implementada.
 
 ---
 
@@ -1755,6 +1876,12 @@ erDiagram
     PERMISSION ||--o{ ROLE_PERMISSION : assigned
 ```
 
+Las entidades `session` y `refresh_token` corresponden a la implementación
+actual de seguridad.
+
+Las entidades `role`, `permission`, `user_role` y `role_permission` corresponden
+al modelo previsto de autorización v1.0 y permanecen pendientes de implementación.
+
 ---
 
 # 5.18 Modelo Funcional
@@ -1771,21 +1898,26 @@ Los módulos agrupan funcionalidades.
 
 Las funcionalidades representan capacidades concretas de la plataforma.
 
-La relación entre autorización y funcionalidad será definida posteriormente.
+La relación entre autorización y funcionalidad será definida posteriormente
+mediante una decisión arquitectónica y, cuando corresponda, mediante el
+contrato de API.
 
----
+Las entidades `module` y `functionality` forman parte del modelo previsto
+de Chiri Platform v1.0 y permanecen pendientes de implementación.
 
 # 5.19 Modelo General Inicial
 
 Las entidades actualmente implementadas y las incorporadas al modelo v1.0 quedan organizadas conceptualmente de la siguiente manera:
 
-```mermaid id="x9m4kt"
+```mermaid
 flowchart TB
 
     PostgreSQL["PostgreSQL Chiri"]
 
     Identity["identity"]
     Security["security"]
+    Authorization["authorization"]
+    Platform["platform"]
 
     User["user"]
 
@@ -1794,7 +1926,6 @@ flowchart TB
 
     Role["role"]
     Permission["permission"]
-
     UserRole["user_role"]
     RolePermission["role_permission"]
 
@@ -1803,22 +1934,48 @@ flowchart TB
 
     PostgreSQL --> Identity
     PostgreSQL --> Security
+    PostgreSQL --> Authorization
+    PostgreSQL --> Platform
 
     Identity --> User
 
     Security --> Session
     Security --> RefreshToken
-    Security --> Role
-    Security --> Permission
-    Security --> UserRole
-    Security --> RolePermission
 
-    PostgreSQL --> Module
+    Authorization --> Role
+    Authorization --> Permission
+    Authorization --> UserRole
+    Authorization --> RolePermission
+
+    Platform --> Module
+    Platform --> Functionality
+
     Module --> Functionality
 ```
 
-Las entidades `profile`, `configuration`, `integration` y `audit`
-pertenecen a futuras etapas.
+La organización física inicial queda definida de la siguiente manera:
+
+```text
+PostgreSQL Chiri
+├── identity
+│   └── user
+│
+├── security
+│   ├── session
+│   └── refresh_token
+│
+├── authorization
+│   ├── role
+│   ├── permission
+│   ├── user_role
+│   └── role_permission
+│
+└── platform
+    ├── module
+    └── functionality
+```
+
+Las entidades `profile`, `configuration`, `integration` y `audit` pertenecen a futuras etapas y no forman parte de la estructura física inicial.
 
 ---
 
@@ -1826,23 +1983,29 @@ pertenecen a futuras etapas.
 
 Las tablas iniciales no deberán crecer indefinidamente.
 
-Cuando un módulo tenga suficiente complejidad deberá obtener su propio dominio.
+Cuando un módulo tenga suficiente complejidad deberá obtener su propio dominio y estructura dentro de la base de datos.
 
-Ejemplo:
+Ejemplos de dominios que podrán incorporarse posteriormente:
 
-```text id="p6v2mx"
+```text
 media
-
 automation
-
 ai
-
 assistant
 ```
 
-podrán incorporarse posteriormente.
+La incorporación de nuevos dominios deberá realizarse únicamente cuando exista una necesidad funcional y arquitectónica definida.
 
-La creación de nuevas tablas deberá realizarse únicamente cuando exista una necesidad funcional y arquitectónica definida.
+Toda nueva entidad deberá:
+
+* pertenecer claramente a un dominio.
+* tener una responsabilidad definida.
+* mantener relaciones explícitas.
+* respetar las convenciones de la base de datos.
+* contar con la migración correspondiente.
+* actualizar la documentación relacionada.
+
+No se crearán tablas únicamente para anticipar funcionalidades futuras sin una necesidad real.
 
 ---
 
@@ -1852,7 +2015,7 @@ Todo cambio físico en la estructura de PostgreSQL deberá realizarse mediante m
 
 Flujo:
 
-```mermaid id="z8q4nw"
+```mermaid
 flowchart LR
 
     Change["Cambio Modelo"]
@@ -1871,16 +2034,40 @@ flowchart LR
     Upgrade --> Verification
 ```
 
+Las migraciones deberán:
+
+* estar versionadas.
+* ser trazables.
+* mantener compatibilidad cuando corresponda.
+* ser probadas antes de aplicarse.
+* permitir verificar el resultado de los cambios.
+
 No se modificarán estructuras directamente en producción.
+
+Los cambios manuales sobre tablas de producción quedan prohibidos salvo procedimientos excepcionales de recuperación previamente definidos.
 
 ---
 
 # 5.22 Principio Arquitectónico
 
-El diseño físico deberá cumplir:
+El diseño físico de la base de datos deberá cumplir:
 
 > Cada dato debe vivir en el esquema responsable de su dominio.
 
+La estructura deberá mantener una separación clara entre:
+
+```text
+identity
+security
+authorization
+platform
+```
+
+Cada dominio será responsable únicamente de los datos que pertenecen a su propia responsabilidad.
+
+Los servicios externos mantendrán sus propios datos y Chiri almacenará únicamente la información que pertenezca al dominio de la plataforma o que sea necesaria para gestionar una integración.
+
+La base de datos deberá evolucionar de forma controlada, manteniendo la integridad, trazabilidad y separación de responsabilidades definidas por la arquitectura de Chiri Platform.
 
 # 6. Migraciones, Versionado y Evolución del Esquema
 
