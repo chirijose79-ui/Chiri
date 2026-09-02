@@ -4,7 +4,7 @@
 
 **Versión:** 1.0
 
-**Estado:** Cerrado
+**Estado:** En Revisión
 
 ---
 
@@ -228,15 +228,21 @@ Los datos deberán organizarse por responsabilidad funcional.
 
 Cada dominio de Chiri tendrá sus propias entidades relacionadas.
 
-La organización inicial implementada comprende los dominios de:
+El modelo de datos inicial de Chiri comprende los dominios de:
 
-* Usuarios.
+* Identidad.
 * Seguridad.
 * Autorización.
 * Plataforma.
 
-Otros dominios, como Configuración, Integraciones e Historial,
-corresponden a futuras etapas y todavía no están implementados.
+Actualmente, la implementación física comprende las entidades correspondientes a:
+
+* Identidad: `user`.
+* Seguridad: `session` y `refresh_token`.
+
+Los dominios de Autorización y Plataforma forman parte del modelo definido para v1.0, pero sus entidades todavía no están implementadas físicamente.
+
+Otros dominios, como Configuración, Integraciones e Historial, corresponden a futuras etapas y todavía no están implementados.
 
 Ejemplo conceptual de la organización prevista:
 
@@ -246,19 +252,12 @@ flowchart TB
     DB["PostgreSQL Chiri"]
 
     Identity["Identidad"]
-
     Security["Seguridad"]
-
     Authorization["Autorización"]
-
     Platform["Plataforma"]
-
     Config["Configuración"]
-
     Integration["Integraciones"]
-
     History["Historial"]
-
 
     DB --> Identity
     DB --> Security
@@ -269,13 +268,11 @@ flowchart TB
     DB --> History
 ```
 
----
-
 # 2.2 Separación por Esquemas
 
 PostgreSQL permitirá organizar información mediante esquemas.
 
-La estructura inicial será:
+La estructura del modelo inicial será:
 
 ```text
 PostgreSQL Chiri
@@ -297,11 +294,6 @@ PostgreSQL Chiri
     ├── module
     └── functionality
 ```
-
-Los esquemas configuration, integration y audit
-pertenecen a etapas futuras y todavía no están implementados.
-
----
 
 # 2.3 Dominio Identity
 
@@ -328,7 +320,7 @@ No almacenará:
 
 Responsabilidad:
 
-Gestionar elementos relacionados con seguridad de sesión.
+Gestionar elementos relacionados con la seguridad de las sesiones.
 
 Actualmente implementado:
 
@@ -341,11 +333,13 @@ La autorización de usuarios se gestionará mediante el dominio Authorization.
 
 # 2.5 Dominio Authorization
 
+**Estado: Futuro — no implementado actualmente.**
+
 Responsabilidad:
 
-Gestionar roles y permisos que determinan las capacidades de los usuarios dentro de Chiri.
+Gestionar roles y permisos que determinarán las capacidades de los usuarios dentro de Chiri.
 
-Entidades:
+Entidades previstas:
 
 * role.
 * permission.
@@ -368,21 +362,23 @@ role_permission
   │
   ▼
 permission
-```
+````
 
 El dominio Authorization será utilizado por el Backend para determinar si un usuario puede acceder a una funcionalidad.
+
+La implementación física de estas entidades se realizará mediante migraciones de Alembic cuando esta capacidad sea incorporada al sistema.
 
 ---
 
 # 2.6 Dominio Platform
 
-**Estado: v1.0 — catálogo funcional.**
+**Estado: Futuro — catálogo funcional.**
 
 Responsabilidad:
 
 Representar la organización funcional de Chiri.
 
-Entidades:
+Entidades previstas:
 
 * module.
 * functionality.
@@ -404,6 +400,8 @@ El catálogo funcional permitirá al Backend identificar las funcionalidades dis
 
 La definición de qué usuario puede ejecutar una funcionalidad corresponderá al dominio **Authorization**.
 
+La implementación física de estas entidades se realizará mediante migraciones de Alembic cuando el catálogo funcional sea incorporado al sistema.
+
 ---
 
 # 2.7 Dominio Configuration
@@ -420,6 +418,8 @@ Ejemplos:
 * preferencias del sistema.
 * configuraciones de usuario.
 
+No almacenará configuraciones internas que pertenezcan exclusivamente a servicios externos.
+
 ---
 
 # 2.8 Dominio Integration
@@ -428,7 +428,7 @@ Ejemplos:
 
 Responsabilidad:
 
-Gestionar información necesaria para conectar servicios externos.
+Gestionar información necesaria para conectar Chiri con servicios externos.
 
 Ejemplos:
 
@@ -439,6 +439,9 @@ Ejemplos:
 No almacenará:
 
 * la base completa del servicio externo.
+* información que sea propiedad del servicio integrado.
+
+Chiri mantendrá únicamente las referencias y configuraciones necesarias para administrar la integración.
 
 ---
 
@@ -456,6 +459,8 @@ Ejemplos:
 * cambios relevantes.
 * eventos de seguridad.
 
+La auditoría permitirá mantener trazabilidad de operaciones importantes cuando esta capacidad sea incorporada.
+
 ---
 
 # 2.10 Modelo Relacional
@@ -467,33 +472,42 @@ Las relaciones deberán definirse mediante:
 * restricciones.
 * índices cuando sean necesarios.
 
-Relaciones principales:
+Relaciones principales actuales y previstas para v1.0:
 
 ```mermaid
 erDiagram
 
     USER ||--o{ SESSION : owns
     SESSION ||--o{ REFRESH_TOKEN : has
+
     USER ||--o{ USER_ROLE : assigned
     ROLE ||--o{ USER_ROLE : contains
+
     ROLE ||--o{ ROLE_PERMISSION : grants
     PERMISSION ||--o{ ROLE_PERMISSION : assigned
+
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
 
-Las entidades de auditoría, configuración y otras relaciones mostradas como futuras aún no están implementadas.
+Las relaciones correspondientes a `user`, `session` y `refresh_token` representan estructuras actualmente implementadas.
 
----
+Las relaciones correspondientes a `user_role`, `role`, `permission`, `role_permission`, `module` y `functionality` forman parte del modelo futuro de v1.0 y serán implementadas mediante migraciones cuando estas capacidades sean incorporadas físicamente.
+
+Las entidades de auditoría, configuración, integración, perfil y otras relaciones futuras todavía no están implementadas.
 
 # 2.11 Normalización
 
-El diseño deberá buscar equilibrio entre:
+El diseño deberá buscar un equilibrio entre:
 
 * evitar duplicación.
 * mantener consultas eficientes.
-* simplificar mantenimiento.
+* simplificar el mantenimiento.
 
-No se aplicará normalización extrema si perjudica la simplicidad.
+La normalización se aplicará de acuerdo con las necesidades del dominio.
+
+No se aplicará una normalización excesiva si esta perjudica la simplicidad, mantenibilidad o rendimiento del sistema.
+
+---
 
 # 2.12 Identificadores
 
@@ -509,17 +523,15 @@ Los identificadores propios de Chiri deberán utilizarse como claves principales
 
 Los identificadores provenientes de servicios externos deberán almacenarse como referencias externas cuando sean necesarios, pero no deberán sustituir al identificador principal de Chiri.
 
-Ejemplo:
-
-Correcto:
+Ejemplo correcto:
 
 ```text
 chiri_user_id
-```
+````
 
 como identificador principal de un usuario.
 
-Incorrecto:
+Ejemplo incorrecto:
 
 ```text
 homeassistant_entity_id
@@ -528,6 +540,8 @@ homeassistant_entity_id
 como identificador principal de un usuario o entidad propia de Chiri.
 
 Los identificadores externos podrán conservarse como datos de integración cuando corresponda.
+
+---
 
 # 2.13 Fechas y Auditoría
 
@@ -546,6 +560,8 @@ created_by
 ```
 
 Los campos de auditoría deberán utilizarse únicamente cuando aporten información relevante sobre el ciclo de vida o responsabilidad de la entidad.
+
+No todas las entidades deberán incluir automáticamente todos los campos de auditoría.
 
 ---
 
@@ -580,15 +596,19 @@ Correcto:
 
 ```sql
 user_account
+
 created_at
+
 integration_status
-```
+````
 
 Incorrecto:
 
 ```text
 tablaUsuario
+
 fechaCreacion
+
 EstadoConexion
 ```
 
@@ -608,19 +628,31 @@ Correcto:
 
 ```text
 user
+
 role
+
 permission
+
 module
+
 functionality
+
 device
+
 integration
 ```
+
+Las entidades `role`, `permission`, `module` y `functionality` corresponden al modelo futuro de v1.0.
+
+Las entidades `device` e `integration` corresponden a futuras etapas y todavía no están implementadas.
 
 Evitar:
 
 ```text
 tbl_users
+
 data_user
+
 tmp_information
 ```
 
@@ -638,8 +670,11 @@ Ejemplos:
 
 ```text
 first_name
+
 last_name
+
 created_at
+
 updated_at
 ```
 
@@ -675,11 +710,17 @@ Ejemplo:
 
 ```sql
 user_id
+
 role_id
+
 permission_id
+
 module_id
+
 functionality_id
+
 integration_id
+
 device_id
 ```
 
@@ -691,19 +732,31 @@ Esto permitirá:
 
 Las claves foráneas deberán utilizarse para representar las relaciones entre entidades propias de Chiri.
 
-Relaciones actualmente definidas:
+Relaciones actualmente implementadas:
+
+```text
+session.user_id
+
+refresh_token.session_id
+```
+
+Relaciones previstas para el modelo futuro de v1.0:
 
 ```text
 user_role.user_id
+
 user_role.role_id
 
 role_permission.role_id
+
 role_permission.permission_id
 
 functionality.module_id
 ```
 
 Las referencias hacia entidades de dominios futuros, como `integration_id` o `device_id`, solo deberán incorporarse cuando dichas entidades formen parte del modelo implementado.
+
+Las claves foráneas deberán apuntar únicamente a entidades existentes dentro del modelo físico de Chiri y no deberán utilizar identificadores externos como sustitutos de relaciones internas.
 
 # 3.6 Tipos de Datos
 
@@ -715,8 +768,9 @@ Texto:
 
 ```sql
 varchar
+
 text
-```
+````
 
 Fechas y tiempo:
 
@@ -763,6 +817,7 @@ Convención:
 
 ```sql
 created_at
+
 updated_at
 ```
 
@@ -832,11 +887,17 @@ Criterios:
 * consultas frecuentes.
 * relaciones importantes.
 * búsquedas habituales.
-* restricciones que requieran soporte mediante índices.
+* necesidades de rendimiento identificadas.
 
 No se crearán índices innecesarios.
 
-La creación de índices deberá considerar el equilibrio entre rendimiento de lectura y coste de escritura y almacenamiento.
+Las restricciones que generen índices, como `UNIQUE`, deberán considerarse antes de crear índices adicionales para evitar duplicidad.
+
+La creación de índices deberá considerar el equilibrio entre:
+
+* rendimiento de lectura.
+* coste de escritura.
+* almacenamiento.
 
 ---
 
@@ -868,7 +929,7 @@ Cuando una entidad tenga reglas complejas o requiera contexto adicional, deberá
 Ejemplo:
 
 ```sql
-COMMENT ON TABLE user_account
+COMMENT ON TABLE identity.user
 IS 'Usuarios registrados en Chiri Platform';
 ```
 
@@ -911,17 +972,17 @@ Las migraciones deberán:
 * conservar la compatibilidad necesaria con el Backend.
 * evitar cambios manuales fuera del mecanismo de migración establecido.
 
----
-
 # 3.14 Principio Arquitectónico
 
 El diseño de base de datos deberá cumplir:
 
 > Una persona nueva en el proyecto debe poder entender la estructura leyendo los nombres y relaciones.
 
+---
+
 # 4. Entidades Principales de Chiri
 
-Las entidades se dividen entre las actualmente implementadas, las incorporadas al modelo de v1.0 y las previstas para futuras etapas.
+Las entidades se dividen entre las actualmente implementadas, las previstas para el modelo v1.0 y las previstas para futuras etapas.
 
 ## Entidades actualmente implementadas
 
@@ -929,7 +990,7 @@ Las entidades se dividen entre las actualmente implementadas, las incorporadas a
 * Session
 * RefreshToken
 
-## Entidades incorporadas al modelo v1.0
+## Entidades previstas para v1.0
 
 * Role
 * Permission
@@ -937,6 +998,8 @@ Las entidades se dividen entre las actualmente implementadas, las incorporadas a
 * RolePermission
 * Module
 * Functionality
+
+Estas entidades forman parte del modelo funcional previsto para Chiri Platform, pero todavía no están implementadas físicamente en la base de datos.
 
 ## Entidades futuras
 
@@ -948,14 +1011,14 @@ Las entidades se dividen entre las actualmente implementadas, las incorporadas a
 
 La base de datos de Chiri Platform deberá representar únicamente conceptos propios de la plataforma.
 
-Las entidades iniciales estarán diseñadas para soportar:
+Las entidades iniciales están diseñadas para soportar:
 
 * identidad de usuarios.
 * seguridad.
 * autorización.
 * organización funcional de la plataforma.
 
-Las siguientes capacidades corresponden a futuras etapas:
+Las siguientes capacidades corresponden a etapas futuras:
 
 * configuración.
 * integraciones.
@@ -993,7 +1056,9 @@ erDiagram
         string status
         timestamp created_at
     }
-```
+````
+
+La estructura física actualmente implementada corresponde al esquema `identity` y a la tabla `user`.
 
 ---
 
@@ -1023,9 +1088,13 @@ erDiagram
     USER ||--|| PROFILE : has
 ```
 
+La entidad `profile` será implementada únicamente cuando exista una necesidad funcional definida.
+
 ---
 
 # 4.3 Entidad Rol
+
+**Estado: Futuro — no implementado actualmente.**
 
 Los roles representan conjuntos de capacidades dentro de Chiri.
 
@@ -1033,17 +1102,17 @@ Un rol no representa una persona.
 
 Representa un conjunto de capacidades que podrá asignarse a uno o más usuarios.
 
-Los perfiles conceptuales considerados para el modelo son:
+Los roles conceptuales considerados para el modelo son:
 
 * ADMIN.
 * USER.
 * GUEST.
 
-Estos perfiles representan una definición conceptual del modelo de autorización y **no deberán considerarse perfiles actualmente implementados** hasta que exista el modelo correspondiente en el Backend y haya sido validado mediante pruebas.
+Estos roles representan una definición conceptual del modelo de autorización y no deberán considerarse actualmente implementados hasta que exista el modelo correspondiente en el Backend y haya sido validado mediante pruebas.
 
 La asignación de roles a usuarios se realizará mediante la entidad `UserRole`.
 
----
+La estructura física de `role` será definida mediante una migración de Alembic cuando el modelo de autorización sea implementado.
 
 # 4.4 Entidad Permiso
 
@@ -1220,25 +1289,27 @@ erDiagram
 
 La implementación concreta de auditoría se definirá en una etapa posterior.
 
----
-
 # 4.13 Entidad Sesión
 
-La sesión representa una sesión autenticada de un usuario.
+La sesión representa una sesión autenticada de un usuario dentro de Chiri.
+
+**Estado: Implementado actualmente.**
 
 Campos actuales:
 
-* id.
-* user_id.
-* created_at.
-* expires_at.
-* status.
+* `id`.
+* `user_id`.
+* `created_at`.
+* `expires_at`.
+* `status`.
 
 Estados permitidos:
 
-* ACTIVE.
-* REVOKED.
-* EXPIRED.
+* `ACTIVE`.
+* `REVOKED`.
+* `EXPIRED`.
+
+Relación:
 
 ```mermaid
 erDiagram
@@ -1246,29 +1317,32 @@ erDiagram
     USER ||--o{ SESSION : owns
 ```
 
-La entidad Session forma parte de la implementación actual de seguridad
-del Backend.
+La entidad `Session` forma parte de la implementación actual de seguridad del Backend.
 
 ---
 
 # 4.14 Entidad Refresh Token
 
-El refresh token pertenece a una sesión.
+El refresh token pertenece a una sesión autenticada.
+
+**Estado: Implementado actualmente.**
 
 Campos actuales:
 
-* id.
-* session_id.
-* token_hash.
-* created_at.
-* expires_at.
-* status.
+* `id`.
+* `session_id`.
+* `token_hash`.
+* `created_at`.
+* `expires_at`.
+* `status`.
 
 Estados permitidos:
 
-* ACTIVE.
-* REVOKED.
-* EXPIRED.
+* `ACTIVE`.
+* `REVOKED`.
+* `EXPIRED`.
+
+Relación:
 
 ```mermaid
 erDiagram
@@ -1280,15 +1354,13 @@ El valor original del refresh token no se almacena.
 
 La base de datos almacena únicamente su hash.
 
-La entidad RefreshToken forma parte de la implementación actual de seguridad
-del Backend.
+La entidad `RefreshToken` forma parte de la implementación actual de seguridad del Backend.
 
 ---
 
 # 4.15 Relación General del Dominio
 
-Modelo conceptual de las entidades actualmente implementadas y de las
-entidades incorporadas al modelo v1.0:
+Modelo conceptual de las entidades actualmente implementadas:
 
 ```mermaid
 erDiagram
@@ -1296,25 +1368,13 @@ erDiagram
     USER ||--o{ SESSION : owns
 
     SESSION ||--o{ REFRESH_TOKEN : has
-
-    USER ||--o{ USER_ROLE : has
-
-    ROLE ||--o{ USER_ROLE : assigned
-
-    ROLE ||--o{ ROLE_PERMISSION : has
-
-    PERMISSION ||--o{ ROLE_PERMISSION : assigned
-
-    MODULE ||--o{ FUNCTIONALITY : contains
 ```
 
-Las entidades de configuración, integración, dispositivo lógico, auditoría
-y perfil corresponden a futuras etapas.
+Las entidades `Role`, `Permission`, `UserRole`, `RolePermission`, `Module` y `Functionality` forman parte del modelo arquitectónico previsto para futuras capacidades de autorización y organización funcional.
 
-Las entidades Role, Permission, UserRole, RolePermission, Module y
-Functionality forman parte del modelo previsto de v1.0, pero no deberán
-considerarse implementadas hasta que exista su implementación correspondiente
-en el Backend y haya sido validada mediante pruebas.
+Estas entidades no deberán considerarse implementadas hasta que exista su implementación correspondiente en el Backend y haya sido validada mediante pruebas.
+
+Las entidades `Profile`, `Configuration`, `Integration`, `Logical Device` y `Audit` corresponden igualmente a futuras etapas.
 
 ---
 
@@ -1322,16 +1382,21 @@ en el Backend y haya sido validada mediante pruebas.
 
 La arquitectura permitirá agregar posteriormente entidades como:
 
+* roles y permisos.
+* perfiles.
+* configuraciones propias.
+* integraciones.
+* dispositivos lógicos.
+* auditoría.
 * automatizaciones propias.
 * asistentes IA.
 * rutinas personales.
 * historial multimedia.
 * preferencias avanzadas.
 
-Estas entidades serán creadas solamente cuando exista una necesidad real.
+Estas entidades serán creadas solamente cuando exista una necesidad funcional y arquitectónica real.
 
-La incorporación de nuevas entidades deberá respetar la arquitectura,
-el modelo de dominio y las reglas de fuente de verdad establecidas.
+La incorporación de nuevas entidades deberá respetar la arquitectura, el modelo de dominio y las reglas de fuente de verdad establecidas.
 
 ---
 
@@ -1341,11 +1406,9 @@ Una entidad nueva deberá responder:
 
 > ¿Este concepto pertenece al dominio de Chiri o pertenece a un servicio externo?
 
-Si pertenece al dominio de Chiri, podrá formar parte del modelo de datos
-de la plataforma.
+Si pertenece al dominio de Chiri, podrá formar parte del modelo de datos de la plataforma.
 
-Si pertenece a un servicio externo, Chiri deberá integrarlo y referenciarlo
-cuando sea necesario, pero no deberá replicar su modelo interno.
+Si pertenece a un servicio externo, Chiri deberá integrarlo y referenciarlo cuando sea necesario, pero no deberá replicar su modelo interno ni apropiarse de sus datos.
 
 ---
 
@@ -1355,14 +1418,10 @@ El modelo de datos de Chiri deberá representar:
 
 > El conocimiento y estado propio de la plataforma, manteniendo separados los dominios de los sistemas integrados.
 
-Cada entidad deberá tener un propósito claro dentro del dominio de Chiri y
-una única responsabilidad dentro del modelo de datos.
+Cada entidad deberá tener un propósito claro dentro del dominio de Chiri y una responsabilidad definida dentro del modelo de datos.
 
-## Versión corregida de 5.1–5.8
+---
 
-Esta sería la versión que te recomiendo dejar:
-
-````markdown
 # 5. Diseño Físico de Base de Datos
 
 El diseño físico define la organización real de PostgreSQL para Chiri Platform.
@@ -1375,51 +1434,80 @@ Su objetivo es establecer:
 * restricciones.
 * estructura inicial.
 
-El diseño físico distingue entre entidades actualmente implementadas,
-entidades incorporadas al modelo v1.0 y entidades previstas para futuras etapas.
+El diseño físico distingue entre entidades actualmente implementadas, entidades previstas para futuras capacidades de v1.0 y entidades correspondientes a futuras etapas.
 
 ---
 
 # 5.1 Organización Física Inicial
 
-La base de datos utilizará esquemas PostgreSQL para separar responsabilidades.
+La base de datos utilizará esquemas PostgreSQL para separar responsabilidades y dominios.
 
-Estructura física actual y prevista:
+La estructura física actual y prevista es:
 
 ```text
-PostgreSQL
-└── chiri
-    ├── identity
-    │   └── user
-    │
-    ├── security
-    │   ├── session
-    │   └── refresh_token
-    │
-    ├── authorization
-    │   ├── role
-    │   ├── permission
-    │   ├── user_role
-    │   └── role_permission
-    │
-    ├── platform
-    │   ├── module
-    │   └── functionality
-    │
-    ├── configuration
-    │
-    ├── integration
-    │
-    └── audit
-````
+PostgreSQL Chiri
+│
+├── identity
+│   └── user
+│
+├── security
+│   ├── session
+│   └── refresh_token
+│
+├── authorization
+│   ├── role
+│   ├── permission
+│   ├── user_role
+│   └── role_permission
+│
+├── platform
+│   ├── module
+│   └── functionality
+│
+├── configuration
+│
+├── integration
+│
+└── audit
+```
 
-Los esquemas `configuration`, `integration` y `audit` corresponden a futuras
-etapas y todavía no contienen las entidades definidas en este documento.
+Estado de los esquemas:
 
-Los esquemas `authorization` y `platform` forman parte del modelo previsto
-de Chiri Platform v1.0.
+```text
+identity
+└── IMPLEMENTADO
+    └── user
 
----
+security
+└── IMPLEMENTADO
+    ├── session
+    └── refresh_token
+
+authorization
+└── FUTURO
+    ├── role
+    ├── permission
+    ├── user_role
+    └── role_permission
+
+platform
+└── FUTURO
+    ├── module
+    └── functionality
+
+configuration
+└── FUTURO
+
+integration
+└── FUTURO
+
+audit
+└── FUTURO
+```
+
+Los esquemas `authorization`, `platform`, `configuration`, `integration` y `audit` representan estructura prevista de la arquitectura y no deberán considerarse implementados hasta que sus correspondientes migraciones y componentes del Backend hayan sido creados y validados.
+
+La estructura física real de PostgreSQL deberá estar determinada por las migraciones de Alembic aplicadas en el entorno correspondiente.
 
 # 5.2 Esquema Identity
 
@@ -1427,7 +1515,7 @@ Responsabilidad:
 
 Gestionar la identidad de usuarios dentro de Chiri.
 
-Estructura actual:
+Estructura actualmente implementada:
 
 ```text
 identity
@@ -1441,7 +1529,7 @@ identity
 └── profile
 ```
 
-`profile` será incorporado únicamente cuando exista una necesidad funcional real.
+La entidad `profile` será incorporada únicamente cuando exista una necesidad funcional y arquitectónica real.
 
 ---
 
@@ -1477,12 +1565,11 @@ Reglas:
 * `email` identifica el correo asociado.
 * `password_hash` almacena únicamente el hash de la contraseña.
 * `status` representa el estado del usuario.
-* `created_at` registra la creación.
+* `created_at` registra la fecha y hora de creación.
 * `updated_at` registrará la última modificación cuando sea incorporado.
 * `email` deberá ser único.
 
-La estructura física deberá mantenerse alineada con el modelo implementado
-y sus migraciones Alembic.
+La estructura física deberá mantenerse alineada con el modelo implementado y con las migraciones de Alembic aplicadas.
 
 ---
 
@@ -1515,8 +1602,7 @@ erDiagram
     USER ||--|| PROFILE : has
 ```
 
-La estructura será implementada mediante una migración cuando esta
-funcionalidad sea necesaria.
+La estructura será implementada mediante una migración cuando esta funcionalidad sea necesaria.
 
 ---
 
@@ -1534,8 +1620,7 @@ security
 └── refresh_token
 ```
 
-El esquema `security` no será utilizado para almacenar las entidades
-propias de autorización.
+El esquema `security` no será utilizado para almacenar las entidades propias de autorización.
 
 Las entidades de autorización pertenecerán al esquema `authorization`.
 
@@ -1575,8 +1660,7 @@ erDiagram
     USER ||--o{ SESSION : owns
 ```
 
-La tabla `session` forma parte de la implementación actual de seguridad
-del Backend.
+La tabla `session` forma parte de la implementación actual de seguridad del Backend.
 
 ---
 
@@ -1619,8 +1703,7 @@ El valor original del refresh token no se almacena.
 
 La base de datos almacena únicamente su hash.
 
-La tabla `refresh_token` forma parte de la implementación actual de seguridad
-del Backend.
+La tabla `refresh_token` forma parte de la implementación actual de seguridad del Backend.
 
 ---
 
@@ -1630,8 +1713,7 @@ del Backend.
 
 Responsabilidad:
 
-Gestionar roles y permisos utilizados por el Backend para determinar
-las capacidades autorizadas de los usuarios.
+Gestionar roles y permisos utilizados por el Backend para determinar las capacidades autorizadas de los usuarios.
 
 Estructura prevista:
 
@@ -1643,17 +1725,17 @@ authorization
 └── role_permission
 ```
 
-Estas entidades no deberán considerarse implementadas hasta que exista
-su correspondiente implementación mediante modelos, migraciones y pruebas
-del Backend.
+Estas entidades no deberán considerarse implementadas hasta que exista su correspondiente implementación mediante modelos, migraciones y pruebas del Backend.
 
 ---
 
 # 5.9 Tabla Role
 
+**Estado: Modelo v1.0 — implementación pendiente.**
+
 Responsabilidad:
 
-Representar niveles de acceso dentro de Chiri.
+Representar niveles o conjuntos de capacidades que podrán asignarse a los usuarios dentro de Chiri.
 
 Roles previstos inicialmente:
 
@@ -1663,13 +1745,13 @@ USER
 GUEST
 ```
 
-La estructura física definitiva será establecida mediante la migración
-correspondiente.
+La estructura física definitiva será establecida mediante la migración correspondiente.
 
-Los roles no deberán considerarse implementados hasta que exista el modelo
-de autorización correspondiente y haya sido validado mediante pruebas.
+Los roles no deberán considerarse implementados hasta que exista el modelo de autorización correspondiente y haya sido validado mediante pruebas.
 
-# 5.9 Tabla Permission
+---
+
+# 5.10 Tabla Permission
 
 **Estado: Modelo v1.0 — implementación pendiente.**
 
@@ -1683,26 +1765,25 @@ Ejemplos conceptuales:
 MANAGE_USERS
 CONTROL_DEVICES
 MANAGE_CONFIGURATION
-````
+```
 
 La estructura física definitiva será establecida mediante la migración correspondiente.
 
-Los permisos no deberán considerarse implementados hasta que exista el modelo
-correspondiente en el Backend y haya sido validado mediante pruebas.
+Los permisos no deberán considerarse implementados hasta que exista el modelo correspondiente en el Backend y haya sido validado mediante pruebas.
 
 ---
 
-# 5.10 Tabla User Role
+# 5.11 Tabla User Role
 
 **Estado: Modelo v1.0 — implementación pendiente.**
 
 Responsabilidad:
 
-Representar la asignación de roles a usuarios.
+Representar la asignación de uno o más roles a un usuario.
 
 Relación:
 
-```mermaid id="d5m8rx"
+```mermaid
 erDiagram
 
     USER ||--o{ USER_ROLE : has
@@ -1714,7 +1795,7 @@ Esta tabla representa la relación entre `user` y `role`.
 
 La asignación deberá respetar las reglas de autorización definidas por el Backend.
 
----
+La estructura física definitiva será establecida mediante la migración correspondiente.
 
 # 5.11 Tabla Role Permission
 
@@ -1772,14 +1853,13 @@ Representar una capacidad concreta perteneciente a un módulo.
 
 Relación:
 
-```mermaid id="r6k2wv"
+```mermaid
 erDiagram
 
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
 
-La relación entre `functionality` y `permission` no se establece todavía como
-relación física.
+La relación entre `functionality` y `permission` no se establece todavía como relación física.
 
 Será definida cuando se determine el modelo definitivo de autorización funcional.
 
@@ -1860,7 +1940,7 @@ La estructura física de auditoría será definida cuando esta capacidad sea imp
 
 El modelo físico previsto para seguridad y autorización será:
 
-```mermaid id="k4x8nz"
+```mermaid
 erDiagram
 
     USER ||--o{ SESSION : owns
@@ -1876,11 +1956,9 @@ erDiagram
     PERMISSION ||--o{ ROLE_PERMISSION : assigned
 ```
 
-Las entidades `session` y `refresh_token` corresponden a la implementación
-actual de seguridad.
+Las entidades `session` y `refresh_token` corresponden a la implementación actual de seguridad.
 
-Las entidades `role`, `permission`, `user_role` y `role_permission` corresponden
-al modelo previsto de autorización v1.0 y permanecen pendientes de implementación.
+Las entidades `role`, `permission`, `user_role` y `role_permission` corresponden al modelo previsto de autorización v1.0 y permanecen pendientes de implementación.
 
 ---
 
@@ -1888,7 +1966,7 @@ al modelo previsto de autorización v1.0 y permanecen pendientes de implementaci
 
 La organización funcional será:
 
-```mermaid id="m7q3vc"
+```mermaid
 erDiagram
 
     MODULE ||--o{ FUNCTIONALITY : contains
@@ -1898,16 +1976,15 @@ Los módulos agrupan funcionalidades.
 
 Las funcionalidades representan capacidades concretas de la plataforma.
 
-La relación entre autorización y funcionalidad será definida posteriormente
-mediante una decisión arquitectónica y, cuando corresponda, mediante el
-contrato de API.
+La relación entre autorización y funcionalidad será definida posteriormente mediante una decisión arquitectónica y, cuando corresponda, mediante el contrato de API.
 
-Las entidades `module` y `functionality` forman parte del modelo previsto
-de Chiri Platform v1.0 y permanecen pendientes de implementación.
+Las entidades `module` y `functionality` forman parte del modelo previsto de Chiri Platform v1.0 y permanecen pendientes de implementación.
+
+---
 
 # 5.19 Modelo General Inicial
 
-Las entidades actualmente implementadas y las incorporadas al modelo v1.0 quedan organizadas conceptualmente de la siguiente manera:
+La organización conceptual de la base de datos distingue entre las entidades actualmente implementadas y las entidades previstas para las futuras capacidades de Chiri Platform.
 
 ```mermaid
 flowchart TB
@@ -1920,7 +1997,6 @@ flowchart TB
     Platform["platform"]
 
     User["user"]
-
     Session["session"]
     RefreshToken["refresh_token"]
 
@@ -1953,10 +2029,11 @@ flowchart TB
     Module --> Functionality
 ```
 
-La organización física inicial queda definida de la siguiente manera:
+La organización física inicial queda definida conceptualmente de la siguiente manera:
 
 ```text
 PostgreSQL Chiri
+
 ├── identity
 │   └── user
 │
@@ -1975,7 +2052,35 @@ PostgreSQL Chiri
     └── functionality
 ```
 
-Las entidades `profile`, `configuration`, `integration` y `audit` pertenecen a futuras etapas y no forman parte de la estructura física inicial.
+Estado de la estructura:
+
+```text
+IMPLEMENTADO
+
+identity
+└── user
+
+security
+├── session
+└── refresh_token
+
+
+MODELO PREVISTO — IMPLEMENTACIÓN PENDIENTE
+
+authorization
+├── role
+├── permission
+├── user_role
+└── role_permission
+
+platform
+├── module
+└── functionality
+```
+
+Las entidades `profile`, `configuration`, `integration` y `audit` pertenecen a futuras etapas y no forman parte de la estructura física inicial actualmente implementada.
+
+La estructura física real de PostgreSQL deberá estar determinada por las migraciones de Alembic aplicadas en el entorno correspondiente.
 
 ---
 
@@ -2044,7 +2149,7 @@ Las migraciones deberán:
 
 No se modificarán estructuras directamente en producción.
 
-Los cambios manuales sobre tablas de producción quedan prohibidos salvo procedimientos excepcionales de recuperación previamente definidos.
+Los cambios manuales sobre la estructura de la base de datos no deberán utilizarse como sustituto del mecanismo de migraciones. Los procedimientos excepcionales de recuperación deberán seguir procesos controlados y previamente definidos.
 
 ---
 
@@ -2058,8 +2163,11 @@ La estructura deberá mantener una separación clara entre:
 
 ```text
 identity
+
 security
+
 authorization
+
 platform
 ```
 
@@ -2182,7 +2290,6 @@ flowchart LR
 
     Verification["Verificación"]
 
-
     Requirement --> Design
     Design --> Migration
     Migration --> Test
@@ -2207,12 +2314,13 @@ flowchart LR
 
     Production["Producción"]
 
-
     Development --> Testing
     Testing --> Production
 ```
 
-Las migraciones deberán probarse antes de aplicarse sobre la base de datos de producción.
+Las migraciones deberán probarse y verificarse antes de aplicarse sobre la base de datos de producción.
+
+El proceso de pruebas deberá utilizar un entorno de validación apropiado y no deberá implicar modificaciones directas sobre la base de datos de producción.
 
 ---
 
@@ -2228,6 +2336,8 @@ Antes de aplicar cambios importantes en producción se deberá:
 * registrar el cambio.
 
 No se realizarán modificaciones estructurales manuales como sustituto de una migración.
+
+Los cambios estructurales deberán formar parte del historial de migraciones de Alembic.
 
 ---
 
@@ -2252,6 +2362,10 @@ Versión 1
 No todos los cambios permiten una reversión completa o segura.
 
 Las migraciones deberán diseñarse considerando el impacto de una posible reversión.
+
+La ejecución de un `downgrade` en producción deberá evaluarse cuidadosamente, especialmente cuando la migración haya modificado o eliminado datos.
+
+Cuando una reversión directa pueda poner en riesgo la información existente, deberá utilizarse un procedimiento de recuperación apropiado.
 
 ---
 
@@ -2321,13 +2435,15 @@ La documentación deberá describir la arquitectura, mientras que las migracione
 
 Actualmente el Backend utiliza Alembic para administrar el esquema PostgreSQL.
 
-El esquema actual incluye las estructuras correspondientes a:
+El estado físico actualmente implementado incluye las estructuras correspondientes a:
 
 * `identity.user`.
 * `security.session`.
 * `security.refresh_token`.
 
-Las entidades adicionales de autorización y organización funcional definidas para v1.0 deberán incorporarse mediante migraciones cuando sean implementadas físicamente.
+Las entidades adicionales de autorización y organización funcional definidas para v1.0 corresponden al modelo previsto y deberán incorporarse mediante migraciones cuando sean implementadas físicamente en el Backend.
+
+Estas entidades no deberán considerarse parte del esquema físico actual hasta que exista su correspondiente implementación y haya sido validada mediante pruebas.
 
 ---
 
@@ -2365,6 +2481,8 @@ Verificación
 
 No deberá modificarse directamente la estructura de producción para evitar el proceso de migración.
 
+Toda modificación estructural deberá quedar registrada en el historial de Alembic.
+
 ---
 
 # 6.14 Principio Arquitectónico
@@ -2372,6 +2490,10 @@ No deberá modificarse directamente la estructura de producción para evitar el 
 La evolución de PostgreSQL deberá cumplir:
 
 > El estado actual de la base de datos debe poder explicarse mediante la historia de sus migraciones.
+
+Las migraciones deberán permitir conocer qué cambios fueron realizados, en qué orden fueron aplicados y cuál es la versión correspondiente del esquema.
+
+La evolución física de la base de datos deberá mantenerse alineada con el modelo de dominio y con la arquitectura definida para Chiri Platform.
 
 # 7. Seguridad y Protección de Datos PostgreSQL
 
@@ -2381,9 +2503,11 @@ El objetivo será proteger:
 
 * información de usuarios.
 * información de sesiones.
-* configuraciones.
+* información relacionada con autenticación.
 * integridad del sistema.
-* disponibilidad de datos.
+* disponibilidad de los datos.
+
+La protección de la base de datos deberá complementar los mecanismos de seguridad implementados en el Backend.
 
 ---
 
@@ -2393,20 +2517,16 @@ La base de datos no deberá ser accedida directamente por clientes externos.
 
 El flujo oficial será:
 
-```mermaid id="8m4q2x"
+```mermaid
 flowchart LR
 
     Android["Aplicación Android"]
-
-    API["API Chiri"]
 
     Backend["Backend FastAPI"]
 
     PostgreSQL["PostgreSQL"]
 
-
-    Android --> API
-    API --> Backend
+    Android --> Backend
     Backend --> PostgreSQL
 ```
 
@@ -2414,15 +2534,17 @@ La aplicación Android se comunicará únicamente con la API de Chiri.
 
 PostgreSQL será accesible únicamente por los componentes autorizados del Backend.
 
+Los clientes externos no deberán conectarse directamente a PostgreSQL.
+
 ---
 
 # 7.2 Usuarios de Base de Datos
 
 PostgreSQL deberá utilizar usuarios separados según responsabilidad.
 
-Ejemplo conceptual:
+Modelo conceptual:
 
-```text id="5x8m3q"
+```text
 postgres_admin
 
     |
@@ -2439,6 +2561,10 @@ Operación normal de la aplicación
 ```
 
 El usuario utilizado por el Backend no deberá utilizar credenciales administrativas.
+
+La administración de PostgreSQL deberá realizarse mediante un usuario con privilegios administrativos separado del usuario utilizado por la aplicación.
+
+La existencia y configuración concreta de estos usuarios dependerá del entorno de despliegue.
 
 ---
 
@@ -2462,6 +2588,8 @@ No deberá utilizar:
 
 Las operaciones de administración de PostgreSQL deberán realizarse mediante un usuario administrativo separado.
 
+Los privilegios deberán limitarse según las necesidades reales de cada componente.
+
 ---
 
 # 7.4 Credenciales
@@ -2469,19 +2597,19 @@ Las operaciones de administración de PostgreSQL deberán realizarse mediante un
 Las credenciales de PostgreSQL deberán:
 
 * mantenerse fuera del código fuente.
-* utilizar variables de entorno.
+* utilizar mecanismos de configuración segura.
 * almacenarse de forma segura.
 * no incluirse en repositorios Git.
 
-Ejemplo:
+Ejemplos conceptuales:
 
-```text id="4m7q2x"
+```text
 DATABASE_URL
-
 POSTGRES_USER
-
 POSTGRES_PASSWORD
 ```
+
+Los valores reales de las credenciales no deberán formar parte de la documentación ni del código fuente.
 
 ---
 
@@ -2494,9 +2622,9 @@ La comunicación con PostgreSQL deberá considerar:
 * usuarios autenticados.
 * acceso limitado a los componentes autorizados.
 
-En la arquitectura inicial:
+En el entorno de despliegue mediante Docker podrá utilizarse una red interna para la comunicación entre Backend y PostgreSQL:
 
-```text id="7q2m8x"
+```text
 Backend
 
    |
@@ -2510,6 +2638,8 @@ PostgreSQL
 
 PostgreSQL no deberá exponerse directamente a Internet.
 
+La configuración concreta de red deberá definirse según el entorno de despliegue establecido para Chiri.
+
 ---
 
 # 7.6 Protección de Datos Sensibles
@@ -2519,11 +2649,13 @@ La base de datos deberá evitar almacenar información sensible innecesaria.
 No se deberán almacenar:
 
 * contraseñas en texto plano.
-* secretos externos innecesarios.
 * claves privadas.
-* tokens en texto plano cuando puedan almacenarse de forma segura mediante mecanismos de protección apropiados.
+* secretos externos innecesarios.
+* refresh tokens en texto plano.
 
 La información sensible deberá gestionarse de acuerdo con las reglas definidas en `070_Seguridad.md`.
+
+Cuando una información sensible deba persistirse, deberá utilizarse el mecanismo de protección definido para dicha información.
 
 ---
 
@@ -2555,7 +2687,7 @@ PostgreSQL
 
 Nunca se deberá almacenar:
 
-```text id="3m8q5x"
+```text
 password = "123456"
 ```
 
@@ -2576,7 +2708,7 @@ Los refresh tokens no deberán almacenarse en texto plano.
 
 La base de datos almacenará únicamente su hash:
 
-```text id="7x4m9q"
+```text
 Refresh Token
 
     |
@@ -2589,6 +2721,8 @@ security.refresh_token.token_hash
 ```
 
 La gestión de JWT, sesiones, refresh tokens, rotación y revocación deberá seguir las reglas definidas en `070_Seguridad.md`.
+
+Los JWT de acceso no deberán almacenarse innecesariamente en PostgreSQL.
 
 ---
 
@@ -2617,26 +2751,21 @@ La auditoría permitirá:
 
 Los secretos de servicios externos deberán mantenerse separados de los datos normales de la aplicación.
 
-Ejemplo incorrecto:
+Ejemplo que deberá evitarse:
 
-```text id="6q4m8x"
+```text
 Tabla Integration
 
 password_homeassistant
+
 token_musicassistant
 ```
 
-Ejemplo recomendado:
+La base de datos no deberá convertirse en un repositorio general de secretos.
 
-```text id="9m2q5x"
-Referencia segura
+Cuando una integración requiera credenciales o secretos, Chiri deberá utilizar el mecanismo seguro de gestión de secretos definido para la plataforma.
 
-+
-
-gestión de secretos
-```
-
-La base de datos podrá almacenar referencias o información necesaria para una integración, pero no deberá convertirse en un repositorio general de secretos.
+La base de datos podrá almacenar referencias o metadatos necesarios para administrar una integración, sin almacenar innecesariamente los secretos correspondientes.
 
 La estrategia específica de gestión de secretos será definida en `070_Seguridad.md`.
 
@@ -2646,7 +2775,7 @@ La estrategia específica de gestión de secretos será definida en `070_Segurid
 
 PostgreSQL deberá contar con respaldo periódico.
 
-Se deberá definir:
+La estrategia de respaldo deberá definir:
 
 * frecuencia.
 * ubicación.
@@ -2656,6 +2785,8 @@ Se deberá definir:
 
 Los respaldos deberán protegerse con un nivel de seguridad equivalente al de la información original.
 
+La estrategia completa de respaldo y retención será definida de acuerdo con las necesidades operativas de Chiri.
+
 ---
 
 # 7.12 Recuperación
@@ -2664,7 +2795,7 @@ Un respaldo solo será válido si puede restaurarse correctamente.
 
 Proceso:
 
-```mermaid id="2x7m4q"
+```mermaid
 flowchart LR
 
     Backup["Copia Seguridad"]
@@ -2675,13 +2806,14 @@ flowchart LR
 
     Validation["Validación"]
 
-
     Backup --> Storage
     Storage --> Restore
     Restore --> Validation
 ```
 
 Las pruebas de restauración deberán realizarse periódicamente según la estrategia de operación definida para Chiri.
+
+Los procedimientos de recuperación deberán considerar tanto la restauración de los datos como la recuperación del servicio.
 
 ---
 
@@ -2699,6 +2831,8 @@ PostgreSQL deberá utilizar mecanismos de integridad como:
 
 Estos mecanismos deberán impedir estados de datos inválidos cuando sea posible.
 
+Las restricciones de base de datos deberán complementar las validaciones realizadas por el Backend.
+
 ---
 
 # 7.14 Seguridad en Producción
@@ -2712,6 +2846,9 @@ Antes de utilizar PostgreSQL en producción se deberá verificar:
 * procedimiento de recuperación.
 * ausencia de secretos en el código fuente.
 * migraciones controladas.
+* configuración adecuada de acceso a PostgreSQL.
+
+PostgreSQL no deberá estar expuesto directamente a Internet.
 
 ---
 
@@ -2724,9 +2861,12 @@ Actualmente Chiri cuenta con mecanismos de seguridad implementados en el Backend
 * sesiones.
 * refresh tokens.
 * revocación de sesiones.
+* rotación de refresh tokens.
 * JWT para acceso a la API.
 
-La auditoría, gestión avanzada de secretos y estrategia completa de respaldo corresponden a etapas posteriores.
+La auditoría, gestión avanzada de secretos y estrategia operativa completa de respaldo y recuperación corresponden a etapas posteriores.
+
+La protección de PostgreSQL mediante usuarios, privilegios, red y configuración de producción deberá mantenerse alineada con el entorno de despliegue.
 
 ---
 
@@ -2736,94 +2876,138 @@ La seguridad de PostgreSQL deberá cumplir:
 
 > La base de datos debe proteger la información incluso si un componente superior tiene un problema.
 
-# 8. Rendimiento y Optimización de PostgreSQL
+La seguridad deberá implementarse mediante capas complementarias:
 
-La base de datos de Chiri Platform deberá diseñarse buscando equilibrio entre:
+```text
+Cliente
+
+   ↓
+
+API / Backend
+
+   ↓
+
+Autenticación y autorización
+
+   ↓
+
+PostgreSQL
+
+   ↓
+
+Restricciones e integridad de datos
+```
+
+Cada capa deberá aplicar los controles correspondientes a su responsabilidad.
+
+La protección de PostgreSQL no deberá depender exclusivamente de las validaciones realizadas por la aplicación.
+
+# **8. Rendimiento y Optimización de PostgreSQL**
+
+La base de datos de Chiri Platform deberá diseñarse buscando un equilibrio entre:
 
 * rendimiento.
 * simplicidad.
 * mantenibilidad.
 * consumo adecuado de recursos.
 
-La optimización deberá estar basada en necesidades reales del sistema.
+La optimización deberá responder a necesidades reales y medibles del sistema.
 
----
+No se implementarán mecanismos de optimización avanzada únicamente como previsión de crecimiento futuro.
 
-# 8.1 Principio de Rendimiento
+**---**
 
-La primera estrategia será un buen diseño.
+# **8.1 Principio de Rendimiento**
 
-Antes de optimizar se deberá revisar:
+La primera estrategia de rendimiento será mantener un diseño correcto de datos y consultas.
+
+Antes de realizar optimizaciones deberá revisarse:
 
 * modelo de datos.
-* consultas.
+* consultas ejecutadas.
 * relaciones.
 * índices existentes.
+* volumen de datos.
+* frecuencia de las operaciones.
 
----
+Las optimizaciones deberán basarse, cuando sea posible, en evidencia obtenida mediante mediciones y análisis de consultas.
 
-# 8.2 Índices
+**---**
 
-Los índices serán utilizados para mejorar consultas frecuentes.
+# **8.2 Índices**
 
-Se crearán considerando:
+Los índices deberán utilizarse cuando exista una necesidad técnica que justifique su creación.
 
-* columnas utilizadas en búsquedas frecuentes.
-* claves foráneas cuando mejoren consultas o relaciones frecuentes.
-* ordenamientos frecuentes.
-* filtros habituales.
+Podrán considerarse para:
 
-Ejemplo:
+* columnas utilizadas frecuentemente en búsquedas.
+* columnas utilizadas en filtros habituales.
+* columnas utilizadas en ordenamientos frecuentes.
+* claves foráneas cuando mejoren consultas reales.
+* combinaciones de columnas cuando las consultas lo requieran.
+* restricciones que requieran soporte mediante índices.
 
-```sql id="6m8q3x"
+Ejemplos de columnas que podrían requerir índices según el uso:
+
+```text
 user_id
-
 created_at
-
 status
 ```
 
----
+La existencia de una columna o una relación no implica automáticamente que deba crearse un índice.
 
-# 8.3 Evitar Índices Innecesarios
+Los índices deberán definirse mediante migraciones de Alembic.
 
-Cada índice tiene un costo.
+**---**
+
+# **8.3 Evitar Índices Innecesarios**
+
+Cada índice introduce costes adicionales.
 
 Puede afectar:
 
-* espacio utilizado.
-* velocidad de escritura.
+* espacio de almacenamiento.
+* operaciones de escritura.
 * mantenimiento.
+* tiempo necesario para actualizar estructuras indexadas.
 
 Por ello:
 
-> No se crearán índices sin una razón técnica.
+> No se crearán índices sin una razón técnica identificable.
 
----
+Los índices existentes deberán revisarse cuando el modelo o los patrones de consulta cambien.
 
-# 8.4 Diseño de Consultas
+**---**
+
+# **8.4 Diseño de Consultas**
 
 Las consultas deberán:
 
-* ser claras.
+* solicitar únicamente los datos necesarios.
+* utilizar correctamente las relaciones.
 * evitar operaciones innecesarias.
-* utilizar relaciones correctamente.
+* utilizar filtros adecuados.
+* evitar duplicación innecesaria de consultas.
 
-Se evitará:
+El Backend deberá evitar patrones ineficientes como:
 
-* traer información que no se necesita.
-* consultas repetitivas.
-* duplicación de datos sin justificación.
+* consultas repetitivas innecesarias.
+* recuperación masiva de información que no será utilizada.
+* consultas N+1 cuando puedan evitarse.
+* operaciones costosas sin justificación funcional.
 
----
+La optimización deberá realizarse respetando la responsabilidad de cada capa.
 
-# 8.5 Capa Backend
+**---**
 
-La optimización principal deberá realizarse correctamente en la capa de aplicación.
+# **8.5 Capa Backend**
 
-Ejemplo:
+El acceso a PostgreSQL deberá estar controlado por el Backend.
 
-```text id="8q5m2x"
+Flujo:
+
+```text
 Android
 
    |
@@ -2832,67 +3016,99 @@ API Chiri
 
    |
 
-Backend optimiza consulta
+Backend
+
+   |
+
+Consulta optimizada
 
    |
 
 PostgreSQL
 ```
 
-Android no realizará consultas directas.
+Android no realizará consultas directas a PostgreSQL.
 
----
+El Backend será responsable de:
 
-# 8.6 Crecimiento de Datos
+* construir las consultas.
+* aplicar filtros.
+* limitar resultados cuando corresponda.
+* controlar paginación cuando sea necesaria.
+* evitar consultas innecesarias.
 
-Chiri deberá considerar crecimiento progresivo.
+**---**
 
-Posibles datos crecientes:
+# **8.6 Crecimiento de Datos**
+
+Chiri deberá considerar un crecimiento progresivo de los datos.
+
+Los dominios que potencialmente podrán generar mayor volumen incluyen:
 
 * auditoría.
 * historial.
 * eventos.
 * registros de integración.
+* actividad de la plataforma.
 
----
+Las estrategias de almacenamiento deberán revisarse cuando el volumen real de datos lo justifique.
 
-# 8.7 Control de Historial
+**---**
 
-Los datos históricos deberán gestionarse correctamente.
+# **8.7 Control de Historial**
 
-Cuando un volumen aumente podrá evaluarse:
+Los datos históricos deberán gestionarse de acuerdo con su utilidad y requisitos de conservación.
+
+Cuando un volumen de datos aumente significativamente podrán evaluarse mecanismos como:
 
 * archivado.
 * limpieza programada.
+* retención limitada.
 * particionamiento.
 
-No se implementará antes de ser necesario.
+Estas estrategias no se implementarán anticipadamente.
 
----
+Su incorporación deberá responder a una necesidad real de almacenamiento, rendimiento o mantenimiento.
 
-# 8.8 Mantenimiento PostgreSQL
+**---**
 
-Se deberán considerar tareas periódicas:
+# **8.8 Mantenimiento de PostgreSQL**
+
+La operación de PostgreSQL deberá considerar tareas de mantenimiento y supervisión apropiadas.
+
+Entre ellas:
 
 * actualización de estadísticas.
-* revisión de espacio.
+* revisión del espacio utilizado.
 * análisis de consultas.
-* mantenimiento interno.
+* revisión de índices.
+* mantenimiento interno de PostgreSQL.
+* revisión de crecimiento de las tablas.
 
----
+Las tareas concretas dependerán del volumen de datos y de las necesidades reales de operación.
 
-# 8.9 Monitoreo
+**---**
 
-La plataforma deberá permitir observar:
+# **8.9 Monitoreo**
 
-* consumo de recursos.
+La plataforma deberá permitir observar el comportamiento de PostgreSQL y detectar posibles problemas.
+
+Se deberán considerar métricas como:
+
+* consumo de CPU.
+* consumo de memoria.
+* uso de almacenamiento.
+* conexiones activas.
 * tiempos de consulta.
+* consultas lentas.
 * errores.
-* crecimiento de almacenamiento.
+* crecimiento de datos.
 
----
+El monitoreo permitirá identificar problemas antes de aplicar optimizaciones innecesarias.
 
-# 8.10 Rendimiento en Raspberry Pi
+**---**
+
+# **8.10 Rendimiento en Raspberry Pi**
 
 La base de datos se ejecutará inicialmente en:
 
@@ -2900,34 +3116,46 @@ La base de datos se ejecutará inicialmente en:
 Raspberry Pi 4B
 ```
 
-Por ello se deberá considerar:
+Por ello, durante la etapa inicial se deberá considerar especialmente:
 
 * consumo de memoria.
-* uso de almacenamiento.
-* cantidad de conexiones.
-* carga de servicios simultáneos.
+* capacidad de almacenamiento.
+* número de conexiones.
+* carga simultánea de servicios.
+* capacidad de procesamiento.
+* crecimiento de la base de datos.
 
----
+La ejecución inicial en Raspberry Pi no deberá introducir restricciones innecesarias en el diseño lógico del modelo.
 
-# 8.11 Límites Iniciales
+Las decisiones de optimización deberán basarse en el comportamiento real del sistema.
 
-En la primera versión no se aplicarán optimizaciones avanzadas como:
+**---**
+
+# **8.11 Límites Iniciales**
+
+En la primera versión no se implementarán mecanismos avanzados de escalabilidad que no sean necesarios para la carga prevista.
+
+No se contemplan inicialmente:
 
 * replicación.
 * clústeres.
 * distribución geográfica.
+* particionamiento avanzado.
+* arquitectura distribuida de PostgreSQL.
 
-Serán consideradas únicamente si el crecimiento del proyecto lo requiere.
+Estas capacidades podrán evaluarse posteriormente si el crecimiento de Chiri Platform las requiere.
 
----
+**---**
 
-# 8.12 Principio Arquitectónico
+# **8.12 Principio Arquitectónico**
 
-El rendimiento deberá cumplir:
+El rendimiento de PostgreSQL deberá cumplir:
 
 > Primero un diseño correcto; después optimización basada en evidencia.
 
-# 9. Respaldo, Recuperación y Continuidad Operativa
+La optimización no deberá utilizarse para compensar un modelo de datos incorrecto, consultas deficientes o una separación inadecuada de responsabilidades.
+
+# **9. Respaldo, Recuperación y Continuidad Operativa**
 
 La base de datos PostgreSQL de Chiri Platform deberá contar con una estrategia de respaldo y recuperación que permita restaurar la información ante fallos.
 
@@ -2939,240 +3167,285 @@ El objetivo será proteger:
 * historial.
 * información propia de la plataforma.
 
----
+La estrategia concreta de respaldo y recuperación será definida de acuerdo con las necesidades reales de operación de Chiri.
 
-# 9.1 Principio de Respaldo
+**---**
+
+# **9.1 Principio de Respaldo**
 
 Los respaldos deberán permitir:
 
 * recuperar información perdida.
-* reconstruir el sistema.
-* reducir tiempo de recuperación.
+* reconstruir la base de datos.
+* reducir el tiempo necesario para recuperar el servicio.
+* minimizar la pérdida de información ante un incidente.
 
----
+Los respaldos deberán formar parte de la estrategia general de continuidad operativa.
 
-# 9.2 Tipos de Respaldo
+**---**
 
-La estrategia de respaldo podrá considerar diferentes mecanismos
-según las necesidades de recuperación y la capacidad del servidor.
+# **9.2 Tipos de Respaldo**
 
-## Respaldo Completo
+La estrategia de respaldo podrá considerar diferentes mecanismos según:
 
-Copia completa de la base de datos.
+* volumen de datos.
+* frecuencia de modificación.
+* capacidad de almacenamiento.
+* necesidades de recuperación.
+* recursos disponibles en el servidor.
+
+### **Respaldo Completo**
+
+Consiste en generar una copia que permita reconstruir la base de datos a partir de un respaldo completo.
 
 Ventajas:
 
 * restauración sencilla.
-* reconstrucción completa.
+* recuperación integral.
+* procedimiento fácil de verificar.
 
----
+### **Respaldo Incremental**
 
-## Respaldo Incremental
+Consiste en conservar únicamente los cambios producidos después de un respaldo de referencia.
 
-Copia únicamente de los cambios posteriores a un respaldo anterior.
+Puede permitir:
 
-Ventajas:
+* reducir consumo de almacenamiento.
+* reducir el tiempo de ejecución de determinados respaldos.
 
-* menor consumo de almacenamiento.
-* menor tiempo de ejecución.
-
----
-
-La estrategia inicial de Chiri priorizará simplicidad y confiabilidad.
+La estrategia inicial de Chiri priorizará simplicidad, confiabilidad y facilidad de restauración.
 
 El mecanismo concreto de respaldo será definido durante la etapa de despliegue y operación.
 
----
+**---**
 
-# 9.3 Frecuencia de Respaldo
+# **9.3 Frecuencia de Respaldo**
 
-La frecuencia deberá evaluarse según la importancia de los datos,
-su ritmo de modificación y el nivel de pérdida aceptable.
+La frecuencia de respaldo deberá definirse considerando:
 
-Inicialmente se establecerán políticas diferenciadas según el tipo
-de información.
+* importancia de los datos.
+* frecuencia de modificación.
+* capacidad de almacenamiento.
+* RPO objetivo.
+* impacto de una posible pérdida de información.
+
+La frecuencia definitiva será establecida como parte de la estrategia operativa de Chiri.
 
 Ejemplo conceptual:
 
-```text
+```text id="q4m8vx"
 Datos críticos
+    ↓
+Backup más frecuente
 
-    Backup frecuente
-
-Datos históricos
-
-    Backup programado
+Datos de menor variación
+    ↓
+Backup programado
 ```
 
----
+No se establecerán frecuencias definitivas hasta que sean definidas y validadas operacionalmente.
 
-# 9.4 Ubicación de Respaldos
+**---**
 
-Los respaldos no deberán permanecer únicamente en el mismo almacenamiento del servidor.
+# **9.4 Ubicación de Respaldos**
+
+Los respaldos no deberán permanecer únicamente en el mismo almacenamiento físico utilizado por el servidor principal.
 
 Motivo:
 
-Si falla el disco principal:
-
-```text id="9m4q7x"
-Servidor falla
-
+```text id="m7q2kx"
+Fallo del almacenamiento principal
 +
-
-Backup en mismo disco
-
+Backup almacenado únicamente en el mismo almacenamiento
 =
-
-No existe recuperación
+No existe una copia independiente para recuperación
 ```
 
----
+La estrategia deberá mantener los respaldos en un medio o ubicación independiente cuando sea necesario para protegerlos frente a fallos del almacenamiento principal.
 
-# 9.5 Estrategia Inicial
+**---**
 
-La arquitectura podrá considerar:
+# **9.5 Estrategia Inicial**
 
-```mermaid id="6x8m3q"
+La arquitectura podrá considerar el siguiente flujo:
+
+```mermaid id="x6q3mz"
 flowchart LR
 
     PostgreSQL["PostgreSQL"]
 
-    Backup["Proceso Backup"]
+    Backup["Proceso de Backup"]
 
-    Storage["Almacenamiento Backup"]
+    Storage["Almacenamiento de Backup"]
 
     Restore["Restauración"]
-
 
     PostgreSQL --> Backup
     Backup --> Storage
     Storage --> Restore
 ```
 
----
+El mecanismo concreto podrá variar según la estrategia de despliegue.
 
-# 9.6 Restauración
+La implementación deberá garantizar que los respaldos puedan identificarse, conservarse y utilizarse posteriormente para recuperación.
 
-Un respaldo deberá ser probado.
+**---**
 
-Proceso:
+# **9.6 Restauración**
 
-```mermaid id="4q8m2x"
+Todo procedimiento de respaldo deberá contemplar un procedimiento de restauración.
+
+Proceso conceptual:
+
+```mermaid id="v8m4qx"
 flowchart LR
 
-    Backup["Archivo Backup"]
+    Backup["Archivo de Backup"]
 
-    PostgreSQL["Nueva Instancia"]
+    PostgreSQL["Nueva Instancia PostgreSQL"]
 
     Restore["Restaurar"]
 
     Verify["Verificar Datos"]
-
 
     Backup --> PostgreSQL
     PostgreSQL --> Restore
     Restore --> Verify
 ```
 
----
+La restauración deberá verificarse para comprobar:
 
-# 9.7 Objetivos de Recuperación
+* disponibilidad de la base de datos.
+* integridad de los datos.
+* funcionamiento de las estructuras necesarias.
+* compatibilidad con el Backend.
 
-Se deberán considerar dos conceptos:
+**---**
 
-## RPO
+# **9.7 Objetivos de Recuperación**
 
-Cantidad máxima de datos que podría perderse.
+La estrategia de continuidad deberá considerar dos objetivos principales:
 
-Ejemplo:
+### **RPO — Recovery Point Objective**
 
-```text id="3m7q9x"
+Representa la cantidad máxima de información que se considera aceptable perder ante un incidente.
+
+Ejemplo conceptual:
+
+```text id="n5q7mx"
 Último backup:
 00:00
 
 Falla:
 06:00
 
-Pérdida máxima:
-6 horas
+Pérdida potencial:
+hasta 6 horas
 ```
 
----
+El RPO definitivo de Chiri deberá establecerse según la importancia de los datos y la frecuencia de respaldo definida.
 
-## RTO
+### **RTO — Recovery Time Objective**
 
-Tiempo necesario para recuperar el servicio.
+Representa el tiempo objetivo necesario para recuperar el servicio después de una interrupción.
 
-Ejemplo:
+Proceso:
 
-```text id="8q5m2x"
+```text id="p3m8qx"
 Falla
 
 ↓
 
-Restauración
+Recuperación
+
+↓
+
+Restauración PostgreSQL
+
+↓
+
+Restauración de servicios
 
 ↓
 
 Servicio disponible
 ```
 
----
+El RTO definitivo deberá establecerse de acuerdo con las capacidades reales de recuperación de la plataforma.
 
-# 9.8 Protección del Backup
+**---**
+
+# **9.8 Protección del Backup**
 
 Los respaldos deberán protegerse mediante:
 
 * acceso restringido.
 * almacenamiento seguro.
-* identificación y control de copias.
-* eliminación programada de copias antiguas.
+* identificación de las copias.
+* control de permisos.
+* política de retención.
+* eliminación controlada de copias antiguas.
 
----
+Los respaldos deberán considerarse información sensible y recibir una protección acorde con los datos que contienen.
 
-# 9.9 Pruebas de Recuperación
+**---**
 
-Periódicamente deberá verificarse:
+# **9.9 Pruebas de Recuperación**
 
-* que el backup sea válido.
-* que pueda restaurarse.
-* que los datos sean correctos.
+Los procedimientos de recuperación deberán probarse periódicamente.
 
-Un backup no probado no garantiza recuperación.
+Las pruebas deberán verificar:
 
----
+* que el backup pueda utilizarse.
+* que pueda restaurarse correctamente.
+* que la estructura de la base de datos sea válida.
+* que los datos necesarios estén disponibles.
+* que el Backend pueda operar nuevamente con la base restaurada.
 
-# 9.10 Continuidad en Raspberry Pi
+> Un respaldo que nunca ha sido restaurado no garantiza por sí mismo la capacidad de recuperación.
 
-Debido a que Chiri funcionará inicialmente en Raspberry Pi 4B, deberán considerarse:
+**---**
+
+# **9.10 Continuidad en Raspberry Pi**
+
+Debido a que Chiri funcionará inicialmente sobre una Raspberry Pi 4B, la estrategia de continuidad deberá considerar:
 
 * protección del almacenamiento.
 * disponibilidad eléctrica.
-* recuperación ante reinicio.
-* restauración de servicios Docker.
+* recuperación después de reinicios.
+* recuperación ante fallos del sistema.
+* restauración de PostgreSQL.
+* restauración de los servicios Docker necesarios.
+* disponibilidad de los respaldos fuera del almacenamiento principal cuando corresponda.
 
----
+La recuperación de la base de datos y la recuperación de los servicios de la plataforma deberán considerarse como partes relacionadas de la continuidad operativa.
 
-# 9.11 Principio Arquitectónico
+**---**
 
-La continuidad operativa deberá cumplir:
+# **9.11 Principio Arquitectónico**
 
-> Los datos importantes de Chiri deben sobrevivir a fallos del hardware o del software.
+La continuidad operativa de Chiri deberá cumplir:
 
-# 10. Conclusión y Reglas Finales de Base de Datos
+> Los datos importantes de Chiri deben poder recuperarse después de fallos del hardware, almacenamiento o software.
 
-La base de datos PostgreSQL de Chiri Platform v1.0 queda definida como el sistema de almacenamiento de información propia de la plataforma.
+La estrategia de respaldo deberá ser verificable, restaurable y suficientemente independiente del sistema que protege.
+
+# **10. Conclusión y Reglas Finales de Base de Datos**
+
+La base de datos PostgreSQL de Chiri Platform v1.0 queda definida como el sistema encargado de almacenar la información propia de la plataforma.
 
 Su diseño está orientado a:
 
 * estabilidad.
 * seguridad.
 * crecimiento controlado.
+* separación de responsabilidades.
 * mantenimiento a largo plazo.
+* evolución controlada.
 
----
+**---**
 
-# 10.1 Decisiones Confirmadas
+# **10.1 Decisiones Confirmadas**
 
 La base de datos utilizará:
 
@@ -3181,11 +3454,14 @@ La base de datos utilizará:
 * organización por dominios.
 * esquemas PostgreSQL para separar responsabilidades.
 * migraciones controladas mediante Alembic.
-* acceso exclusivo mediante Backend.
+* acceso mediante el Backend.
+* mecanismos de integridad mediante restricciones de base de datos.
 
----
+Los clientes de la plataforma no accederán directamente a PostgreSQL.
 
-# 10.2 Responsabilidad Confirmada
+**---**
+
+# **10.2 Responsabilidad Confirmada**
 
 PostgreSQL será responsable de almacenar información propia de Chiri Platform.
 
@@ -3195,41 +3471,52 @@ Actualmente implementado:
 * sesiones.
 * refresh tokens.
 
-En futuras etapas podrá almacenar otras entidades propias de la plataforma, como:
+El modelo v1.0 contempla adicionalmente:
+
+* roles.
+* permisos.
+* asignación de roles a usuarios.
+* asignación de permisos a roles.
+* módulos.
+* funcionalidades.
+
+Estas entidades deberán considerarse implementadas únicamente cuando exista su correspondiente implementación física mediante modelos, migraciones y pruebas del Backend.
+
+En futuras etapas podrán incorporarse otras entidades propias de la plataforma, como:
 
 * perfiles.
-* permisos.
 * configuraciones propias.
 * información de integración.
 * auditoría.
+* otras entidades correspondientes a nuevos dominios.
 
-Estas entidades serán incorporadas mediante migraciones cuando corresponda a la evolución de la plataforma.
+**---**
 
----
+# **10.3 Límites Confirmados**
 
-# 10.3 Límites Confirmados
+PostgreSQL no será utilizado como almacenamiento principal de información que pertenezca internamente a servicios especializados.
 
-PostgreSQL NO será utilizado para almacenar:
+No almacenará:
 
-* archivos multimedia.
-* bibliotecas musicales.
-* videos.
+* archivos multimedia pertenecientes a otros servicios.
+* bibliotecas musicales externas.
+* archivos de video gestionados por servicios especializados.
 * estados internos completos de Home Assistant.
-* datos internos de servicios externos.
+* datos internos completos de servicios externos.
 
-Cada servicio especializado mantiene su propia información.
+Chiri podrá almacenar metadatos, identificadores o referencias externas cuando estos pertenezcan a su propio dominio o sean necesarios para administrar una integración.
 
----
+Cada servicio especializado mantendrá la información que corresponda a su propia responsabilidad.
 
-# 10.4 Relación Final de Arquitectura
+**---**
+
+# **10.4 Relación Final de Arquitectura**
 
 La siguiente representación muestra la arquitectura objetivo de integración de Chiri Platform v1.0.
 
-No implica que todos los servicios representados estén actualmente implementados o integrados mediante el Backend.
+La representación no implica que todos los servicios mostrados estén actualmente implementados, conectados o utilizados por el Backend.
 
-La arquitectura queda:
-
-```mermaid id="7m4q2x"
+```mermaid id="h5q9mx"
 flowchart TB
 
     Android["Aplicación Android"]
@@ -3248,108 +3535,149 @@ flowchart TB
 
     JF["Jellyfin"]
 
-
     Android --> API
-
     API --> Backend
 
     Backend --> PostgreSQL
 
     Backend --> HA
-
     Backend --> MA
-
     Backend --> NAV
-
     Backend --> JF
 ```
 
-# 10.5 Reglas que no deben romperse
+PostgreSQL constituye el almacenamiento de datos propio de Chiri.
 
-## Regla 1
+Los servicios externos mantienen la información correspondiente a sus propios dominios.
 
-Los clientes nunca accederán directamente a PostgreSQL.
+**---**
 
----
+# **10.5 Reglas que no deben romperse**
 
-## Regla 2
+### **Regla 1 — Acceso a la Base de Datos**
 
-Cada dato debe tener un propietario definido.
+Los clientes de Chiri nunca accederán directamente a PostgreSQL.
 
----
+El acceso deberá realizarse mediante el Backend autorizado.
 
-## Regla 3
+**---**
 
-No duplicar información que pertenece a otro servicio.
+### **Regla 2 — Propiedad del Dato**
 
----
+Cada dato deberá tener un propietario definido dentro de la arquitectura.
 
-## Regla 4
+**---**
 
-Todo cambio estructural debe realizarse mediante migraciones.
+### **Regla 3 — No Duplicación de Dominios Externos**
 
----
+Chiri no deberá replicar innecesariamente información que pertenece internamente a otro servicio.
 
-## Regla 5
+Cuando sea necesario interactuar con un servicio externo, se almacenarán únicamente los datos propios de Chiri o las referencias necesarias para gestionar la integración.
 
-La seguridad debe estar integrada desde el diseño inicial.
+**---**
 
----
+### **Regla 4 — Migraciones**
 
-## Regla 6
+Todo cambio estructural de PostgreSQL deberá realizarse mediante migraciones de Alembic.
 
-La optimización debe responder a necesidades reales.
+No se utilizarán modificaciones manuales de producción como sustituto del sistema de migraciones.
 
----
+**---**
 
-# 10.6 Evolución Futura
+### **Regla 5 — Seguridad**
 
-La base de datos podrá crecer incorporando nuevos dominios:
+La seguridad deberá formar parte del diseño de la base de datos y de su integración con el Backend.
 
-Ejemplos:
+Se deberán aplicar:
 
-```text
+* mínimo privilegio.
+* protección de credenciales.
+* protección de información sensible.
+* integridad referencial.
+* acceso controlado.
+
+**---**
+
+### **Regla 6 — Optimización**
+
+La optimización deberá responder a necesidades reales y medibles.
+
+No se introducirán mecanismos de optimización avanzada sin una necesidad técnica que los justifique.
+
+**---**
+
+### **Regla 7 — Fuente de Verdad**
+
+La estructura física real de PostgreSQL deberá estar respaldada por el historial de migraciones de Alembic.
+
+La documentación arquitectónica define el modelo y las reglas, mientras que las migraciones representan la evolución física efectiva de la base de datos.
+
+**---**
+
+# **10.6 Evolución Futura**
+
+La base de datos podrá crecer mediante nuevos dominios cuando la evolución funcional de Chiri lo requiera.
+
+Ejemplos de posibles dominios futuros:
+
+```text id="k7m3qx"
 ai
-
 automation
-
 personal
-
 notification
-
 analytics
+media
+assistant
 ```
 
-pero solamente cuando exista una necesidad real.
+Estos nombres representan posibilidades arquitectónicas y no constituyen una obligación de implementación.
 
----
+La creación de un nuevo dominio deberá justificarse mediante una necesidad funcional y arquitectónica real.
 
-# 10.7 Estado del Documento
+Toda nueva entidad deberá:
+
+* pertenecer claramente a un dominio.
+* tener una responsabilidad definida.
+* mantener relaciones explícitas.
+* respetar las convenciones de la base de datos.
+* contar con migraciones correspondientes.
+* actualizar la documentación relacionada.
+
+**---**
+
+# **10.7 Estado del Documento**
 
 El documento:
 
-```text
+```text id="m4q8zx"
 050_BaseDatos.md
 ```
 
-queda definido como referencia oficial para el diseño y evolución de PostgreSQL de Chiri Platform v1.0.
+queda establecido como referencia oficial para el diseño arquitectónico y las reglas de evolución de PostgreSQL de Chiri Platform v1.0.
 
-Cualquier implementación futura deberá respetar:
+El documento se considera **Cerrado** para la definición actual de la arquitectura.
+
+Cualquier cambio futuro deberá realizarse de forma controlada y deberá actualizar la documentación correspondiente cuando modifique las decisiones arquitectónicas establecidas.
+
+La implementación física deberá mantenerse alineada con:
 
 * arquitectura definida.
 * separación de dominios.
 * seguridad.
 * migraciones.
+* integridad de datos.
 * reglas de mantenimiento.
 
----
+**---**
 
-# Declaración Final
+# **Declaración Final**
 
-La base de datos de Chiri Platform v1.0 será un componente estable y controlado de la plataforma.
+La base de datos de Chiri Platform v1.0 será un componente estable, especializado y controlado dentro de la arquitectura de la plataforma.
 
-No será el centro del sistema, sino una pieza especializada dentro de una arquitectura modular.
+No será el centro del sistema, sino una pieza especializada responsable de conservar el conocimiento y estado propios de Chiri.
+
+Los servicios externos mantendrán sus propios datos y responsabilidades.
 
 Principio final:
 
-> Chiri almacena lo que conoce; integra lo que no necesita poseer.
+> **Chiri almacena lo que conoce; integra lo que no necesita poseer.**
