@@ -392,15 +392,7 @@ Las comunicaciones entre componentes internos deberán protegerse de acuerdo con
 
 El hecho de que dos componentes pertenezcan a la misma red no deberá considerarse suficiente para establecer confianza automática.
 
-Las comunicaciones entre:
-
-* Cliente y API;
-* API y Backend;
-* Backend y Base de Datos;
-* Backend y servicios internos;
-* componentes administrativos;
-
-deberán utilizar mecanismos de autenticación y protección adecuados cuando el riesgo lo requiera.
+Cuando la API y el Backend se ejecuten como componentes independientes, la comunicación entre ambos deberá utilizar los mecanismos de protección correspondientes al nivel de riesgo.
 
 Los servicios publicados hacia redes externas deberán disponer de controles adicionales de protección y no deberán exponerse directamente más allá de lo necesario.
 
@@ -481,7 +473,7 @@ Los intentos fallidos de autenticación no deberán almacenar el username en tex
 Cuando sea necesario correlacionar intentos de autenticación, se utilizará un identificador derivado mediante HMAC-SHA-256:
 
 ```text
-username_hash = HMAC-SHA-256(username, audit_secret)
+username_hash = HMAC-SHA-256(key=audit_secret, message=username)
 ```
 
 El secreto utilizado para generar `username_hash` deberá mantenerse protegido y separado del código fuente y de los registros.
@@ -620,7 +612,9 @@ Una sesión `EXPIRED` no podrá utilizarse para acceder a recursos protegidos ni
 
 La sesión deberá estar asociada al usuario mediante su identificador UUID definido en el modelo de identidad.
 
-La implementación de la entidad `Session` se realizará posteriormente mediante el modelo de datos y su correspondiente migración.
+La entidad `Session` se encuentra actualmente implementada en el Backend mediante el modelo persistente correspondiente y su migración de Base de Datos.
+
+La implementación actual permite crear y revocar sesiones como parte del flujo de autenticación.
 
 ### Regla arquitectónica
 
@@ -713,15 +707,17 @@ La clave privada nunca deberá exponerse a:
 
 ## 4.7.5 Distribución de Claves Públicas
 
-Las claves públicas utilizadas para validar Access Tokens deberán publicarse mediante un endpoint JWKS.
+Las claves públicas utilizadas para validar Access Tokens **podrán publicarse mediante un endpoint JWKS como capacidad futura** de Chiri Platform.
 
-Endpoint:
+El endpoint previsto será:
 
 ```text
 GET /.well-known/jwks.json
 ```
 
-El endpoint JWKS podrá publicar únicamente información correspondiente a claves públicas.
+Actualmente, esta capacidad **no forma parte de la implementación vigente del Backend**. La validación actual de los Access Tokens utiliza la clave pública configurada directamente en el Backend.
+
+Cuando JWKS sea implementado, el endpoint deberá publicar únicamente información correspondiente a claves públicas.
 
 Nunca deberá exponer:
 
@@ -732,19 +728,61 @@ Nunca deberá exponer:
 
 El `kid` incluido en un JWT deberá permitir seleccionar la clave pública correspondiente.
 
-Durante una rotación de claves, el endpoint JWKS podrá publicar temporalmente más de una clave pública cuando sea necesario para validar tokens legítimos todavía vigentes.
+Durante una futura rotación de claves, el endpoint JWKS podrá publicar temporalmente más de una clave pública cuando sea necesario para validar tokens legítimos que todavía se encuentren dentro de su período de vigencia.
+
+### Estado actual
+
+```text
+Access Token
+     |
+     v
+kid
+     |
+     v
+Clave pública configurada en Backend
+     |
+     v
+Validación de firma
+```
+
+### Capacidad futura
+
+```text
+Access Token
+     |
+     v
+kid
+     |
+     v
+JWKS
+     |
+     +-- Clave pública actual
+     |
+     +-- Clave pública anterior
+            |
+            v
+      Período de transición
+```
+
+La incorporación de JWKS deberá realizarse de forma controlada y no deberá exponer información privada o secreta.
+
+### Regla arquitectónica
+
+> **La distribución de claves públicas mediante JWKS será una capacidad futura destinada a facilitar la validación y rotación controlada de claves, sin exponer claves privadas ni otros secretos.**
 
 ## 4.7.6 Rotación de Claves JWT
 
-Las claves utilizadas para firmar Access Tokens deberán rotarse periódicamente.
+Las claves utilizadas para firmar Access Tokens deberán rotarse periódicamente como una **capacidad futura de Chiri Platform**.
 
-La política inicial será:
+La política arquitectónica prevista será:
 
 ```text
 Rotación programada: cada 90 días
 ```
 
-Durante una rotación podrán existir simultáneamente:
+Actualmente, la rotación automática de claves JWT **no forma parte de la implementación vigente del Backend**.
+
+Cuando esta capacidad sea implementada, durante una rotación podrán existir simultáneamente:
 
 ```text
 clave anterior → validación temporal
@@ -753,15 +791,48 @@ clave actual   → firma de nuevos tokens
 
 La clave anterior deberá mantenerse disponible durante un período de gracia suficiente para validar tokens legítimos que todavía se encuentren dentro de su período de vigencia.
 
-Una vez finalizado el período de gracia, la clave anterior podrá retirarse del conjunto JWKS.
+La distribución de las claves durante este período deberá realizarse mediante el mecanismo JWKS definido para esta capacidad futura.
 
-La rotación no deberá provocar la invalidación innecesaria de tokens legítimos que todavía se encuentren dentro de su período de vigencia.
+Una vez finalizado el período de gracia, la clave anterior podrá retirarse del conjunto JWKS y deberá dejar de utilizarse para la firma de nuevos tokens.
+
+La rotación no deberá provocar la invalidación innecesaria de Access Tokens legítimos que todavía se encuentren dentro de su período de vigencia.
 
 La clave privada anterior deberá retirarse de los mecanismos activos de firma cuando finalice su período de uso.
 
+### Estado actual
+
+```text
+Clave JWT configurada
+        |
+        v
+Backend
+        |
+        v
+Firma RS256
+        |
+        v
+Access Token
+```
+
+Actualmente no existe un proceso automático de:
+
+```text
+Rotación periódica
+        ↓
+Nueva clave
+        ↓
+Publicación mediante JWKS
+        ↓
+Período de gracia
+        ↓
+Retiro de clave anterior
+```
+
+Estos mecanismos quedan establecidos como parte de la evolución futura de la arquitectura de seguridad.
+
 ### Regla arquitectónica
 
-> **La rotación de claves deberá permitir continuar validando tokens legítimos durante el período de transición sin permitir que una clave retirada continúe utilizándose indefinidamente.**
+> **La futura rotación de claves deberá permitir continuar validando tokens legítimos durante el período de transición sin permitir que una clave retirada continúe utilizándose indefinidamente.**
 
 ## 4.7.7 Refresh Token
 
@@ -1403,6 +1474,10 @@ Las entradas deberán validarse de acuerdo con:
 * estructura esperada;
 * contexto de la operación.
 
+La validación de la estructura y los datos recibidos deberá realizarse antes de ejecutar la operación correspondiente.
+
+Las reglas de negocio deberán evaluarse posteriormente de acuerdo con el contexto y la autorización de la operación.
+
 Los datos que no cumplan las reglas esperadas deberán rechazarse de forma controlada.
 
 La plataforma deberá protegerse contra entradas diseñadas para provocar:
@@ -1423,7 +1498,7 @@ Las entradas recibidas desde servicios internos o integraciones externas tampoco
 
 Los mensajes de error generados como consecuencia de entradas inválidas no deberán revelar información interna innecesaria.
 
-### Regla arquitectónica
+# Regla arquitectónica
 
 > **Toda entrada que pueda afectar el comportamiento de Chiri Platform deberá validarse y controlarse en el servidor antes de ser procesada.**
 
@@ -1624,7 +1699,7 @@ La información técnica necesaria para diagnóstico deberá registrarse mediant
 
 La API deberá utilizar códigos HTTP coherentes con el resultado de la operación.
 
-Como mínimo:
+Como mínimo, se considerarán:
 
 ```text
 200 OK
@@ -1635,16 +1710,22 @@ Como mínimo:
 403 Forbidden
 404 Not Found
 409 Conflict
-422 Unprocessable Entity
 429 Too Many Requests
 500 Internal Server Error
 ```
 
-La utilización de cada código deberá corresponder a la naturaleza real del resultado.
+La utilización de cada código deberá corresponder a la naturaleza real del resultado y mantenerse alineada con el contrato definido por la API.
 
 ### `400 Bad Request`
 
-Se utilizará cuando la solicitud no pueda procesarse debido a una estructura o formato inválido.
+Se utilizará cuando la solicitud no pueda procesarse debido a una estructura, formato o datos de entrada inválidos.
+
+Los errores de validación definidos por el contrato de Chiri Platform utilizarán inicialmente:
+
+```text
+VALIDATION_ERROR
+→ 400 Bad Request
+```
 
 ### `401 Unauthorized`
 
@@ -1665,23 +1746,47 @@ Se utilizará cuando:
 * la sesión sea válida;
 * pero la operación no esté autorizada.
 
+El código conceptual asociado será:
+
+```text
+AUTH_FORBIDDEN
+```
+
 ### `404 Not Found`
 
 Podrá utilizarse cuando el recurso solicitado no exista.
 
-Cuando sea necesario evitar enumeración de recursos, la API podrá utilizar respuestas que no permitan determinar si un recurso existe.
+Cuando sea necesario evitar la enumeración de recursos, la API podrá utilizar respuestas que no permitan determinar si un recurso existe.
 
 ### `409 Conflict`
 
 Se utilizará cuando la operación sea válida sintácticamente pero entre en conflicto con el estado actual del recurso.
 
-### `422 Unprocessable Entity`
-
-Podrá utilizarse cuando la estructura de la solicitud sea válida pero los datos no cumplan las reglas de validación definidas.
-
 ### `429 Too Many Requests`
 
 Se utilizará cuando una identidad u origen supere los límites de uso definidos por los mecanismos de protección contra abuso.
+
+Este código será aplicable especialmente a mecanismos como:
+
+* protección contra fuerza bruta;
+* rate limiting;
+* protección de endpoints sensibles.
+
+### `500 Internal Server Error`
+
+Se utilizará cuando ocurra un error interno inesperado del servidor que impida completar correctamente la operación.
+
+Los errores internos no deberán exponer información sensible ni detalles de implementación al cliente.
+
+### `422 Unprocessable Entity`
+
+No forma parte inicialmente del catálogo de códigos de error definido para el contrato de Chiri Platform.
+
+Su utilización futura deberá evaluarse explícitamente y, si se incorpora, deberá formar parte del contrato correspondiente y mantener consistencia con el modelo de errores definido por la API.
+
+### Regla arquitectónica
+
+> **Los códigos HTTP y los códigos internos de error deberán utilizarse de forma consistente y deberán corresponder a la naturaleza real del resultado de la operación.**
 
 ## 4.10.10 Rate Limiting
 
@@ -2124,7 +2229,7 @@ Lógica de negocio
 Persistencia
  ↓
 Integraciones
-````
+```
 
 Cada componente deberá realizar únicamente las funciones necesarias para su responsabilidad.
 
@@ -2317,7 +2422,7 @@ La información técnica necesaria para diagnosticar el error podrá registrarse
 
 Los errores inesperados deberán generar una respuesta controlada.
 
-Cuando una operación falle debido a un error interno, la API podrá responder:
+Cuando una operación falle debido a un error interno, la API deberá responder:
 
 ```text
 500 Internal Server Error
@@ -3030,7 +3135,7 @@ En particular, un usuario con estado:
 
 ```text
 DELETED
-````
+```
 
 no deberá poder acceder a recursos protegidos.
 
@@ -3164,7 +3269,7 @@ Los servicios internos deberán utilizar el principio de mínimo privilegio y de
 
 El Backend deberá controlar las comunicaciones con servicios internos cuando dichas comunicaciones puedan afectar recursos protegidos o información sensible.
 
-## 4.12.1 Identidad de Servicios
+## 4.13.1 Identidad de Servicios
 
 Cada servicio interno que requiera autenticación deberá utilizar una identidad propia.
 
@@ -3236,7 +3341,7 @@ operación
 recurso
         ↓
 servicio destino
-````
+```
 
 Una identidad de servicio comprometida no deberá proporcionar automáticamente acceso a todos los servicios internos.
 
@@ -3600,7 +3705,7 @@ La aplicación Android deberá comunicarse con la API de Chiri Platform mediante
 ```text
 HTTPS
 TLS
-````
+```
 
 No deberán enviarse credenciales, tokens o información sensible mediante conexiones HTTP sin protección.
 
@@ -4187,7 +4292,7 @@ La auditoría no deberá utilizarse para almacenar información que no sea neces
 
 ## 4.15.2 Eventos de Seguridad
 
-Como mínimo deberán poder registrarse los siguientes eventos cuando ocurran:
+Como mínimo, deberán poder registrarse los siguientes eventos cuando ocurran:
 
 ```text
 LOGIN_SUCCESS
@@ -4210,15 +4315,34 @@ PERMISSION_CHANGED
 ACCOUNT_DEACTIVATED
 ACCOUNT_DELETED
 GLOBAL_SESSION_REVOCATION
-````
+```
 
 La lista podrá ampliarse conforme evolucionen los requisitos de seguridad de Chiri Platform.
 
-Los eventos deberán registrarse únicamente cuando sean relevantes para la operación o seguridad.
+Los eventos deberán registrarse únicamente cuando sean relevantes para la operación, la seguridad, la trazabilidad o la investigación de incidentes.
+
+Cada evento deberá utilizar la información de auditoría definida en `4.15.3`, incorporando únicamente los campos que correspondan a la naturaleza del evento.
+
+Los eventos de autenticación, autorización, sesiones, cambios de identidad y configuración de seguridad deberán poder relacionarse con un `request_id` cuando corresponda.
+
+Los eventos no deberán registrar información sensible innecesaria. En particular, no deberán contener:
+
+* contraseñas;
+* Access Tokens completos;
+* Refresh Tokens completos;
+* claves privadas;
+* secretos;
+* credenciales.
+
+Los eventos deberán permitir distinguir, cuando corresponda, entre operaciones exitosas, rechazadas, fallidas o revocadas.
+
+### Regla arquitectónica
+
+> **Chiri Platform deberá registrar los eventos relevantes de seguridad de forma estructurada y trazable, utilizando únicamente la información necesaria para detectar, investigar y auditar operaciones de seguridad sin almacenar credenciales, tokens o secretos.**
 
 ## 4.15.3 Información de Auditoría
 
-Un evento de auditoría deberá contener, cuando corresponda:
+Un evento de auditoría deberá contener, cuando corresponda, la información necesaria para identificar y reconstruir la operación:
 
 ```text
 event_id
@@ -4235,11 +4359,62 @@ result
 source
 ```
 
-No todos los campos serán obligatorios para todos los eventos.
+Los campos deberán utilizarse de acuerdo con la naturaleza del evento y no todos serán obligatorios para todas las operaciones.
 
-Los eventos realizados antes de una autenticación válida podrán no disponer de `user_id` o `session_id`.
+Como mínimo, cuando corresponda, deberá poder determinarse:
 
-En esos casos deberá utilizarse únicamente la información disponible y necesaria.
+* qué evento ocurrió;
+* cuándo ocurrió;
+* qué identidad estuvo involucrada;
+* qué sesión estuvo asociada;
+* qué recurso fue afectado;
+* qué acción se intentó realizar;
+* cuál fue el resultado;
+* desde qué origen se produjo la operación;
+* qué solicitud permitió relacionar el evento con otros registros.
+
+Los eventos realizados antes de una autenticación válida podrán no disponer de:
+
+```text
+user_id
+session_id
+```
+
+En estos casos deberá registrarse únicamente la información disponible y necesaria para investigación y trazabilidad.
+
+El campo:
+
+```text
+username_hash
+```
+
+podrá utilizarse cuando sea necesario relacionar un evento con una identidad sin almacenar directamente el nombre de usuario como parte del registro de auditoría.
+
+El campo:
+
+```text
+request_id
+```
+
+deberá permitir relacionar el evento de auditoría con los logs de aplicación y, cuando corresponda, con operaciones realizadas por servicios internos.
+
+Los identificadores de recursos deberán registrarse únicamente cuando sean necesarios para comprender la operación y no deberán utilizarse para almacenar información sensible innecesaria.
+
+Los registros de auditoría no deberán contener:
+
+* contraseñas;
+* Access Tokens completos;
+* Refresh Tokens completos;
+* claves privadas;
+* secretos;
+* credenciales;
+* información sensible que no sea necesaria para la trazabilidad del evento.
+
+La información de auditoría deberá mantener un equilibrio entre trazabilidad, investigación de incidentes y minimización de datos.
+
+### Regla arquitectónica
+
+> **Los eventos de auditoría deberán contener únicamente la información necesaria para identificar, relacionar e investigar una operación de seguridad, evitando almacenar credenciales, tokens, secretos o información sensible innecesaria.**
 
 ## 4.15.4 Identificación del Usuario
 
@@ -4581,6 +4756,8 @@ elimine registros históricos de auditoría.
 
 Las operaciones administrativas de eliminación o mantenimiento deberán estar controladas y registradas cuando corresponda.
 
+La eliminación de registros deberá respetar la política de retención definida para Chiri Platform.
+
 ## 4.15.23 Auditoría de Seguridad
 
 Los eventos relacionados con seguridad deberán poder utilizarse para detectar:
@@ -4668,6 +4845,8 @@ No todos los usuarios o servicios que puedan leer logs operativos deberán dispo
 
 El acceso administrativo deberá seguir el principio de mínimo privilegio.
 
+Las operaciones de administración sobre los registros deberán quedar registradas cuando corresponda.
+
 ## 4.15.28 Monitoreo
 
 Los registros de auditoría podrán utilizarse como fuente para mecanismos de monitoreo y detección.
@@ -4711,15 +4890,38 @@ timestamp
 
 Los registros deberán permitir reconstruir la secuencia de eventos sin necesidad de almacenar secretos.
 
-## 4.15.30 Fallo de Auditoría
+## 4.15.30 Disponibilidad del Mecanismo de Auditoría
 
-Un fallo del mecanismo de auditoría no deberá provocar automáticamente la concesión de permisos.
+La indisponibilidad temporal del mecanismo de auditoría no deberá provocar automáticamente la concesión de permisos ni modificar las decisiones de autenticación o autorización.
 
-Cuando un evento de seguridad crítico no pueda registrarse, deberá aplicarse una estrategia definida según el nivel de riesgo de la operación.
+Las decisiones de autenticación y autorización deberán permanecer independientes del resultado del registro de auditoría.
 
-Para operaciones críticas, podrá ser necesario rechazar la operación si la ausencia de auditoría impide mantener los requisitos mínimos de trazabilidad.
+Las operaciones críticas de seguridad deberán seguir una política explícita de manejo ante fallos del mecanismo de auditoría.
 
-Los mecanismos de auditoría no deberán utilizarse para permitir una operación que de otro modo estaría prohibida.
+Cuando un evento de auditoría no pueda persistirse, el Backend deberá:
+
+* evitar la exposición de información sensible;
+* registrar la condición mediante los mecanismos operativos disponibles;
+* mantener independientes las decisiones de autenticación y autorización del registro de auditoría;
+* evitar que el fallo del mecanismo de auditoría pueda utilizarse para obtener acceso no autorizado.
+
+La política concreta podrá diferenciar entre:
+
+```text
+eventos críticos de seguridad
+eventos operativos
+eventos informativos
+```
+
+Para eventos críticos, la arquitectura podrá requerir el rechazo de la operación cuando la imposibilidad de registrar el evento impida cumplir requisitos mínimos de trazabilidad o seguridad.
+
+Para eventos no críticos, podrán utilizarse mecanismos controlados de recuperación, almacenamiento temporal o registro diferido cuando sean compatibles con los requisitos de seguridad.
+
+En ningún caso el fallo del mecanismo de auditoría deberá provocar una autorización implícita.
+
+### Regla arquitectónica
+
+> **La auditoría no deberá controlar directamente la autorización de una operación, pero la indisponibilidad de los mecanismos de auditoría deberá gestionarse mediante una política explícita basada en la criticidad del evento, sin permitir que un fallo de auditoría pueda utilizarse para obtener acceso no autorizado.**
 
 ## 4.15.31 Defensa en Profundidad
 
@@ -4754,7 +4956,7 @@ La auditoría no sustituirá:
 
 ### Regla arquitectónica general
 
-> **Chiri Platform deberá mantener registros de auditoría suficientes para proporcionar trazabilidad y permitir la investigación de eventos de seguridad, evitando almacenar contraseñas, tokens, secretos o información sensible innecesaria y protegiendo los registros contra acceso y modificación no autorizados.**
+> **Chiri Platform deberá mantener registros de auditoría suficientes para proporcionar trazabilidad y permitir la investigación de eventos de seguridad, evitando almacenar contraseñas, tokens, secretos o información sensible innecesaria y protegiendo los registros contra acceso, modificación o eliminación no autorizados.**
 
 # 4.16 Monitorización y Detección de Seguridad
 
@@ -4868,16 +5070,18 @@ Ventana de evaluación: 15 minutos
 El mecanismo deberá poder considerar como mínimo:
 
 * identidad intentada;
-* dirección IP;
+* dirección IP u origen de la solicitud;
 * frecuencia de solicitudes.
 
-La protección deberá impedir que un atacante pueda realizar intentos ilimitados sobre una misma cuenta dentro de una ventana de tiempo.
+La protección deberá impedir que un atacante pueda realizar intentos ilimitados sobre una misma identidad dentro de una ventana de tiempo.
 
 El sistema podrá aplicar restricciones adicionales cuando detecte patrones de abuso.
 
-Los límites deberán aplicarse de forma que no permitan eludir fácilmente la protección cambiando únicamente el origen de las solicitudes.
+Los mecanismos de protección deberán evitar que un atacante pueda eludir fácilmente los límites modificando únicamente el origen de las solicitudes.
 
 La respuesta ante un intento bloqueado no deberá revelar información innecesaria sobre la existencia o estado de una cuenta.
+
+La protección contra fuerza bruta deberá complementar el rate limiting y los demás mecanismos de protección contra abuso definidos en esta sección.
 
 ## 4.18.2 Rate Limiting
 
@@ -5058,9 +5262,11 @@ Deberán contemplarse:
 
 El mecanismo de cambio no deberá permitir que una solicitud automatizada modifique repetidamente la dirección asociada a una cuenta.
 
-Los tokens utilizados para verificar el cambio de correo no deberán aparecer en logs.
+Los tokens utilizados para verificar el cambio de correo no deberán aparecer en logs ni auditorías.
 
-La política de auditoría deberá registrar el evento sin almacenar directamente el correo anterior ni el nuevo.
+La auditoría deberá registrar el evento sin almacenar directamente el correo anterior ni el nuevo en texto plano.
+
+Cuando sea necesario para trazabilidad, podrá utilizarse una representación protegida o derivada de la información de identidad, de acuerdo con las reglas definidas en `4.15`.
 
 ## 4.18.10 Renovación de Sesión
 
@@ -5189,7 +5395,7 @@ Los datos temporales utilizados para protección contra abuso deberán disponer 
 
 La pérdida de Redis no deberá provocar automáticamente una pérdida de la información permanente de identidad o autorización.
 
-Los mecanismos de seguridad deberán definir un comportamiento controlado cuando Redis no esté disponible.
+Cuando Redis no esté disponible, los endpoints protegidos por mecanismos de abuso deberán aplicar una política de fail secure apropiada al nivel de riesgo. La indisponibilidad de Redis no deberá permitir superar indefinidamente los límites de seguridad establecidos.
 
 ## 4.18.16 Bloqueos Temporales
 
@@ -5282,16 +5488,16 @@ Ninguna capa individual deberá considerarse suficiente para proteger por sí so
 
 Los valores aprobados inicialmente para Chiri Platform son:
 
-| Mecanismo              | Valor                    |
-| ---------------------- | ------------------------ |
-| Login fallido          | 5 intentos               |
-| Ventana de login       | 15 minutos               |
-| Activation Token       | 48 horas                 |
-| Password Reset Token   | 30 minutos               |
-| Access Token           | 15 minutos               |
-| Refresh Token          | 30 días                  |
-| Rate limiting          | Redis cuando corresponda |
-| Blacklist Access Token | No                       |
+| Mecanismo              | Valor                     |
+| ---------------------- | ------------------------- |
+| Login fallido          | 5 intentos                |
+| Ventana de login       | 15 minutos                |
+| Activation Token       | 48 horas                  |
+| Password Reset Token   | 30 minutos                |
+| Access Token           | 15 minutos                |
+| Refresh Token          | 30 días                   |
+| Rate limiting          | Redis cuando corresponda  |
+| Blacklist Access Token | No utilizada inicialmente |
 
 Los límites adicionales de otros endpoints deberán definirse antes de implementar cada funcionalidad y deberán basarse en el riesgo correspondiente.
 
