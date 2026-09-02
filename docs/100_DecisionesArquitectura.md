@@ -414,7 +414,7 @@ Android → API → Backend → Autenticación
 
 Chiri Platform deberá permitir controlar las capacidades disponibles para cada usuario conforme evolucione la plataforma.
 
-La autorización granular mediante roles y permisos todavía no forma parte de la implementación actual de Chiri Platform v1.0.
+La autorización granular mediante roles y permisos todavía no está implementada en Chiri Platform v1.0, aunque la autorización permanece definida como responsabilidad del Backend.
 
 ### Decisión
 
@@ -474,18 +474,19 @@ Actualmente:
 
 Por lo tanto, los perfiles:
 
-Administrador.
-Usuario.
-Invitado.
+* Administrador.
+* Usuario.
+* Invitado.
 
 no deberán considerarse perfiles actualmente implementados hasta que exista el modelo correspondiente en el Backend y haya sido validado mediante pruebas.
 
 ### Consecuencias
+
 * La autorización permanecerá centralizada en el Backend.
 * Los clientes no podrán concederse privilegios por decisión local.
 * Los permisos podrán evolucionar sin modificar el núcleo de autenticación.
 * La incorporación futura de roles y permisos deberá respetar el contrato de la API.
-* La implementación futura podrá introducir AUTH_FORBIDDEN para representar operaciones autenticadas pero no autorizadas.
+* La implementación futura podrá introducir `AUTH_FORBIDDEN` para representar operaciones autenticadas pero no autorizadas.
 
 ---
 
