@@ -408,12 +408,6 @@ Android → API → Backend → Autenticación
 
 ---
 
-
-### ADR-011 corregido
-
-Este es el cambio más importante:
-
-```markdown
 ## ADR-011 — Roles y autorización
 
 ### Contexto
