@@ -4,7 +4,7 @@
 
 **Versión:** 1.0
 
-**Estado:** En Revisión
+**Estado:** Cerrado
 
 ---
 
@@ -272,7 +272,7 @@ flowchart TB
 
 PostgreSQL permitirá organizar información mediante esquemas.
 
-La estructura del modelo inicial será:
+La estructura conceptual de dominios y esquemas definida para v1.0 es:
 
 ```text
 PostgreSQL Chiri
@@ -362,7 +362,7 @@ role_permission
   │
   ▼
 permission
-````
+```
 
 El dominio Authorization será utilizado por el Backend para determinar si un usuario puede acceder a una funcionalidad.
 
@@ -526,8 +526,8 @@ Los identificadores provenientes de servicios externos deberán almacenarse como
 Ejemplo correcto:
 
 ```text
-chiri_user_id
-````
+id
+```
 
 como identificador principal de un usuario.
 
@@ -600,7 +600,7 @@ user_account
 created_at
 
 integration_status
-````
+```
 
 Incorrecto:
 
@@ -637,14 +637,14 @@ module
 
 functionality
 
-device
+logical_device
 
 integration
 ```
 
 Las entidades `role`, `permission`, `module` y `functionality` corresponden al modelo futuro de v1.0.
 
-Las entidades `device` e `integration` corresponden a futuras etapas y todavía no están implementadas.
+Las entidades `logical_device` e `integration` corresponden a futuras etapas y todavía no están implementadas.
 
 Evitar:
 
@@ -770,7 +770,7 @@ Texto:
 varchar
 
 text
-````
+```
 
 Fechas y tiempo:
 
@@ -1056,7 +1056,7 @@ erDiagram
         string status
         timestamp created_at
     }
-````
+```
 
 La estructura física actualmente implementada corresponde al esquema `identity` y a la tabla `user`.
 
@@ -1797,7 +1797,7 @@ La asignación deberá respetar las reglas de autorización definidas por el Bac
 
 La estructura física definitiva será establecida mediante la migración correspondiente.
 
-# 5.11 Tabla Role Permission
+# 5.12 Tabla Role Permission
 
 **Estado: Modelo v1.0 — implementación pendiente.**
 
@@ -1819,7 +1819,7 @@ Esta tabla representa la relación entre `role` y `permission`.
 
 ---
 
-# 5.12 Tabla Module
+# 5.13 Tabla Module
 
 **Estado: Modelo v1.0 — implementación pendiente.**
 
@@ -1843,7 +1843,7 @@ La estructura física definitiva será establecida mediante la migración corres
 
 ---
 
-# 5.13 Tabla Functionality
+# 5.14 Tabla Functionality
 
 **Estado: Modelo v1.0 — implementación pendiente.**
 
@@ -1867,7 +1867,7 @@ La estructura física definitiva será establecida mediante la migración corres
 
 ---
 
-# 5.14 Esquema Configuration
+# 5.15 Esquema Configuration
 
 **Estado: Futuro — no implementado actualmente.**
 
@@ -1887,7 +1887,7 @@ Estas tablas serán implementadas cuando exista una necesidad funcional concreta
 
 ---
 
-# 5.15 Esquema Integration
+# 5.16 Esquema Integration
 
 **Estado: Futuro — no implementado actualmente.**
 
@@ -1909,7 +1909,7 @@ No almacenará los datos completos de los servicios externos.
 
 ---
 
-# 5.16 Esquema Audit
+# 5.17 Esquema Audit
 
 **Estado: Futuro — no implementado actualmente.**
 
@@ -1936,7 +1936,7 @@ La estructura física de auditoría será definida cuando esta capacidad sea imp
 
 ---
 
-# 5.17 Modelo General de Seguridad y Autorización
+# 5.18 Modelo General de Seguridad y Autorización
 
 El modelo físico previsto para seguridad y autorización será:
 
@@ -1962,27 +1962,26 @@ Las entidades `role`, `permission`, `user_role` y `role_permission` corresponden
 
 ---
 
-# 5.18 Modelo Funcional
+# 5.19 Modelo Funcional
 
-La organización funcional será:
+La organización funcional de Chiri Platform será:
 
 ```mermaid
 erDiagram
 
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
-
 Los módulos agrupan funcionalidades.
 
-Las funcionalidades representan capacidades concretas de la plataforma.
+Las funcionalidades representan capacidades concretas de la plataforma y pertenecen a un módulo.
 
 La relación entre autorización y funcionalidad será definida posteriormente mediante una decisión arquitectónica y, cuando corresponda, mediante el contrato de API.
 
-Las entidades `module` y `functionality` forman parte del modelo previsto de Chiri Platform v1.0 y permanecen pendientes de implementación.
+No se establece actualmente una relación física directa entre functionality y permission.
 
----
+Las entidades module y functionality forman parte del modelo previsto de Chiri Platform v1.0 y permanecen pendientes de implementación mediante los correspondientes modelos, migraciones y pruebas del Backend.
 
-# 5.19 Modelo General Inicial
+# 5.20 Modelo General Inicial
 
 La organización conceptual de la base de datos distingue entre las entidades actualmente implementadas y las entidades previstas para las futuras capacidades de Chiri Platform.
 
@@ -2084,7 +2083,7 @@ La estructura física real de PostgreSQL deberá estar determinada por las migra
 
 ---
 
-# 5.20 Regla de Evolución
+# 5.21 Regla de Evolución
 
 Las tablas iniciales no deberán crecer indefinidamente.
 
@@ -2114,7 +2113,7 @@ No se crearán tablas únicamente para anticipar funcionalidades futuras sin una
 
 ---
 
-# 5.21 Migraciones
+# 5.22 Migraciones
 
 Todo cambio físico en la estructura de PostgreSQL deberá realizarse mediante migraciones de Alembic.
 
@@ -2153,7 +2152,7 @@ Los cambios manuales sobre la estructura de la base de datos no deberán utiliza
 
 ---
 
-# 5.22 Principio Arquitectónico
+# 5.23 Principio Arquitectónico
 
 El diseño físico de la base de datos deberá cumplir:
 
