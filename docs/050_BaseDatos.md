@@ -374,7 +374,7 @@ La implementación física de estas entidades se realizará mediante migraciones
 
 # 2.6 Dominio Platform
 
-**Estado: Futuro — catálogo funcional.**
+**Estado: Modelo v1.0 — implementación pendiente.**
 
 Responsabilidad:
 
@@ -382,8 +382,8 @@ Representar la organización funcional de Chiri.
 
 Entidades previstas:
 
-* module.
-* functionality.
+* `module`.
+* `functionality`.
 
 Relación principal:
 
