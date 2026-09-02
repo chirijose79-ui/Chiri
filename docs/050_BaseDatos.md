@@ -26,15 +26,13 @@ Su diseño deberá permitir:
 
 PostgreSQL será utilizado para almacenar información que pertenece al dominio de Chiri.
 
-Actualmente implementado:
+Actualmente implementado físicamente:
 
 * usuarios.
 * sesiones.
 * refresh tokens.
 
-La autorización granular mediante roles y permisos corresponde a una capacidad futura de Chiri Platform y todavía no forma parte de la implementación actual de v1.0.
-
-En futuras etapas se incorporarán las entidades necesarias para:
+El modelo de datos de Chiri Platform v1.0 también define las estructuras necesarias para:
 
 * roles.
 * permisos.
@@ -43,12 +41,16 @@ En futuras etapas se incorporarán las entidades necesarias para:
 * módulos.
 * funcionalidades.
 
-En futuras etapas también se incorporarán otras entidades propias del dominio, como:
+Estas entidades forman parte del modelo previsto de v1.0, pero actualmente permanecen pendientes de implementación física mediante los correspondientes modelos, migraciones y pruebas del Backend.
+
+En futuras etapas se incorporarán otras entidades propias del dominio, como:
 
 * configuraciones propias.
 * preferencias.
 * historial.
 * información de integración.
+
+La autorización granular mediante roles y permisos será implementada cuando corresponda dentro de la evolución de v1.0, respetando el modelo de autorización definido para la plataforma.
 
 ---
 
