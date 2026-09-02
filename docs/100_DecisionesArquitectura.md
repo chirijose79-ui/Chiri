@@ -217,7 +217,13 @@ La implementación de cada mecanismo se realizará de acuerdo con las capacidade
 
 Actualmente, la autenticación y la gestión de sesiones forman parte de la implementación del Backend.
 
-La autorización granular mediante roles y permisos queda establecida como capacidad futura.
+La autorización será responsabilidad del Backend y deberá utilizar los roles y permisos vigentes de la identidad.
+
+PostgreSQL será la fuente de verdad para la autorización en la primera implementación.
+
+Los roles y permisos no deberán confiarse a valores enviados por el cliente ni a información obsoleta almacenada en el JWT.
+
+La implementación concreta del modelo de roles y permisos se realizará durante la fase correspondiente del Backend.
 
 ```mermaid
 flowchart TD
@@ -228,7 +234,11 @@ flowchart TD
 
     Sesion["Gestión de Sesión"]
 
-    Autorizacion["Autorización - Futuro"]
+    Autorizacion["Autorización"]
+
+    Roles["Roles y Permisos"]
+
+    PostgreSQL["PostgreSQL"]
 
     Sistema["Recursos de Chiri"]
 
@@ -236,7 +246,18 @@ flowchart TD
     Cliente --> Autenticacion
     Autenticacion --> Sesion
     Sesion --> Autorizacion
+    Autorizacion --> Roles
+    Roles --> PostgreSQL
     Autorizacion --> Sistema
+```
+
+### Estado de implementación
+
+```text
+Autenticación              → Implementada
+Gestión de sesiones        → Implementada
+Autorización               → Arquitectura definida
+Roles y permisos           → Implementación pendiente
 ```
 
 ---
