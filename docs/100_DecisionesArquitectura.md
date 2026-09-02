@@ -194,43 +194,50 @@ Evita el acceso directo desde los clientes y mantiene la persistencia bajo el co
 
 ---
 
-# ADR-005
+## ADR-005
 
-## Seguridad Integrada desde Arquitectura
+# Seguridad Integrada desde Arquitectura
 
 ### Contexto
 
-La seguridad debe formar parte del diseño inicial.
+La seguridad debe formar parte del diseño inicial de Chiri Platform y mantenerse como una responsabilidad transversal de la arquitectura.
 
 ### Decisión
 
-Se incorporan:
+La arquitectura establece como principios de seguridad:
 
 * Autenticación.
 * Autorización.
+* Gestión de sesiones.
 * Tokens.
-* Auditoría.
 * Validaciones.
+* Auditoría.
+
+La implementación de cada mecanismo se realizará de acuerdo con las capacidades incorporadas en cada etapa del proyecto.
+
+Actualmente, la autenticación y la gestión de sesiones forman parte de la implementación del Backend.
+
+La autorización granular mediante roles y permisos queda establecida como capacidad futura.
 
 ```mermaid
 flowchart TD
-    Usuario --> Autenticacion
-    Autenticacion --> Autorizacion
+
+    Cliente["Cliente"]
+
+    Autenticacion["Autenticación"]
+
+    Sesion["Gestión de Sesión"]
+
+    Autorizacion["Autorización - Futuro"]
+
+    Sistema["Recursos de Chiri"]
+
+
+    Cliente --> Autenticacion
+    Autenticacion --> Sesion
+    Sesion --> Autorizacion
     Autorizacion --> Sistema
-
-    Usuario["Usuario"]
-    Autenticacion["Identidad"]
-    Autorizacion["Permisos"]
-    Sistema["Chiri Platform"]
 ```
-
-### Justificación
-
-Evita implementar seguridad como una capa posterior.
-
-### Impacto
-
-Mayor protección del sistema.
 
 ---
 
@@ -380,34 +387,90 @@ Android → API → Backend → Autenticación
 
 ---
 
+
+### ADR-011 corregido
+
+Este es el cambio más importante:
+
+```markdown
 ## ADR-011 — Roles y autorización
 
 ### Contexto
 
-Chiri Platform requiere controlar las capacidades disponibles para cada usuario.
+Chiri Platform deberá permitir controlar las capacidades disponibles para cada usuario conforme evolucione la plataforma.
+
+La autorización granular mediante roles y permisos todavía no forma parte de la implementación actual de Chiri Platform v1.0.
 
 ### Decisión
 
-La versión inicial definirá los siguientes perfiles:
+La autorización será responsabilidad del Backend.
 
-- Administrador.
-- Usuario.
-- Invitado.
+Los clientes no deberán determinar por sí mismos si un usuario posee autorización para ejecutar una operación protegida.
 
-La autorización será determinada por el Backend y comunicada mediante la API.
+La arquitectura permitirá incorporar posteriormente un modelo basado en:
+
+* Roles.
+* Permisos.
+* Políticas de autorización.
+
+Los perfiles concretos y sus permisos deberán definirse mediante una decisión arquitectónica y un contrato de API cuando esta capacidad vaya a implementarse.
 
 Android no deberá utilizar reglas locales como fuente principal de autorización.
 
-### Flujo
+### Flujo futuro
 
-Usuario → Backend → Roles/Permisos → API → Android
+```mermaid
+flowchart LR
+
+    Cliente["Cliente"]
+
+    API["API Chiri"]
+
+    Auth["Autenticación"]
+
+    Session["Sesión válida"]
+
+    Roles["Roles - Futuro"]
+
+    Permissions["Permisos - Futuro"]
+
+    Authorization["Autorización - Futuro"]
+
+    Resource["Recurso protegido"]
+
+
+    Cliente --> API
+    API --> Auth
+    Auth --> Session
+    Session --> Roles
+    Roles --> Permissions
+    Permissions --> Authorization
+    Authorization --> Resource
+```
+
+### Estado actual
+
+Actualmente:
+
+* la autenticación está implementada;
+* la gestión de sesiones está implementada;
+* la validación de la sesión está bajo control del Backend;
+* la autorización granular mediante roles y permisos todavía no está implementada.
+
+Por lo tanto, los perfiles:
+
+Administrador.
+Usuario.
+Invitado.
+
+no deberán considerarse perfiles actualmente implementados hasta que exista el modelo correspondiente en el Backend y haya sido validado mediante pruebas.
 
 ### Consecuencias
-
-- La autorización permanece centralizada.
-- Los permisos pueden evolucionar sin modificar la arquitectura Android.
-- Android utilizará los permisos recibidos para habilitar o restringir funcionalidades.
-- Los cinco módulos principales de Chiri forman parte de la navegación general, mientras que las operaciones disponibles dependerán de los permisos.
+* La autorización permanecerá centralizada en el Backend.
+* Los clientes no podrán concederse privilegios por decisión local.
+* Los permisos podrán evolucionar sin modificar el núcleo de autenticación.
+* La incorporación futura de roles y permisos deberá respetar el contrato de la API.
+* La implementación futura podrá introducir AUTH_FORBIDDEN para representar operaciones autenticadas pero no autorizadas.
 
 ---
 
@@ -461,7 +524,7 @@ La aplicación Android utilizará cinco áreas principales:
 
 Estas áreas formarán parte de la navegación principal de Chiri.
 
-El acceso a funcionalidades específicas dentro de cada área estará condicionado por los permisos del usuario.
+El acceso a funcionalidades específicas dentro de cada área podrá estar condicionado por los permisos del usuario cuando la autorización granular sea implementada.
 
 ### Consecuencias
 
