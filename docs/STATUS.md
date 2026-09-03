@@ -13,7 +13,7 @@
 
 **Caso de uso completado:** UC-001 — Autenticarse
 
-**Siguiente bloque:** Integración E2E Android ↔ Backend de autenticación
+**Siguiente bloque:** UC-002 — Consultar funcionalidades disponibles
 
 ---
 
@@ -108,10 +108,12 @@
 - [x] Validar comportamiento ante refresh fallido
 - [x] Validar Logout desde Android
 - [x] Validar sesión revocada después del Logout
-- [ ] Ejecutar pruebas E2E automatizadas
-- [ ] Realizar revisión final de seguridad
-- [ ] Actualizar Issue #2 con resultados
-- [ ] Cerrar Issue #2 al cumplir todos los criterios
+- [ ] Ejecutar pruebas E2E automatizadas — diferido como deuda técnica futura
+- [x] Realizar revisión final de seguridad
+- [x] Actualizar Issue #2 con resultados
+- [x] Cerrar Issue #2 al cumplir los criterios del bloque
+
+> Las pruebas E2E automatizadas completas quedan fuera del alcance de UC-001 y se mantienen como deuda técnica futura. La validación funcional E2E de autenticación fue realizada manualmente contra el Backend real, complementada con pruebas unitarias e instrumentadas Android.
 
 ---
 
