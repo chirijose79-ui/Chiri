@@ -96,14 +96,15 @@
 ### Validación E2E pendiente
 
 - [ ] Ejecutar flujo completo desde Android contra Backend real
-- [ ] Validar Login desde la aplicación
-- [ ] Validar persistencia de sesión después del Login
-- [ ] Validar request autenticado desde Android
-- [ ] Validar `401` real desde Android
-- [ ] Validar refresh automático desde Android
-- [ ] Validar rotación de Refresh Token desde Android
-- [ ] Validar retry de la solicitud original desde Android
-- [ ] Validar múltiples requests simultáneos con `401`
+- [x] Validar Login desde la aplicación
+- [x] Validar persistencia de sesión después del Login
+- [x] Validar request autenticado desde Android
+- [x] Validar 401 desde Android
+- [x] Validar refresh automático desde Android
+- [x] Validar rotación de Refresh Token desde Android
+- [x] Validar construcción del retry de la solicitud original desde Android
+- [x] Validar resultado 200 después del retry de la solicitud original
+- [x] Validar múltiples requests simultáneos con 401
 - [ ] Validar comportamiento ante refresh fallido
 - [ ] Validar Logout desde Android
 - [ ] Validar sesión revocada después del Logout
