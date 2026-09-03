@@ -93,9 +93,9 @@
 - [x] Logout implementado
 - [x] Validación de sesión mediante `/auth/me`
 
-### Validación E2E pendiente
+### Validación E2E
 
-- [ ] Ejecutar flujo completo desde Android contra Backend real
+- [x] Ejecutar flujo Android contra Backend real
 - [x] Validar Login desde la aplicación
 - [x] Validar persistencia de sesión después del Login
 - [x] Validar request autenticado desde Android
@@ -105,9 +105,9 @@
 - [x] Validar construcción del retry de la solicitud original desde Android
 - [x] Validar resultado 200 después del retry de la solicitud original
 - [x] Validar múltiples requests simultáneos con 401
-- [ ] Validar comportamiento ante refresh fallido
-- [ ] Validar Logout desde Android
-- [ ] Validar sesión revocada después del Logout
+- [x] Validar comportamiento ante refresh fallido
+- [x] Validar Logout desde Android
+- [x] Validar sesión revocada después del Logout
 - [ ] Ejecutar pruebas E2E automatizadas
 - [ ] Realizar revisión final de seguridad
 - [ ] Actualizar Issue #2 con resultados
