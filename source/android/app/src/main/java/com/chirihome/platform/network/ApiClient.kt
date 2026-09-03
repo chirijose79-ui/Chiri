@@ -9,23 +9,38 @@ class ApiClient(
     sessionStorage: SessionStorage
 ) {
 
+    private val retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .addConverterFactory(
+            GsonConverterFactory.create()
+        )
+        .build()
+
+    private val refreshApi: AuthApi =
+        retrofit.create(AuthApi::class.java)
+
     private val httpClient = OkHttpClient.Builder()
         .addInterceptor(
             AuthInterceptor(sessionStorage)
         )
         .authenticator(
-            AuthAuthenticator(sessionStorage)
+            AuthAuthenticator(
+                sessionStorage = sessionStorage,
+                refreshApi = refreshApi
+            )
         )
         .build()
 
-    private val retrofit = Retrofit.Builder()
+    private val authenticatedRetrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
         .client(httpClient)
-        .addConverterFactory(GsonConverterFactory.create())
+        .addConverterFactory(
+            GsonConverterFactory.create()
+        )
         .build()
 
     val authApi: AuthApi =
-        retrofit.create(AuthApi::class.java)
+        authenticatedRetrofit.create(AuthApi::class.java)
 
     companion object {
         private const val BASE_URL =
