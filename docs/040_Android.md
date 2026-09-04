@@ -1566,6 +1566,11 @@ El versionado permitirá:
 
 La aplicación no deberá depender de endpoints internos o no versionados de los servicios que utiliza el Backend.
 
+La API actualmente implementada no utiliza el prefijo /api/v1/.
+
+El versionado mediante /api/v1/ corresponde a una estrategia futura
+y no deberá utilizarse como referencia para las rutas actuales.
+
 ---
 
 # 5.12 Disponibilidad del Backend
@@ -1650,6 +1655,8 @@ La aplicación Android de Chiri Platform deberá aplicar medidas de seguridad pa
 * información local.
 * credenciales de acceso.
 * información relacionada con la sesión.
+
+La aplicación Android respetará las decisiones de autorización proporcionadas por el Backend. La autorización granular mediante roles y permisos será incorporada cuando dicha capacidad sea implementada en el Backend.
 
 La seguridad del cliente será complementaria a la seguridad implementada en el Backend.
 
@@ -2032,6 +2039,11 @@ La aplicación Android de Chiri Platform deberá gestionar estados internos y al
 
 El almacenamiento local tendrá como objetivo mejorar la experiencia del usuario, no reemplazar al Backend.
 
+Backend = fuente de verdad
+Android = estado/caché local derivado
+
+No utilizar caché local para sustituir validaciones de autenticación, autorización o seguridad.
+
 ---
 
 # 7.1 Fuente Única de Verdad
@@ -2324,15 +2336,15 @@ Ejemplo:
 Validar:
 
 ```text
-Usuario autenticado
+Estado de sesión válido
 
 +
 
-Permiso correcto
+Datos válidos
 
 =
 
-Acceso permitido
+Estado de pantalla correcto
 ```
 
 ---
@@ -2729,7 +2741,7 @@ No se agregarán funciones solamente por tendencia tecnológica.
 
 # 10.3 Nuevos Módulos Android
 
-Un nuevo módulo deberá crearse cuando:
+Una nueva capacidad o área funcional deberá incorporarse cuando:
 
 * tenga una responsabilidad propia.
 * pueda evolucionar independientemente.
