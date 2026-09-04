@@ -171,6 +171,7 @@ El objetivo será mantener:
 * código mantenible.
 * facilidad de pruebas.
 * evolución independiente de componentes.
+* bajo acoplamiento entre la interfaz y las fuentes de datos.
 
 ---
 
@@ -178,7 +179,7 @@ El objetivo será mantener:
 
 La arquitectura principal será:
 
-```mermaid id="4x7m2p"
+```mermaid
 flowchart TB
 
     UI["UI Layer<br/>Jetpack Compose"]
@@ -189,11 +190,11 @@ flowchart TB
 
     Repository["Repository"]
 
-    Data["Data Sources"]
+    Data["Data Layer"]
 
-    API["Chiri API"]
+    Remote["Remote Data Source<br/>Chiri API"]
 
-    Local["Almacenamiento Local"]
+    Local["Local Data Source<br/>Almacenamiento Local"]
 
 
     UI --> VM
@@ -201,9 +202,11 @@ flowchart TB
     UseCase --> Repository
     Repository --> Data
 
-    Data --> API
+    Data --> Remote
     Data --> Local
 ```
+
+La aplicación utilizará MVVM como patrón principal de presentación y una separación por capas para evitar que la interfaz dependa directamente de detalles técnicos de comunicación o almacenamiento.
 
 ---
 
@@ -211,7 +214,7 @@ flowchart TB
 
 ## Responsabilidad
 
-La capa de interfaz será responsable de representar el estado de la aplicación.
+La capa de interfaz será responsable de representar el estado de la aplicación y capturar las interacciones del usuario.
 
 Utilizará:
 
@@ -227,6 +230,7 @@ Utilizará:
 * capturar eventos del usuario.
 * observar estados.
 * ejecutar navegación.
+* representar estados de carga, éxito y error.
 
 ---
 
@@ -234,8 +238,9 @@ Utilizará:
 
 * llamadas HTTP.
 * lógica de negocio.
-* acceso a base de datos.
-* procesamiento complejo.
+* acceso directo a almacenamiento.
+* acceso directo a servicios externos.
+* procesamiento complejo de datos.
 
 ---
 
@@ -243,18 +248,19 @@ Utilizará:
 
 ## Responsabilidad
 
-El ViewModel actuará como intermediario entre la interfaz y la lógica de aplicación.
+El ViewModel actuará como intermediario entre la interfaz y los casos de uso de la aplicación.
 
 Funciones:
 
-* mantener estado de pantalla.
+* mantener el estado de la pantalla.
 * procesar eventos del usuario.
-* solicitar información.
-* preparar datos para la UI.
+* ejecutar casos de uso.
+* exponer estados observables para la UI.
+* gestionar el ciclo de vida de las operaciones de la pantalla.
 
 Ejemplo conceptual:
 
-```text id="9g2m7k"
+```text
 Usuario pulsa botón
 
         |
@@ -267,8 +273,18 @@ ViewModel
 
         |
 
-Solicita acción a Chiri API
+Use Case
+
+        |
+
+Repository
+
+        |
+
+Chiri API
 ```
+
+El ViewModel no deberá realizar directamente llamadas HTTP ni acceder directamente al almacenamiento.
 
 ---
 
@@ -284,58 +300,81 @@ Ejemplos:
 * Reproducir música.
 * Consultar biblioteca.
 * Enviar consulta a IA.
-
----
+* Obtener información del usuario.
 
 Los Use Cases permitirán:
 
+* representar acciones de la aplicación.
 * separar intención de implementación.
-* reutilizar lógica.
+* reutilizar operaciones.
 * facilitar pruebas.
+
+Los Use Cases no deberán contener detalles específicos de Retrofit, HTTP, almacenamiento local o APIs externas.
 
 ---
 
 # 2.5 Repository Pattern
 
-Los repositorios serán la capa encargada de administrar el origen de los datos.
+Los repositorios proporcionarán una abstracción sobre el origen de los datos utilizados por la aplicación.
 
-Un repositorio puede obtener información desde:
+Un repositorio podrá obtener información desde:
 
-* API Chiri.
+* API de Chiri.
 * almacenamiento local.
 * caché.
 
+El repositorio decidirá qué fuente utilizar según las necesidades de la operación.
+
 Ejemplo:
 
-```mermaid id="8m5q1v"
+```mermaid
 flowchart LR
 
     ViewModel["ViewModel"]
 
+    UseCase["Use Case"]
+
     Repository["Repository"]
 
-    Remote["API Chiri"]
+    Remote["Remote Data Source"]
 
-    Local["Local Storage"]
+    Local["Local Data Source"]
 
 
-    ViewModel --> Repository
+    ViewModel --> UseCase
+    UseCase --> Repository
 
     Repository --> Remote
-
     Repository --> Local
 ```
+
+La interfaz del repositorio deberá ocultar los detalles técnicos de las fuentes de datos a las capas superiores.
 
 ---
 
 # 2.6 Data Layer
 
-La capa de datos será responsable de:
+La capa de datos será responsable de implementar el acceso a las diferentes fuentes de información utilizadas por la aplicación.
 
-* comunicación con API.
+Podrá contener:
+
+* Remote Data Sources.
+* Local Data Sources.
+* modelos de datos.
 * conversión de modelos.
 * almacenamiento local.
-* gestión de caché.
+* caché.
+* clientes de comunicación con la API.
+
+La comunicación remota se realizará exclusivamente contra la API de Chiri.
+
+La aplicación Android no deberá comunicarse directamente con:
+
+* Home Assistant.
+* Music Assistant.
+* Navidrome.
+* Jellyfin.
+* otros servicios internos del ecosistema.
 
 ---
 
@@ -343,7 +382,7 @@ La capa de datos será responsable de:
 
 Ejemplo: consultar temperatura del hogar.
 
-```mermaid id="1n6p4x"
+```mermaid
 flowchart LR
 
     User["Usuario"]
@@ -356,6 +395,8 @@ flowchart LR
 
     Repository["Repository"]
 
+    Remote["Remote Data Source"]
+
     API["API Chiri"]
 
     HA["Home Assistant"]
@@ -365,15 +406,20 @@ flowchart LR
     Screen --> VM
     VM --> UseCase
     UseCase --> Repository
-    Repository --> API
+    Repository --> Remote
+    Remote --> API
     API --> HA
 ```
+
+El cliente Android únicamente conoce la API de Chiri.
+
+La integración con Home Assistant pertenece al Backend.
 
 ---
 
 # 2.8 Manejo de Estado
 
-La aplicación deberá utilizar un modelo de estado explícito.
+La aplicación deberá utilizar un modelo de estado explícito para representar el estado de cada pantalla o flujo.
 
 Ejemplo conceptual:
 
@@ -385,7 +431,15 @@ data class ScreenState(
 )
 ```
 
-La UI reaccionará al estado recibido.
+El estado podrá representar situaciones como:
+
+* carga.
+* información disponible.
+* operación completada.
+* error.
+* ausencia de información.
+
+La UI reaccionará al estado expuesto por el ViewModel.
 
 ---
 
@@ -393,19 +447,34 @@ La UI reaccionará al estado recibido.
 
 Las dependencias deberán seguir una dirección controlada:
 
-```mermaid id="5h8c3r"
+```mermaid
 flowchart LR
 
+    UI["UI"]
+
+    ViewModel["ViewModel"]
+
+    UseCases["Use Cases"]
+
+    Repository["Repository"]
+
+    DataSources["Data Sources"]
+
+
     UI --> ViewModel
-
     ViewModel --> UseCases
-
     UseCases --> Repository
-
     Repository --> DataSources
 ```
 
-Las capas superiores no deberán conocer detalles internos de implementación.
+Las capas superiores no deberán conocer detalles internos de implementación de las capas inferiores.
+
+Por ejemplo:
+
+* UI no conocerá Retrofit.
+* ViewModel no conocerá endpoints HTTP.
+* Use Cases no conocerán detalles de almacenamiento.
+* Repository ocultará las fuentes de datos.
 
 ---
 
@@ -413,7 +482,11 @@ Las capas superiores no deberán conocer detalles internos de implementación.
 
 La aplicación Android deberá cumplir:
 
-> La interfaz depende de la lógica; la lógica no depende de la interfaz.
+> La interfaz depende de la lógica de aplicación; la lógica de aplicación no depende de la interfaz.
+
+Además:
+
+> El cliente Android deberá depender de la API de Chiri y no de las implementaciones internas de los servicios integrados.
 
 # 3. Estructura del Proyecto Android
 
@@ -425,6 +498,7 @@ La estructura deberá favorecer:
 * navegación sencilla del código.
 * reutilización de componentes.
 * crecimiento modular.
+* facilidad de mantenimiento.
 
 ---
 
@@ -500,13 +574,15 @@ com.chirihome.platform/
 └── utils/
 ```
 
+La organización física deberá reflejar las responsabilidades definidas en la arquitectura interna.
+
 ---
 
 # 3.4 Paquete `ui/`
 
 ## Responsabilidad
 
-Contendrá todos los elementos visuales.
+Contendrá todos los elementos visuales de la aplicación.
 
 Estructura:
 
@@ -528,6 +604,9 @@ Contendrá:
 * componentes reutilizables.
 * estilos visuales.
 * temas.
+* elementos de presentación.
+
+La UI no deberá contener lógica de negocio ni acceso directo a fuentes de datos.
 
 ---
 
@@ -550,7 +629,8 @@ navigation/
 Será responsable de:
 
 * definir destinos.
-* controlar flujo entre pantallas.
+* controlar el flujo entre pantallas.
+* gestionar la navegación.
 
 No contendrá lógica de negocio.
 
@@ -574,7 +654,15 @@ viewmodel/
 └── AiViewModel.kt
 ```
 
-Cada ViewModel estará asociado a una responsabilidad clara.
+Cada ViewModel deberá estar asociado a una responsabilidad clara.
+
+Los ViewModels no deberán realizar directamente:
+
+* llamadas HTTP.
+* acceso al almacenamiento.
+* comunicación con servicios externos.
+
+Deberán utilizar los casos de uso definidos para la aplicación.
 
 ---
 
@@ -582,26 +670,34 @@ Cada ViewModel estará asociado a una responsabilidad clara.
 
 ## Responsabilidad
 
-Contendrá la lógica propia de la aplicación Android.
+Contendrá los conceptos y contratos propios de la aplicación Android que deben permanecer independientes de los detalles técnicos de implementación.
 
-Ejemplo:
+Estructura:
 
 ```text
 domain/
 
 ├── model/
 
-└── repository/
+├── repository/
 
-└── contratos/
+└── usecase/
 ```
 
 Contendrá:
 
+* modelos de dominio.
+* interfaces de repositorio.
 * casos de uso.
-* contratos internos.
 
-No dependerá de Android UI.
+Los contratos de repositorio pertenecerán a esta capa, mientras que sus implementaciones estarán en `data/`.
+
+El dominio no deberá depender de:
+
+* Jetpack Compose.
+* Retrofit.
+* almacenamiento local.
+* implementaciones concretas de fuentes de datos.
 
 ---
 
@@ -609,9 +705,9 @@ No dependerá de Android UI.
 
 ## Responsabilidad
 
-Gestionará fuentes de datos.
+Gestionará las fuentes de datos y las implementaciones de los repositorios.
 
-Ejemplo:
+Estructura:
 
 ```text
 data/
@@ -627,9 +723,14 @@ data/
 
 Contendrá:
 
+* fuentes de datos remotas.
+* fuentes de datos locales.
 * implementaciones de repositorios.
-* comunicación remota.
-* almacenamiento local.
+* conversión de modelos.
+* acceso a almacenamiento.
+* comunicación con la API de Chiri.
+
+Las implementaciones concretas deberán cumplir los contratos definidos en `domain/`.
 
 ---
 
@@ -637,7 +738,7 @@ Contendrá:
 
 ## Responsabilidad
 
-Gestionará comunicación con la API Chiri.
+Gestionará los componentes técnicos necesarios para la comunicación con la API de Chiri.
 
 Ejemplo:
 
@@ -654,8 +755,12 @@ network/
 Responsabilidades:
 
 * cliente HTTP.
-* configuración HTTPS.
+* configuración de comunicación HTTPS.
+* interceptores.
+* autenticación técnica de solicitudes.
 * manejo técnico de comunicación.
+
+Este paquete no deberá contener lógica de negocio.
 
 ---
 
@@ -663,15 +768,18 @@ Responsabilidades:
 
 ## Responsabilidad
 
-Gestionará almacenamiento local del dispositivo.
+Gestionará el almacenamiento local necesario para el funcionamiento de la aplicación.
 
 Ejemplos:
 
 * preferencias.
+* sesión local.
 * caché.
 * información temporal.
 
-No almacenará datos críticos de la plataforma.
+El almacenamiento local deberá utilizarse únicamente para información que corresponda al cliente Android.
+
+No deberá utilizarse como sustituto de la base de datos del Backend ni almacenar información crítica que pertenezca al servidor.
 
 ---
 
@@ -679,30 +787,41 @@ No almacenará datos críticos de la plataforma.
 
 ## Responsabilidad
 
-Gestionará inyección de dependencias.
+Gestionará la inyección de dependencias.
 
 Permitirá:
 
 * crear componentes.
 * administrar instancias.
+* configurar dependencias.
 * desacoplar clases.
+
+La configuración de dependencias deberá mantener separadas las interfaces de sus implementaciones cuando corresponda.
 
 ---
 
-# 3.12 Paquete `model/`
+# 3.12 Modelos
 
-## Responsabilidad
+Los modelos de la aplicación deberán ubicarse según su responsabilidad.
 
-Contendrá modelos utilizados por la aplicación.
+Los modelos propios de la lógica de aplicación estarán en:
 
-Ejemplos:
+```text
+domain/model/
+```
+
+Los modelos específicos de fuentes externas estarán en las capas correspondientes de datos.
+
+Ejemplos de conceptos de dominio:
 
 * Usuario.
 * Dispositivo.
-* Canción.
+* Contenido multimedia.
 * Estado del sistema.
 
-Los modelos deberán representar información consumida por Chiri.
+Los modelos utilizados para comunicación con la API no deberán mezclarse automáticamente con los modelos de dominio.
+
+Cuando sea necesario, se utilizarán mappers para convertir entre ambos.
 
 ---
 
@@ -720,10 +839,27 @@ contendrá:
 * iconos.
 * fuentes.
 * configuraciones visuales.
+* otros recursos necesarios para la aplicación.
+
+Los recursos visuales no deberán contener lógica de negocio.
 
 ---
 
-# 3.14 Regla de Organización
+# 3.14 Paquete `utils/`
+
+## Responsabilidad
+
+Contendrá utilidades técnicas compartidas que no pertenezcan claramente a otra capa.
+
+Las utilidades deberán mantenerse pequeñas y tener una responsabilidad concreta.
+
+No deberá utilizarse `utils/` como un lugar genérico para código que no tenga una ubicación definida.
+
+Si una utilidad pertenece claramente a una capa específica, deberá ubicarse dentro de esa capa.
+
+---
+
+# 3.15 Regla de Organización
 
 Antes de crear una nueva clase deberá responderse:
 
@@ -731,13 +867,27 @@ Antes de crear una nueva clase deberá responderse:
 
 Si no existe una ubicación clara, primero deberá revisarse el diseño.
 
+No se crearán carpetas únicamente para agrupar archivos temporalmente.
+
 ---
 
-# 3.15 Principio Arquitectónico
+# 3.16 Principio Arquitectónico
 
 La estructura física del proyecto deberá reflejar la arquitectura lógica definida.
 
-El código debe poder entenderse leyendo la organización de carpetas.
+El código debe poder entenderse leyendo la organización de paquetes y carpetas.
+
+La separación entre:
+
+```text
+domain/
+data/
+ui/
+```
+
+deberá mantenerse incluso cuando la aplicación crezca.
+
+Las implementaciones técnicas no deberán filtrarse hacia las capas superiores.
 
 # 4. Diseño de Pantallas y Navegación
 
@@ -1094,7 +1244,7 @@ La API será el único punto de acceso entre el cliente Android y la plataforma.
 
 El flujo oficial será:
 
-```mermaid id="6p9m4x"
+```mermaid
 flowchart LR
 
     Android["Aplicación Android"]
@@ -1114,6 +1264,8 @@ flowchart LR
     Backend --> Services
 ```
 
+La aplicación Android no accederá directamente a los servicios internos de Chiri Platform.
+
 ---
 
 # 5.2 Restricciones de Comunicación
@@ -1125,7 +1277,8 @@ La aplicación Android:
 * consumir endpoints de Chiri.
 * enviar acciones del usuario.
 * recibir información procesada.
-* administrar sesión.
+* administrar el estado de la sesión.
+* almacenar información local permitida por la arquitectura.
 
 ## No puede:
 
@@ -1133,16 +1286,17 @@ La aplicación Android:
 * llamar Music Assistant directamente.
 * llamar Navidrome directamente.
 * llamar Jellyfin directamente.
+* acceder directamente a servicios de infraestructura.
 * almacenar credenciales de servicios internos.
+* implementar conexiones alternativas para evitar la API Chiri.
+
+---
 
 # 5.2.1 Regla de No Acceso Directo a Infraestructura
 
-La aplicación Android no deberá acceder directamente a ningún servicio,
-servidor, contenedor, dispositivo o componente de infraestructura interna
-de Chiri Platform.
+La aplicación Android no deberá acceder directamente a ningún servicio, servidor, contenedor, dispositivo o componente de infraestructura interna de Chiri Platform.
 
-Todo acceso a capacidades de la plataforma deberá realizarse exclusivamente
-a través de la API Chiri.
+Todo acceso a capacidades de la plataforma deberá realizarse exclusivamente a través de la API Chiri.
 
 La aplicación Android no deberá conocer ni utilizar directamente:
 
@@ -1165,6 +1319,19 @@ Android
    +---- http://192.168.x.x:8123
    |
    +---- Home Assistant
+```
+
+Ejemplo correcto:
+
+```text
+Android
+   |
+   +---- API Chiri
+            |
+            +---- Home Assistant
+```
+
+Esta regla garantiza que la infraestructura interna pueda evolucionar sin requerir cambios en el cliente Android.
 
 ---
 
@@ -1172,30 +1339,33 @@ Android
 
 La comunicación HTTP estará encapsulada dentro de una capa propia.
 
-Ejemplo conceptual:
+Estructura conceptual:
 
-```text id="9z7m3q"
+```text
 network/
 
-├── ApiClient
-
-├── ApiService
-
-└── Interceptors
+├── Cliente HTTP
+├── Servicios API
+├── Interceptores
+└── Autenticación / renovación de sesión
 ```
 
-Responsabilidades:
+La capa de red será responsable de:
 
-* crear conexiones.
+* crear y configurar conexiones HTTP.
 * enviar solicitudes.
-* manejar respuestas.
-* agregar información común.
+* procesar respuestas.
+* agregar información común a las solicitudes.
+* gestionar aspectos técnicos de comunicación.
+* participar en el flujo de autenticación y renovación de sesión según lo definido por la arquitectura de seguridad.
+
+La capa de red no deberá contener lógica de negocio.
 
 ---
 
 # 5.4 Protocolo de Comunicación
 
-La comunicación utilizará:
+La comunicación entre Android y Chiri utilizará:
 
 * HTTPS.
 * API REST.
@@ -1205,21 +1375,23 @@ Ejemplo conceptual:
 
 Solicitud:
 
-```json id="3j6q9w"
+```json
 {
- "action": "turn_on",
- "device": "living_room"
+    "action": "turn_on",
+    "device": "living_room"
 }
 ```
 
 Respuesta:
 
-```json id="5k8n2p"
+```json
 {
- "success": true,
- "status": "active"
+    "success": true,
+    "status": "active"
 }
 ```
+
+La estructura concreta de cada endpoint será definida por el contrato de la API correspondiente.
 
 ---
 
@@ -1229,20 +1401,20 @@ Android no utilizará directamente modelos internos del Backend.
 
 Existirá una separación entre:
 
-* modelos API.
+* modelos de API.
 * modelos de aplicación.
 * modelos visuales.
 
-Ejemplo:
+Flujo:
 
-```mermaid id="7q2m8x"
+```mermaid
 flowchart LR
 
     APIModel["Modelo API"]
 
     Mapper["Mapper"]
 
-    DomainModel["Modelo Chiri"]
+    DomainModel["Modelo de Aplicación"]
 
     UIModel["Modelo UI"]
 
@@ -1252,74 +1424,109 @@ flowchart LR
     DomainModel --> UIModel
 ```
 
+Esta separación permitirá modificar los contratos externos sin propagar directamente sus detalles hacia la interfaz de usuario.
+
+Los modelos de API representarán exclusivamente los contratos de comunicación con el Backend.
+
+Los modelos de aplicación representarán conceptos utilizados internamente por Android.
+
+Los modelos UI estarán orientados a las necesidades de presentación de cada pantalla.
+
 ---
 
 # 5.6 Autenticación
 
-La aplicación deberá autenticarse contra Chiri Backend.
+La aplicación deberá autenticarse contra Chiri Backend utilizando el mecanismo definido en:
 
-El mecanismo concreto de autenticación y almacenamiento de credenciales será definido exclusivamente en:
+```text
+070_Seguridad.md
+```
 
-`070_Seguridad.md`
+Android será responsable de:
 
-La arquitectura deberá permitir:
+* iniciar sesión mediante la API.
+* mantener el estado local de la sesión.
+* utilizar la información de sesión requerida por la API.
+* solicitar la renovación de la sesión cuando corresponda.
+* cerrar la sesión localmente al finalizarla.
+* reaccionar ante una sesión inválida o revocada.
 
-* inicio de sesión.
-* renovación de sesión.
-* cierre seguro.
-* control de acceso.
+Las reglas de autenticación, emisión, renovación, revocación y seguridad de tokens pertenecen a `070_Seguridad.md`.
+
+Android no implementará mecanismos alternativos de autenticación.
+
+La aplicación tampoco accederá directamente a PostgreSQL ni a ningún sistema utilizado por el Backend para validar las credenciales.
 
 ---
 
 # 5.7 Manejo de Errores
 
-Los errores recibidos desde la API deberán transformarse a mensajes adecuados para el usuario.
+Los errores recibidos desde la API deberán transformarse en estados comprensibles para la aplicación y, cuando corresponda, en mensajes adecuados para el usuario.
 
 Ejemplo:
 
 Backend:
 
-```json id="2c8m7x"
+```json
 {
- "error": "HOME_SERVICE_UNAVAILABLE"
+    "error": "HOME_SERVICE_UNAVAILABLE"
 }
 ```
 
 Android:
 
-```text id="8p3k5v"
-"El sistema del hogar no está disponible"
+```text
+El sistema del hogar no está disponible
 ```
+
+Los detalles técnicos internos no deberán exponerse innecesariamente al usuario.
+
+La aplicación deberá diferenciar entre:
+
+* errores de validación.
+* errores de autenticación.
+* errores de autorización.
+* errores de disponibilidad.
+* errores de red.
+* errores internos del servidor.
 
 ---
 
 # 5.8 Estados de Red
 
-La aplicación deberá contemplar:
+La aplicación deberá contemplar como mínimo:
 
 * sin conexión.
 * conexión lenta.
 * servidor no disponible.
 * error de autenticación.
-* error interno.
+* sesión expirada o revocada.
+* error de autorización.
+* error interno del servidor.
+* respuesta no válida.
+
+Estos estados deberán convertirse en estados de aplicación que permitan a la interfaz reaccionar de forma controlada.
 
 ---
 
-# 5.9 Caché Local
+# 5.9 Caché y Almacenamiento Local
 
-La aplicación podrá almacenar información temporal para mejorar experiencia.
+La aplicación podrá almacenar información temporal para mejorar la experiencia de usuario.
 
 Ejemplos:
 
-* últimas configuraciones.
 * preferencias visuales.
 * datos temporales.
+* información de presentación que pueda reconstruirse.
+* caché controlada de información obtenida desde la API.
 
-No deberá almacenar:
+La caché no deberá utilizarse como sustituto de la persistencia del Backend.
 
-* información crítica del sistema.
-* secretos.
-* datos que pertenezcan al Backend.
+No deberán almacenarse localmente datos cuya fuente de verdad sea PostgreSQL, salvo cuando exista una estrategia explícita de caché definida por la arquitectura.
+
+El almacenamiento de credenciales, tokens y demás información relacionada con la sesión deberá seguir exclusivamente las reglas establecidas en `070_Seguridad.md`.
+
+No deberán almacenarse secretos de servicios internos.
 
 ---
 
@@ -1330,32 +1537,97 @@ La arquitectura deberá permitir incorporar comunicación en tiempo real en el f
 Posibles tecnologías:
 
 * WebSocket.
-* Server Sent Events.
+* Server-Sent Events.
 * notificaciones push.
 
-La elección final será definida cuando exista la necesidad.
+La elección final dependerá de las necesidades de cada funcionalidad y será definida cuando exista un caso de uso que lo requiera.
+
+La incorporación de comunicación en tiempo real no deberá romper la separación entre Android y los servicios internos.
 
 ---
 
 # 5.11 Versionado de API
 
-Android deberá comunicarse con versiones definidas de API.
+Android deberá comunicarse con versiones definidas de la API.
 
 Ejemplo:
 
-```text id="4v8n2s"
+```text
 /api/v1/
 ```
 
-Esto permitirá:
+El versionado permitirá:
 
-* evolución del Backend.
-* compatibilidad con versiones anteriores.
+* evolución controlada del Backend.
+* compatibilidad entre versiones.
+* incorporación de nuevos contratos.
 * migraciones controladas.
+* reducción del impacto de cambios incompatibles.
+
+La aplicación no deberá depender de endpoints internos o no versionados de los servicios que utiliza el Backend.
 
 ---
 
-# 5.12 Principio Arquitectónico
+# 5.12 Disponibilidad del Backend
+
+La aplicación deberá contemplar que el Backend pueda encontrarse temporalmente no disponible.
+
+Cuando esto ocurra:
+
+* no deberá intentar acceder directamente a los servicios internos.
+* deberá informar el estado correspondiente.
+* deberá permitir recuperar la operación cuando el servicio vuelva a estar disponible.
+* no deberá interpretar la indisponibilidad de un servicio externo como una caída total de Android.
+
+La aplicación deberá mantener una separación clara entre:
+
+```text
+Backend no disponible
+```
+
+y:
+
+```text
+Servicio integrado no disponible
+```
+
+Cuando el Backend esté disponible pero una integración concreta falle, será el Backend quien determine y comunique el estado correspondiente.
+
+---
+
+# 5.13 Principio de Aislamiento
+
+El cliente Android deberá permanecer aislado de la infraestructura interna de Chiri.
+
+El conocimiento de Android deberá limitarse a:
+
+```text
+Chiri API
+    |
+    +-- Contratos
+    +-- Autenticación
+    +-- Respuestas
+    +-- Errores
+```
+
+Android no deberá conocer:
+
+```text
+Home Assistant
+Music Assistant
+Navidrome
+Jellyfin
+PostgreSQL
+Docker
+IPs internas
+Puertos internos
+```
+
+salvo que alguno de estos elementos sea expuesto explícitamente como parte de un contrato público de la API, lo cual deberá estar justificado arquitectónicamente.
+
+---
+
+# 5.14 Principio Arquitectónico
 
 La aplicación Android debe pensar:
 
@@ -1365,6 +1637,10 @@ y nunca:
 
 > "Controlo directamente los servicios internos".
 
+La API Chiri será la frontera entre el cliente y la plataforma.
+
+Toda nueva funcionalidad Android deberá comprobar primero si existe un contrato correspondiente en la API antes de implementar cualquier comunicación con el Backend.
+
 # 6. Seguridad del Cliente Android
 
 La aplicación Android de Chiri Platform deberá aplicar medidas de seguridad para proteger:
@@ -1373,20 +1649,36 @@ La aplicación Android de Chiri Platform deberá aplicar medidas de seguridad pa
 * comunicación con la plataforma.
 * información local.
 * credenciales de acceso.
+* información relacionada con la sesión.
 
 La seguridad del cliente será complementaria a la seguridad implementada en el Backend.
+
+Las reglas centrales de seguridad de autenticación, sesiones y tokens estarán definidas en:
+
+```text
+070_Seguridad.md
+```
 
 ---
 
 # 6.1 Principio de Seguridad
 
-La aplicación Android deberá asumir:
+La aplicación Android deberá asumir que:
 
 * el dispositivo puede perderse.
 * el almacenamiento local puede ser inspeccionado.
 * las comunicaciones pueden ser atacadas.
+* la aplicación puede ser analizada.
 
-Por lo tanto, ninguna información crítica deberá depender exclusivamente del cliente.
+Por lo tanto, ninguna información crítica ni ninguna decisión de seguridad deberá depender exclusivamente del cliente.
+
+El Backend será siempre la autoridad para:
+
+* validar identidad.
+* validar sesiones.
+* controlar permisos.
+* autorizar operaciones.
+* revocar acceso.
 
 ---
 
@@ -1414,15 +1706,23 @@ flowchart LR
     HTTPS --> API
 ```
 
+La aplicación no deberá utilizar conexiones HTTP no cifradas para comunicarse con el Backend en producción.
+
 ---
 
-# 6.3 Gestión de Credenciales
+# 6.3 Gestión de Credenciales y Tokens
 
 La aplicación no deberá almacenar:
 
+* contraseñas en texto plano.
 * contraseñas de servicios externos.
-* tokens permanentes sin protección.
 * claves privadas.
+* claves API de servicios internos.
+* tokens permanentes sin protección.
+
+La contraseña proporcionada durante el inicio de sesión deberá utilizarse únicamente para realizar la autenticación contra la API y no deberá persistirse como credencial reutilizable.
+
+Los tokens de sesión que deban persistir para mantener la sesión deberán almacenarse mediante mecanismos seguros del sistema Android, de acuerdo con las reglas establecidas en `070_Seguridad.md`.
 
 Ejemplo incorrecto:
 
@@ -1432,29 +1732,30 @@ Código Android
 API_KEY = "clave_secreta"
 ```
 
----
-
-Ejemplo correcto:
+Ejemplo conceptual correcto:
 
 ```text id="5k7n2m"
 Android
-
-Token temporal seguro
-
-        |
-
+    |
+    +-- Token de sesión protegido
+    |
+    v
 API Chiri
-
-        |
-
+    |
+    v
+Backend
+    |
+    v
 Servicios internos
 ```
+
+Android nunca deberá almacenar credenciales necesarias para acceder directamente a los servicios internos.
 
 ---
 
 # 6.4 Almacenamiento Local Seguro
 
-Los datos locales deberán clasificarse:
+Los datos locales deberán clasificarse según su sensibilidad.
 
 ## Datos permitidos
 
@@ -1463,6 +1764,9 @@ Ejemplos:
 * preferencias visuales.
 * configuración de interfaz.
 * datos temporales.
+* información que pueda reconstruirse desde el Backend.
+
+Estos datos podrán almacenarse mediante mecanismos apropiados para información no sensible.
 
 ---
 
@@ -1472,8 +1776,13 @@ Ejemplos:
 
 * tokens de sesión.
 * información sensible del usuario.
+* información necesaria para mantener una sesión autenticada.
 
-Estos deberán almacenarse utilizando mecanismos seguros del sistema Android.
+Estos datos deberán almacenarse utilizando mecanismos seguros disponibles en Android.
+
+La implementación concreta del almacenamiento de sesión deberá mantenerse encapsulada en la capa `storage`.
+
+La UI y las demás capas de la aplicación no deberán acceder directamente al mecanismo físico utilizado para almacenar los datos sensibles.
 
 ---
 
@@ -1486,18 +1795,87 @@ La aplicación deberá contemplar:
 * expiración.
 * renovación.
 * cierre de sesión.
+* invalidación de sesión.
 
-La sesión deberá estar controlada por el Backend.
+La sesión estará controlada por el Backend.
+
+El cliente Android podrá solicitar la renovación de una sesión cuando corresponda, pero no podrá determinar por sí mismo que una sesión continúa siendo válida.
+
+Flujo conceptual:
+
+```mermaid id="7d4m2x"
+flowchart LR
+
+    Android["Android"]
+
+    Access["Access Token"]
+
+    API["API Chiri"]
+
+    Backend["Backend"]
+
+    Refresh["Refresh Token"]
+
+
+    Android --> Access
+    Access --> API
+    API --> Backend
+
+    Android --> Refresh
+    Refresh --> Backend
+```
+
+Las reglas concretas de emisión, rotación, expiración y revocación de tokens estarán definidas en `070_Seguridad.md`.
 
 ---
 
-# 6.6 Manejo de Permisos
+# 6.6 Respuesta ante `401 Unauthorized`
 
-La aplicación deberá solicitar únicamente permisos necesarios.
+Cuando la API responda `401 Unauthorized`, Android deberá interpretar la respuesta de acuerdo con el estado de la sesión.
+
+Cuando corresponda, el cliente deberá intentar renovar la sesión mediante el mecanismo definido por el Backend.
+
+Flujo conceptual:
+
+```text
+Solicitud API
+      |
+      v
+  ¿Respuesta 401?
+    /       \
+  No         Sí
+  |           |
+  v           v
+Continuar   Renovar sesión
+              |
+          ¿Correcto?
+           /     \
+         Sí       No
+         |         |
+         v         v
+    Reintentar    Logout
+    solicitud     local
+```
+
+La renovación no deberá realizarse indefinidamente.
+
+Si la renovación falla o el Backend determina que la sesión ya no es válida:
+
+* deberán eliminarse los datos locales de sesión que correspondan.
+* el usuario deberá ser considerado no autenticado.
+* la aplicación deberá dirigirlo al flujo de inicio de sesión.
+
+La aplicación no deberá intentar evitar una respuesta `401` accediendo directamente a otros servicios.
+
+---
+
+# 6.7 Manejo de Permisos
+
+La aplicación deberá solicitar únicamente los permisos necesarios para sus funcionalidades.
 
 Ejemplo:
 
-Si Chiri incorpora voz:
+Si Chiri incorpora interacción por voz:
 
 Necesario:
 
@@ -1507,46 +1885,58 @@ No necesario:
 
 * acceso completo al almacenamiento.
 
+Los permisos deberán solicitarse únicamente cuando exista una funcionalidad que los requiera.
+
+La aplicación no deberá solicitar permisos por anticipado sin una necesidad funcional definida.
+
 ---
 
-# 6.7 Protección de Información
+# 6.8 Protección de Información
 
 La aplicación deberá evitar exponer:
 
 * errores técnicos internos.
 * URLs privadas.
+* direcciones IP internas.
+* puertos internos.
 * credenciales.
+* tokens.
 * información de infraestructura.
 
-Ejemplo:
-
-Incorrecto:
+Ejemplo incorrecto:
 
 ```text id="3m7q9x"
 Error:
 No se pudo conectar con 192.168.1.88:8095
 ```
 
-Correcto:
+Ejemplo correcto:
 
 ```text id="8q4n6m"
 El servicio no está disponible actualmente
 ```
 
+Los detalles técnicos deberán permanecer en los mecanismos de diagnóstico correspondientes y no deberán exponerse innecesariamente en la interfaz.
+
 ---
 
-# 6.8 Seguridad de Código
+# 6.9 Seguridad del Código
 
 El proyecto Android deberá considerar:
 
-* evitar secretos en código fuente.
+* evitar secretos en el código fuente.
 * mantener dependencias actualizadas.
 * revisar permisos.
 * evitar librerías innecesarias.
+* mantener separadas las responsabilidades de seguridad.
+* evitar exponer información sensible mediante logs.
+* no incluir credenciales de servicios externos.
+
+Las credenciales y secretos no deberán incorporarse al repositorio.
 
 ---
 
-# 6.9 Preparación para Biometría
+# 6.10 Preparación para Biometría
 
 La arquitectura deberá permitir incorporar posteriormente:
 
@@ -1554,28 +1944,87 @@ La arquitectura deberá permitir incorporar posteriormente:
 * reconocimiento facial.
 * bloqueo local.
 
-La autenticación principal seguirá perteneciendo al Backend.
+Estas funcionalidades podrán utilizarse como mecanismo adicional de protección del acceso local a la aplicación.
+
+La autenticación principal contra Chiri continuará perteneciendo al Backend.
+
+La incorporación de biometría no deberá convertir al dispositivo en la autoridad de autenticación de la plataforma.
 
 ---
 
-# 6.10 Pérdida del Dispositivo
+# 6.11 Pérdida del Dispositivo
 
-Si un dispositivo autorizado se pierde, Chiri deberá permitir:
+Si un dispositivo autorizado se pierde, Chiri deberá permitir invalidar las sesiones asociadas al dispositivo.
 
-* invalidar sesiones.
+El Backend será responsable de:
+
+* revocar sesiones.
 * retirar acceso.
-* proteger información.
+* invalidar credenciales de sesión.
+* mantener el control de acceso.
 
-Estas capacidades serán coordinadas por Backend.
+Android deberá reaccionar correctamente cuando una sesión haya sido revocada remotamente.
+
+La seguridad no deberá depender de que el usuario tenga físicamente el dispositivo perdido para poder retirar su acceso.
 
 ---
 
-# 6.11 Principio Arquitectónico
+# 6.12 Seguridad de Logs
+
+La aplicación deberá evitar registrar información sensible.
+
+No deberán aparecer en logs:
+
+* contraseñas.
+* tokens completos.
+* claves API.
+* credenciales.
+* información sensible innecesaria.
+
+Cuando sea necesario diagnosticar una operación autenticada, deberán utilizarse identificadores o información técnica que no permita recuperar las credenciales de sesión.
+
+---
+
+# 6.13 Principio de Defensa en Profundidad
+
+La seguridad de Chiri deberá mantenerse mediante varias capas:
+
+```mermaid id="2n7v4p"
+flowchart TB
+
+    Device["Dispositivo Android"]
+
+    Storage["Almacenamiento Seguro"]
+
+    HTTPS["HTTPS"]
+
+    API["API Chiri"]
+
+    Backend["Seguridad Backend"]
+
+    Services["Servicios Internos"]
+
+
+    Device --> Storage
+    Device --> HTTPS
+    HTTPS --> API
+    API --> Backend
+    Backend --> Services
+```
+
+Ninguna medida individual deberá considerarse suficiente por sí sola.
+
+---
+
+# 6.14 Principio Arquitectónico
 
 La seguridad del cliente Android deberá cumplir:
 
 > El dispositivo puede acceder a Chiri, pero nunca debe poseer el control completo de Chiri.
 
+El cliente Android es un consumidor de la plataforma.
+
+La autoridad de seguridad permanece en el Backend.
 
 # 7. Estado, Datos Locales y Caché
 
@@ -2111,6 +2560,8 @@ Android
 └── Config Producción
 ```
 
+Las configuraciones de ambiente podrán variar, pero los secretos y credenciales no deberán incorporarse al código fuente ni distribuirse innecesariamente dentro de la aplicación.
+
 ---
 
 # 9.5 Versionado de la Aplicación
@@ -2202,6 +2653,8 @@ flowchart LR
 
 Los cambios importantes deberán planificarse.
 
+El cliente Android deberá utilizar únicamente contratos de API compatibles y no depender de detalles internos del Backend.
+
 ---
 
 # 9.11 Recuperación de Versiones
@@ -2285,18 +2738,25 @@ Un nuevo módulo deberá crearse cuando:
 Ejemplo futuro:
 
 ```text id="4x7m9p"
-com.chirihome
+com.chirihome.platform/
 
-├── home/
-
-├── media/
-
-├── ai/
-
-├── personal/
-
-└── finance/
+├── ui/
+│   ├── home/
+│   ├── media/
+│   ├── ai/
+│   └── personal/
+│
+├── viewmodel/
+├── domain/
+├── data/
+├── navigation/
+├── di/
+├── network/
+├── storage/
+└── utils/
 ```
+
+Las capacidades pueden crecer sin abandonar la arquitectura MVVM definida.
 
 ---
 
