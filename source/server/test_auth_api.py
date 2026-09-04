@@ -924,3 +924,150 @@ def test_login_refresh_token_does_not_outlive_session(test_user):
         assert db_refresh_token.session_id == session.id
 
         assert db_refresh_token.expires_at <= session.expires_at
+
+def test_login_rejects_invalid_password(test_user):
+    response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": "WrongPassword-2026!",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid credentials"
+
+def test_login_rejects_unknown_user():
+    cleanup()
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "identifier": "__unknown_user__",
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid credentials"
+
+def test_login_rejects_inactive_user(test_user):
+    with DbSession(migration_engine) as db:
+        user = db.scalar(
+            select(User).where(
+                User.id == test_user.id
+            )
+        )
+
+        assert user is not None
+
+        user.status = "INACTIVE"
+        db.commit()
+
+    response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid credentials"
+
+def test_me_rejects_jwt_with_mismatched_user_id(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+    access_token = data["access_token"]
+
+    payload = jwt.decode(
+        access_token,
+        options={
+            "verify_signature": False,
+        },
+    )
+
+    payload["user_id"] = str(uuid.uuid4())
+
+    invalid_token = jwt.encode(
+        payload,
+        _load_private_key(),
+        algorithm=JWT_ALGORITHM,
+        headers={
+            "kid": settings.jwt_key_id,
+        },
+    )
+
+    response = client.get(
+        "/auth/me",
+        headers={
+            "Authorization": f"Bearer {invalid_token}",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid access token session"
+
+def test_me_rejects_jwt_with_unknown_session_id(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    data = login_response.json()
+    access_token = data["access_token"]
+
+    payload = jwt.decode(
+        access_token,
+        options={
+            "verify_signature": False,
+        },
+    )
+
+    payload["session_id"] = str(uuid.uuid4())
+
+    invalid_token = jwt.encode(
+        payload,
+        _load_private_key(),
+        algorithm=JWT_ALGORITHM,
+        headers={
+            "kid": settings.jwt_key_id,
+        },
+    )
+
+    response = client.get(
+        "/auth/me",
+        headers={
+            "Authorization": f"Bearer {invalid_token}",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Session is not active"
+
+def test_refresh_rejects_unknown_refresh_token():
+    response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": (
+                "this-is-not-a-valid-refresh-token"
+            ),
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid refresh token"

@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta, timezone
+
 import uuid
 
 from sqlalchemy import select
+
 from sqlalchemy.orm import Session as DbSession
 
+from app.database.models.refresh_token import RefreshToken
 from app.database.models.session import Session
 
 
@@ -16,11 +19,9 @@ def _create_session_without_commit(
 ) -> Session:
     """
     Create a session without committing.
-
     This helper is used when session creation must be part
     of a larger database transaction.
     """
-
     now = datetime.now(timezone.utc)
 
     session = Session(
@@ -32,7 +33,6 @@ def _create_session_without_commit(
     )
 
     db.add(session)
-
     return session
 
 
@@ -42,10 +42,8 @@ def create_session(
 ) -> Session:
     """
     Create and persist an active session.
-
     This function commits the transaction.
     """
-
     session = _create_session_without_commit(
         db=db,
         user_id=user_id,
@@ -63,6 +61,19 @@ def revoke_session(
 ) -> Session:
     if session.status == "ACTIVE":
         session.status = "REVOKED"
+
+        statement = (
+            select(RefreshToken)
+            .where(
+                RefreshToken.session_id == session.id,
+                RefreshToken.status == "ACTIVE",
+            )
+        )
+
+        refresh_tokens = db.scalars(statement).all()
+
+        for refresh_token in refresh_tokens:
+            refresh_token.status = "REVOKED"
 
         db.commit()
         db.refresh(session)

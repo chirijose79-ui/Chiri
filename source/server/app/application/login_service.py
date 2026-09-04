@@ -48,7 +48,7 @@ def login_user(
 
     session = _create_session_without_commit(
         db=db,
-        user_id=uuid.UUID(str(user.id)),
+        user_id=user.id,
     )
 
     # Persist the session INSERT inside the current transaction
