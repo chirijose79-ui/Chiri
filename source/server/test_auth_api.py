@@ -1071,3 +1071,102 @@ def test_refresh_rejects_unknown_refresh_token():
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid refresh token"
+
+def test_me_rejects_non_bearer_authentication_scheme():
+    response = client.get(
+        "/auth/me",
+        headers={
+            "Authorization": "Basic dGVzdDp0ZXN0",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid authentication scheme"
+
+
+def test_me_rejects_inactive_user_after_login(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    access_token = login_response.json()["access_token"]
+
+    with DbSession(migration_engine) as db:
+        user = db.scalar(
+            select(User).where(
+                User.id == test_user.id
+            )
+        )
+
+        assert user is not None
+
+        user.status = "INACTIVE"
+        db.commit()
+
+    response = client.get(
+        "/auth/me",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "User is not active"
+
+
+def test_refresh_rotation_invalidates_old_token(test_user):
+    login_response = client.post(
+        "/auth/login",
+        json={
+            "identifier": TEST_USERNAME,
+            "password": TEST_PASSWORD,
+        },
+    )
+
+    assert login_response.status_code == 200
+
+    old_refresh_token = login_response.json()["refresh_token"]
+
+    rotation_response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": old_refresh_token,
+        },
+    )
+
+    assert rotation_response.status_code == 200
+
+    new_refresh_token = rotation_response.json()["refresh_token"]
+
+    assert new_refresh_token
+    assert new_refresh_token != old_refresh_token
+
+    old_token_response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": old_refresh_token,
+        },
+    )
+
+    assert old_token_response.status_code == 401
+    assert old_token_response.json()["detail"] == (
+        "Refresh token reuse detected"
+    )
+
+    new_token_response = client.post(
+        "/auth/refresh",
+        json={
+            "refresh_token": new_refresh_token,
+        },
+    )
+
+    assert new_token_response.status_code == 401
+    assert new_token_response.json()["detail"] == (
+        "Invalid refresh token"
+    )
