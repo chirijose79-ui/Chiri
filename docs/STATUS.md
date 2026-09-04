@@ -9,11 +9,11 @@
 
 **Fase actual:** Implementación incremental
 
-**Último bloque documental cerrado:** Base de Datos
+**Último bloque funcional cerrado:** UC-001 — Autenticarse
 
-**Caso de uso completado:** UC-001 — Autenticarse
+**UC-002:** Diseño funcional aprobado
 
-**Siguiente bloque:** UC-002 — Consultar funcionalidades disponibles
+**Bloque actual:** HOME v1.0
 
 ---
 
@@ -117,6 +117,164 @@
 
 ---
 
+## Despliegue e infraestructura
+
+### Backend
+
+- [x] Backend FastAPI desplegado en Raspberry Pi
+- [x] PostgreSQL operativo
+- [x] Servicio `chiri-backend` configurado mediante systemd
+- [x] Reinicio automático del Backend configurado
+- [x] Validar Backend después de reiniciar Raspberry Pi
+
+### Reverse Proxy
+
+- [x] Caddy operativo
+- [x] Caddy conectado con Backend
+- [x] API publicada mediante Caddy
+
+### Cloudflare
+
+- [x] Tunnel `chiri-web` configurado para WEB
+- [x] Tunnel `chiri-home` configurado para API
+- [x] Separación WEB / API validada
+- [x] `api.chirihome.com` operativo
+- [x] API HTTPS validada
+
+### Android
+
+- [x] Android configurado para utilizar API HTTPS pública
+- [x] Login Android contra API HTTPS
+- [x] Persistencia de sesión contra API HTTPS
+- [x] Logout contra API HTTPS
+- [x] Re-login contra API HTTPS
+
+### Validación final de despliegue
+
+- [x] `GET /api/health` responde `200`
+- [x] API accesible mediante HTTPS
+- [x] Backend vuelve automáticamente después de reinicio
+- [x] Android puede comunicarse con el Backend mediante HTTPS
+- [x] Infraestructura de despliegue v1.0 validada
+
+---
+
+## UC-002 — Consultar funcionalidades disponibles
+
+### Diseño
+
+- [x] Definir módulos principales de Chiri
+- [x] Definir funcionalidades principales
+- [x] Definir estructura de Home
+- [x] Definir separación entre módulos
+- [x] Aprobar alcance funcional inicial
+- [x] Mantener el alcance puntual para v1.0
+
+### Estado
+
+- [x] Diseño funcional aprobado
+- [ ] Implementación Backend
+- [ ] Implementación Android
+- [ ] Pruebas
+- [ ] Validación E2E
+
+> UC-002 permanece abierto hasta completar su implementación y validación. El diseño funcional aprobado permite continuar con la construcción incremental de Home.
+
+---
+
+# HOME v1.0
+
+## Diseño
+
+- [x] Definir objetivo y alcance de Home
+- [x] Definir estructura funcional
+- [x] Definir bloques de la pantalla
+- [x] Definir bienvenida
+- [x] Definir estado del hogar
+- [x] Definir acciones rápidas
+- [x] Definir información básica
+- [x] Definir acciones rápidas iniciales: `music`
+- [x] Definir acciones rápidas iniciales: `multimedia`
+- [x] Definir contrato `GET /api/home`
+- [x] Definir modelo de respuesta
+- [x] Definir reglas de negocio
+- [x] Definir autenticación
+- [x] Definir respuestas de error
+- [x] Determinar que Home no requiere nuevas tablas
+- [x] Determinar que Home no accede directamente a PostgreSQL
+- [x] Mantener Home como resumen y punto de acceso a otros módulos
+
+## Backend
+
+- [ ] Crear modelos Pydantic de Home
+- [ ] Crear servicio de Home
+- [ ] Integrar usuario autenticado
+- [ ] Implementar estado del hogar
+- [ ] Implementar acciones rápidas
+- [ ] Implementar información básica
+- [ ] Implementar `GET /api/home`
+- [ ] Validar respuesta `200`
+- [ ] Validar respuestas de error
+- [ ] Revisar seguridad del endpoint
+
+## Pruebas Backend
+
+- [ ] Probar `GET /api/home` con sesión válida
+- [ ] Probar acceso sin token
+- [ ] Probar token inválido
+- [ ] Probar token expirado
+- [ ] Probar usuario no disponible
+- [ ] Validar estructura de respuesta
+- [ ] Validar `display_name`
+- [ ] Validar `home.status`
+- [ ] Validar `quick_actions`
+- [ ] Validar `information`
+- [ ] Ejecutar suite completa de pruebas
+
+## Android
+
+- [ ] Crear modelo de respuesta Home
+- [ ] Crear endpoint Retrofit
+- [ ] Crear repositorio Home
+- [ ] Crear ViewModel
+- [ ] Crear pantalla Home
+- [ ] Mostrar bienvenida
+- [ ] Mostrar estado del hogar
+- [ ] Mostrar acciones rápidas
+- [ ] Mostrar información básica
+- [ ] Manejar estado de carga
+- [ ] Manejar errores
+- [ ] Mantener navegación hacia los módulos correspondientes
+
+## Integración
+
+- [ ] Probar Android contra API HTTPS
+- [ ] Validar Home con sesión existente
+- [ ] Validar rechazo de sesión inválida
+- [ ] Validar carga correcta de información
+- [ ] Validar navegación mediante acción `music`
+- [ ] Validar navegación mediante acción `multimedia`
+- [ ] Probar comportamiento con API no disponible
+- [ ] Ejecutar validación E2E de Home
+
+## Documentación
+
+- [ ] Actualizar `060_API.md`
+- [ ] Actualizar `040_Android.md`
+- [ ] Registrar decisiones específicas de Home
+- [ ] Revisar `020_Arquitectura.md` únicamente si fuera necesario
+- [ ] Revisar `080_Despliegue.md` únicamente si fuera necesario
+
+## Git
+
+- [ ] Commit Backend Home
+- [ ] Commit pruebas Backend Home
+- [ ] Commit Android Home
+- [ ] Commit integración Home
+- [ ] Commit documentación Home
+
+---
+
 ## Validaciones ya realizadas
 
 ### Conectividad
@@ -125,6 +283,8 @@
 - [x] TCP puerto `8000` accesible
 - [x] FastAPI `/docs` responde HTTP `200`
 - [x] Backend accesible desde la red LAN
+- [x] API pública HTTPS responde
+- [x] `GET /api/health` responde `200`
 
 ### Autenticación Backend
 
@@ -150,33 +310,16 @@
 
 ---
 
-## Próximo bloque funcional
-
-### UC-002 — Consultar funcionalidades disponibles
-
-Pendiente de implementar:
-
-- [ ] Modelo `platform.module`
-- [ ] Modelo `platform.functionality`
-- [ ] Migración Alembic
-- [ ] Application layer
-- [ ] API
-- [ ] Pruebas Backend
-- [ ] Integración Android
-- [ ] Pruebas E2E
-
----
-
 ## Casos de Uso
 
-| ID     | Caso de uso                           | Estado       |
-| ------ | ------------------------------------- | ------------ |
-| UC-001 | Autenticarse                          | ✅ Completado |
-| UC-002 | Consultar funcionalidades disponibles | ⬜ Pendiente  |
-| UC-003 | Ejecutar funcionalidad                | ⬜ Pendiente  |
-| UC-004 | Gestionar usuarios                    | ⬜ Pendiente  |
-| UC-005 | Gestionar permisos                    | ⬜ Pendiente  |
-| UC-006 | Administrar configuración             | ⬜ Pendiente  |
+| ID     | Caso de uso                           | Estado               |
+| ------ | ------------------------------------- | -------------------- |
+| UC-001 | Autenticarse                          | ✅ Completado         |
+| UC-002 | Consultar funcionalidades disponibles | 🔄 En implementación |
+| UC-003 | Ejecutar funcionalidad                | ⬜ Pendiente          |
+| UC-004 | Gestionar usuarios                    | ⬜ Pendiente          |
+| UC-005 | Gestionar permisos                    | ⬜ Pendiente          |
+| UC-006 | Administrar configuración             | ⬜ Pendiente          |
 
 ---
 
@@ -196,6 +339,8 @@ Las siguientes entidades están definidas para v1.0 pero **no deben implementars
 - [ ] `platform.module`
 - [ ] `platform.functionality`
 
+> Estas entidades no deben implementarse únicamente por estar definidas. Se implementarán cuando exista una funcionalidad que realmente las necesite.
+
 ---
 
 ## Reglas de trabajo
@@ -214,3 +359,6 @@ Las siguientes entidades están definidas para v1.0 pero **no deben implementars
 12. El código real del repositorio y los commits son la referencia para determinar qué está implementado.
 13. Una funcionalidad no se considera E2E completada solamente porque sus componentes existan; debe existir una validación del flujo completo.
 14. No marcar como pendiente nuevamente una funcionalidad que ya haya sido validada y registrada como completada.
+15. Mantener cada bloque funcional dentro del alcance aprobado para v1.0.
+16. No implementar infraestructura adicional si la infraestructura existente ya resuelve la necesidad.
+17. No agregar nuevas tablas de Base de Datos si el bloque funcional no requiere persistencia.
