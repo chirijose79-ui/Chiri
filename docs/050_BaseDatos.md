@@ -521,8 +521,6 @@ Ejemplos:
 
 La auditoría permitirá mantener trazabilidad de operaciones importantes cuando esta capacidad sea incorporada.
 
----
-
 # 2.10 Modelo Relacional
 
 Las relaciones deberán definirse mediante:
@@ -549,11 +547,11 @@ erDiagram
     MODULE ||--o{ FUNCTIONALITY : contains
 ```
 
-Las relaciones correspondientes a `user_role`, `role`, `permission` y `role_permission` forman parte del modelo futuro de v1.0 y serán implementadas mediante migraciones cuando estas capacidades sean incorporadas físicamente.
+Las relaciones correspondientes a `session` y `refresh_token` representan estructuras actualmente implementadas.
+
+Las relaciones correspondientes a `user_role`, `role`, `permission` y `role_permission` forman parte del modelo futuro de autorización v1.0 y serán implementadas mediante migraciones cuando estas capacidades sean incorporadas físicamente.
 
 La relación entre `module` y `functionality` forma parte del modelo de UC-002 y será implementada mediante la correspondiente migración de Alembic.
-
-Las relaciones correspondientes a `user_role`, `role`, `permission`, `role_permission`, `module` y `functionality` forman parte del modelo futuro de v1.0 y serán implementadas mediante migraciones cuando estas capacidades sean incorporadas físicamente.
 
 Las entidades de auditoría, configuración, integración, perfil y otras relaciones futuras todavía no están implementadas.
 
