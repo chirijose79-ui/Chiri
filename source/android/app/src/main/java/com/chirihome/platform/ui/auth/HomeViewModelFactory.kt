@@ -3,8 +3,10 @@ package com.chirihome.platform.ui.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.chirihome.platform.domain.auth.LogoutUseCase
+import com.chirihome.platform.domain.home.HomeUseCase
 
 class HomeViewModelFactory(
+    private val homeUseCase: HomeUseCase,
     private val logoutUseCase: LogoutUseCase
 ) : ViewModelProvider.Factory {
 
@@ -14,6 +16,7 @@ class HomeViewModelFactory(
     ): T {
         if (modelClass.isAssignableFrom(HomeViewModel::class.java)) {
             return HomeViewModel(
+                homeUseCase = homeUseCase,
                 logoutUseCase = logoutUseCase
             ) as T
         }

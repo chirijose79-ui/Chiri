@@ -42,6 +42,9 @@ class ApiClient(
     val authApi: AuthApi =
         authenticatedRetrofit.create(AuthApi::class.java)
 
+    val homeApi: HomeApi =
+        authenticatedRetrofit.create(HomeApi::class.java)
+
     companion object {
         private const val BASE_URL =
             "https://api.chirihome.com/api/"
