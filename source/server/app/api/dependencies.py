@@ -1,15 +1,23 @@
 from collections.abc import Generator
+
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
+
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from sqlalchemy import select
+
 from sqlalchemy.orm import Session as DbSession
 
 from app.application.session_service import get_active_session
+
 from app.database.database import SessionLocal
+
 from app.database.models.session import Session
+
 from app.database.models.user import User
+
 from app.security.jwt import (
     InvalidAccessTokenError,
     decode_access_token,
@@ -23,7 +31,6 @@ bearer_scheme = HTTPBearer(
 
 def get_db() -> Generator[DbSession, None, None]:
     db = SessionLocal()
-
     try:
         yield db
     finally:
@@ -31,12 +38,13 @@ def get_db() -> Generator[DbSession, None, None]:
 
 
 def get_current_session(
+    authorization: str | None = Header(default=None),
     credentials: HTTPAuthorizationCredentials | None = Depends(
         bearer_scheme
     ),
     db: DbSession = Depends(get_db),
 ) -> Session:
-    if credentials is None:
+    if authorization is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
@@ -45,10 +53,19 @@ def get_current_session(
             },
         )
 
-    if credentials.scheme.lower() != "bearer":
+    if not authorization.lower().startswith("bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authentication scheme",
+            headers={
+                "WWW-Authenticate": "Bearer",
+            },
+        )
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid access token",
             headers={
                 "WWW-Authenticate": "Bearer",
             },

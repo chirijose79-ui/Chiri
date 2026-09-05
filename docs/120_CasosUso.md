@@ -127,21 +127,210 @@ Usuario.
 
 ### Objetivo
 
-Permitir visualizar los módulos disponibles según permisos.
+Permitir visualizar el catálogo funcional disponible para el usuario autenticado.
 
-Flujo:
+El catálogo se organiza mediante módulos y funcionalidades:
+
+```text
+Módulo
+   └── Funcionalidades
+```
+
+### Flujo general
 
 ```mermaid
 flowchart TD
     Usuario --> SolicitarModulos
-    SolicitarModulos --> ValidarPermisos
-    ValidarPermisos --> MostrarModulos
+    SolicitarModulos --> AutenticarSolicitud
+    AutenticarSolicitud --> ConsultarCatalogo
+    ConsultarCatalogo --> FiltrarActivos
+    FiltrarActivos --> MostrarModulos
 
     Usuario["Usuario"]
     SolicitarModulos["Solicitar Módulos"]
-    ValidarPermisos["Validar Permisos"]
-    MostrarModulos["Mostrar Funcionalidades"]
+    AutenticarSolicitud["Validar autenticación"]
+    ConsultarCatalogo["Consultar catálogo funcional"]
+    FiltrarActivos["Incluir módulos y funcionalidades ACTIVE"]
+    MostrarModulos["Mostrar funcionalidades"]
 ```
+
+### Catálogo inicial v1.0
+
+Los módulos iniciales son:
+
+```text
+Hogar
+
+Multimedia
+├── Música
+├── Videos
+└── Fotos
+
+Inteligencia Artificial
+
+Personal
+
+Configuración
+```
+
+Las categorías `Música`, `Videos` y `Fotos` forman parte de la organización funcional de `Multimedia`.
+
+### Funcionalidades iniciales
+
+#### Hogar
+
+```text
+Hogar
+├── Dispositivos
+├── Estado del hogar
+└── Automatizaciones
+```
+
+#### Multimedia
+
+```text
+Multimedia
+├── Música
+├── Videos
+└── Fotos
+```
+
+Las acciones concretas de estas áreas, como buscar, reproducir, controlar o visualizar contenido, se definirán posteriormente dentro de UC-003.
+
+#### Inteligencia Artificial
+
+```text
+Inteligencia Artificial
+├── Asistente IA
+└── Consultas IA
+```
+
+#### Personal
+
+```text
+Personal
+├── Perfil
+└── Servicios personales
+```
+
+#### Configuración
+
+```text
+Configuración
+├── Cuenta
+├── Preferencias
+└── Seguridad
+```
+
+### Reglas de UC-002
+
+* El usuario debe estar autenticado.
+* El catálogo se consulta mediante el Backend.
+* Solo se devuelven módulos `ACTIVE`.
+* Solo se devuelven funcionalidades `ACTIVE`.
+* Las funcionalidades se presentan agrupadas por módulo.
+* Los módulos se ordenan mediante `sort_order` ascendente.
+* Las funcionalidades se ordenan mediante `sort_order` ascendente.
+* Un módulo `INACTIVE` no se devuelve ni incluye sus funcionalidades.
+* Una funcionalidad `INACTIVE` no se devuelve.
+* Un catálogo vacío se representa como una colección vacía y no como un error de recurso inexistente.
+
+### Autorización granular
+
+El filtrado por roles y permisos no forma parte de la implementación actual de UC-002 porque el dominio de autorización todavía no está implementado.
+
+En esta etapa, el acceso al catálogo requiere autenticación válida y devuelve el catálogo funcional activo.
+
+La autorización granular será incorporada posteriormente mediante UC-005, sin crear relaciones temporales o artificiales entre `functionality` y `permission`.
+
+El cliente Android no determina por sí mismo qué capacidades están autorizadas.
+
+### Contrato API de UC-002
+
+Endpoint:
+
+```http
+GET /modules
+```
+
+Autenticación:
+
+```http
+Authorization: Bearer ACCESS_TOKEN
+```
+
+Respuesta exitosa:
+
+```http
+200 OK
+```
+
+Modelo conceptual de respuesta:
+
+```json
+{
+  "modules": [
+    {
+      "id": "MODULE_UUID",
+      "code": "home",
+      "name": "Hogar",
+      "description": "Funciones relacionadas con el hogar",
+      "functionalities": [
+        {
+          "id": "FUNCTIONALITY_UUID",
+          "code": "home.devices",
+          "name": "Dispositivos",
+          "description": "Consultar y utilizar capacidades relacionadas con dispositivos"
+        }
+      ]
+    }
+  ]
+}
+```
+
+El contrato público no expone campos internos de persistencia como `status`, `sort_order`, `created_at` o `updated_at`.
+
+Si no existen módulos activos, la respuesta será:
+
+```json
+{
+  "modules": []
+}
+```
+
+Las solicitudes sin autenticación válida deberán responder con `401 Unauthorized` conforme al contrato general de autenticación de la API.
+
+### Modelo funcional de UC-002
+
+```mermaid
+erDiagram
+    MODULE ||--o{ FUNCTIONALITY : contains
+```
+
+`Module` representa un área funcional principal de Chiri.
+
+`Functionality` representa una capacidad concreta perteneciente a un módulo.
+
+La relación física será:
+
+```text
+functionality.module_id → module.id
+```
+
+Los identificadores serán UUID.
+
+Los códigos serán identificadores estables y no deberán depender del texto mostrado al usuario.
+
+Los estados iniciales serán:
+
+```text
+ACTIVE
+INACTIVE
+```
+
+Las entidades utilizarán `created_at` y `updated_at` con referencia UTC.
+
+La definición física definitiva de las tablas se realizará mediante migración Alembic antes de su implementación.
 
 ---
 
@@ -155,7 +344,7 @@ Usuario.
 
 Permitir utilizar capacidades de la plataforma.
 
-Flujo:
+### Flujo general
 
 ```mermaid
 flowchart TD

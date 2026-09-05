@@ -562,3 +562,403 @@ Estado:
 ```text
 APROBADO
 ```
+
+# ADR-014 — Gestión automática del Access Token en Android
+
+### Estado
+
+**APROBADO**
+
+### Contexto
+
+Las peticiones autenticadas realizadas desde Android requieren un `Access Token` válido para acceder a los endpoints protegidos del Backend.
+
+No es conveniente que cada `Repository`, `UseCase` o componente de UI sea responsable de obtener el token y construir manualmente el header HTTP:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+Esto produciría duplicación de lógica y aumentaría el riesgo de que diferentes componentes implementen la autenticación de forma inconsistente.
+
+### Decisión
+
+La aplicación Android centralizará la incorporación del `Access Token` mediante `AuthInterceptor`, implementado como interceptor de OkHttp.
+
+El interceptor:
+
+1. Obtiene el `Access Token` actual desde `SessionStorage`.
+2. Si existe un token almacenado, agrega automáticamente:
+
+```text
+Authorization: Bearer <access_token>
+```
+
+3. Si no existe un `Access Token`, permite continuar la petición sin dicho header.
+4. Las capas superiores de la aplicación no deberán construir manualmente el header `Authorization`.
+
+### Flujo
+
+```text
+UI
+ ↓
+ViewModel
+ ↓
+UseCase / Repository
+ ↓
+Retrofit / AuthApi
+ ↓
+OkHttp
+ ↓
+AuthInterceptor
+ ↓
+SessionStorage
+ ↓
+Authorization: Bearer <access_token>
+ ↓
+Backend
+```
+
+### Justificación
+
+La responsabilidad de autenticación HTTP queda centralizada en la capa de red.
+
+Esto permite:
+
+* Evitar duplicación de código.
+* Mantener los `UseCase` y `Repository` independientes de detalles HTTP.
+* Garantizar un comportamiento uniforme para las peticiones autenticadas.
+* Mantener `SessionStorage` como fuente local del estado de sesión.
+* Facilitar la renovación automática del token mediante `AuthAuthenticator`.
+
+### Consecuencias
+
+**Positivas:**
+
+* La autenticación HTTP queda centralizada.
+* Los componentes de dominio no necesitan conocer cómo se envía el token.
+* Se reduce la posibilidad de errores al construir headers.
+* El mecanismo es transparente para las APIs Retrofit.
+* Se establece un único punto para incorporar el Access Token.
+
+**Negativas:**
+
+* El cliente HTTP depende de `SessionStorage`.
+* El interceptor debe distinguir correctamente las peticiones que requieren autenticación.
+* Las pruebas de autenticación deben contemplar el comportamiento automático del interceptor.
+
+### Regla arquitectónica
+
+> **Las capas superiores de Android no deberán agregar manualmente el header `Authorization` para las peticiones autenticadas. La incorporación del Access Token será responsabilidad de `AuthInterceptor`.**
+
+# ADR-015 — Renovación automática de sesión ante HTTP 401
+
+### Estado
+
+**APROBADO**
+
+### Contexto
+
+El `Access Token` utilizado por Android puede expirar o dejar de ser válido mientras la sesión del usuario continúa vigente.
+
+El Backend proporciona un `Refresh Token` para permitir la renovación de la sesión.
+
+Además, el sistema utiliza rotación del `Refresh Token`, por lo que varias peticiones que reciban `HTTP 401 Unauthorized` simultáneamente deben coordinarse para evitar múltiples renovaciones concurrentes.
+
+### Decisión
+
+La aplicación Android utilizará `AuthAuthenticator`, implementado mediante `okhttp3.Authenticator`, para gestionar automáticamente las respuestas `HTTP 401` de las peticiones autenticadas.
+
+Ante un `401`, el flujo será:
+
+```text
+Petición autenticada
+        ↓
+Backend
+        ↓
+HTTP 401
+        ↓
+AuthAuthenticator
+        ↓
+Obtener Refresh Token
+        ↓
+POST /auth/refresh
+        ↓
+Nuevo Access Token
++
+Nuevo Refresh Token
+        ↓
+Actualizar SessionStorage
+        ↓
+Reintentar petición original
+```
+
+La renovación utilizará exclusivamente el endpoint oficial:
+
+```text
+POST /auth/refresh
+```
+
+El `Refresh Token` no será agregado por `AuthInterceptor`. La renovación se realizará explícitamente mediante `AuthApi`.
+
+### Control de concurrencia
+
+Cuando varias peticiones reciban `401` simultáneamente, `AuthAuthenticator` deberá impedir renovaciones innecesarias.
+
+La sección crítica de renovación se sincronizará mediante:
+
+```kotlin
+synchronized(this)
+```
+
+Antes de ejecutar un nuevo refresh se comparará:
+
+```text
+Access Token actualmente almacenado
+vs.
+Access Token utilizado por la petición que recibió 401
+```
+
+Si el token almacenado ya cambió, significa que otra petición realizó exitosamente la renovación.
+
+En ese caso:
+
+```text
+NO se ejecutará otro /auth/refresh
+```
+
+La petición utilizará directamente el nuevo `Access Token`.
+
+El comportamiento esperado será:
+
+```text
+Request A ───── 401 ─────┐
+                         │
+                         ▼
+                     refresh
+                         │
+                         ▼
+                nuevo Access Token
+                         │
+                         ▼
+                  SessionStorage
+                         │
+Request B ───── 401 ─────┘
+                         │
+                  detecta token cambiado
+                         │
+                         ▼
+                 reutiliza token nuevo
+```
+
+Por tanto:
+
+```text
+2 requests
+    ↓
+2 respuestas 401
+    ↓
+1 refresh efectivo
+    ↓
+2 retries
+    ↓
+2 respuestas 200
+```
+
+### Límite de reintentos
+
+Para evitar ciclos infinitos de autenticación, `AuthAuthenticator` limitará la cadena de respuestas mediante `responseCount`.
+
+La implementación establece:
+
+```kotlin
+if (responseCount(response) >= 2) {
+    return null
+}
+```
+
+El flujo máximo será:
+
+```text
+Request
+  ↓
+401
+  ↓
+Refresh
+  ↓
+Retry
+  ↓
+401
+  ↓
+STOP
+```
+
+### Fallo de renovación
+
+Si el `Refresh Token` no está disponible o la operación `/auth/refresh` falla, `AuthAuthenticator` no continuará intentando renovar la sesión.
+
+En este caso se limpiará la sesión local mediante:
+
+```kotlin
+sessionStorage.clearSession()
+```
+
+y se devolverá:
+
+```text
+null
+```
+
+permitiendo que la aplicación trate la sesión como inválida.
+
+### Justificación
+
+Centralizar la renovación en `AuthAuthenticator` permite que la expiración del `Access Token` sea transparente para las capas superiores.
+
+Esto evita:
+
+* Duplicar lógica de refresh.
+* Implementar renovación en cada `Repository`.
+* Ejecutar múltiples refresh simultáneos innecesarios.
+* Generar ciclos infinitos de autenticación.
+
+La sincronización es especialmente importante debido a la rotación del `Refresh Token`.
+
+Una renovación exitosa actualiza los tokens almacenados y las peticiones concurrentes deben reutilizar el nuevo valor.
+
+### Consecuencias
+
+**Positivas:**
+
+* Renovación automática del `Access Token`.
+* Transparencia para `Repository`, `UseCase` y UI.
+* Control explícito de concurrencia.
+* Compatibilidad con rotación del `Refresh Token`.
+* Protección contra ciclos infinitos.
+* Limpieza de sesión cuando la renovación deja de ser posible.
+
+**Negativas:**
+
+* `AuthAuthenticator` depende de `SessionStorage`.
+* La renovación genera una petición adicional cuando el Access Token deja de ser válido.
+* La sincronización debe mantenerse correctamente para evitar carreras.
+
+### Validación
+
+La implementación fue validada mediante una prueba controlada de concurrencia en Android.
+
+Se enviaron simultáneamente dos peticiones a:
+
+```text
+GET /auth/me
+```
+
+utilizando deliberadamente un `Access Token` inválido.
+
+El Backend respondió correctamente:
+
+```text
+HTTP 401 Unauthorized
+```
+
+Posteriormente:
+
+1. Ambas peticiones activaron `AuthAuthenticator`.
+2. Una petición ejecutó `/auth/refresh`.
+3. El Backend entregó nuevos tokens.
+4. Los nuevos tokens fueron almacenados en `SessionStorage`.
+5. La segunda petición detectó que el `Access Token` ya había cambiado.
+6. La segunda petición no ejecutó un segundo refresh.
+7. Ambas peticiones fueron reintentadas utilizando el nuevo Access Token.
+8. Ambas finalizaron correctamente con:
+
+```text
+HTTP 200
+```
+
+El resultado confirma el comportamiento esperado:
+
+```text
+2 × HTTP 401
+        ↓
+1 × /auth/refresh
+        ↓
+2 × retry
+        ↓
+2 × HTTP 200
+```
+
+### Regla arquitectónica
+
+> **Todo HTTP 401 producido por una petición autenticada deberá ser gestionado centralizadamente por `AuthAuthenticator`. Cuando varias peticiones fallen simultáneamente, solamente una deberá ejecutar la renovación efectiva; las demás deberán reutilizar el Access Token actualizado.**
+
+# ADR-016 — Home como Resumen y Punto de Entrada
+
+### Estado
+
+**APROBADO**
+
+### Contexto
+
+Chiri Platform requiere una pantalla principal que permita al usuario conocer rápidamente el estado general de la plataforma y acceder a sus capacidades principales.
+
+Esta pantalla no debe convertirse en un módulo de control completo ni concentrar lógica perteneciente a otros dominios.
+
+### Decisión
+
+Home será el resumen general y punto de entrada de Chiri Platform.
+
+Home mostrará:
+
+* bienvenida al usuario.
+* estado general del hogar.
+* acciones rápidas.
+* información básica de conectividad y servidor.
+
+Las acciones rápidas permitirán acceder a otros módulos de la plataforma.
+
+Home no implementará directamente la lógica de:
+
+* Multimedia.
+* Música.
+* Inteligencia Artificial.
+* Personal.
+* Configuración.
+* servicios externos especializados.
+
+La información de Home será proporcionada por la API de Chiri.
+
+### Flujo
+
+```mermaid
+flowchart LR
+
+    Android["Android Home"]
+
+    API["API Chiri"]
+
+    Backend["Backend Home"]
+
+    Navigation["Navegación Android"]
+
+    Modules["Módulos de Chiri"]
+
+    Android --> API
+    API --> Backend
+
+    Android --> Navigation
+    Navigation --> Modules
+```    
+
+## Justificación
+
+Esta decisión mantiene Home simple y evita concentrar funcionalidades de diferentes dominios en una única pantalla.
+
+Permite que cada módulo evolucione independientemente y mantiene la separación de responsabilidades definida por la arquitectura.
+
+## Consecuencias
+
+* Home permanece como punto central de acceso.
+* Los módulos mantienen su propia responsabilidad funcional.
+* Android no accede directamente a servicios internos.
+* Las capacidades futuras pueden incorporarse sin convertir Home en un módulo monolítico.

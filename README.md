@@ -1,192 +1,310 @@
-# Chiri Platform
+# Chiri Platform v1.0
 
-**Chiri Platform v1.0**
+Plataforma personal para integrar servicios del hogar, multimedia, inteligencia artificial y servicios personales desde una única aplicación.
 
-Plataforma personal de integración de servicios, diseñada para centralizar el acceso y la interacción con diferentes capacidades del entorno Chiri.
+## Estado del proyecto
 
----
+**Versión:** v1.0
+**Fase:** Implementación incremental
+**Plataforma principal:** Android
+**Servidor:** Raspberry Pi 4B 8 GB
+**Backend:** FastAPI
+**Base de datos:** PostgreSQL 17
+**Branch principal:** `master`
 
-## 1. Estado del proyecto
-
-**Estado:** En desarrollo
-
-La arquitectura y las decisiones fundamentales de Chiri Platform v1.0 han sido definidas y aprobadas.
-
-La implementación de software se encuentra en preparación.
-
-### Documentación arquitectónica
-
-| Documento | Estado |
-|---|---|
-| `000_Principios.md` | ✅ Aprobado |
-| `010_Proyecto.md` | ✅ Aprobado |
-| `020_Arquitectura.md` | ✅ Aprobado |
-| `030_Backend.md` | ✅ Aprobado |
-| `040_Android.md` | ✅ Aprobado |
-| `050_BaseDatos.md` | ✅ Aprobado |
-| `060_API.md` | ✅ Aprobado |
-| `070_Seguridad.md` | ✅ Aprobado |
-| `080_Despliegue.md` | ✅ Aprobado |
-| `090_GuiaProgramacion.md` | ✅ Aprobado |
-| `100_DecisionesArquitectura.md` | ✅ Aprobado |
-
-Estos documentos constituyen la base arquitectónica oficial de Chiri Platform v1.0.
+> El proyecto se desarrolla de forma incremental. Cada funcionalidad se diseña, implementa, prueba y valida antes de continuar con el siguiente bloque.
 
 ---
 
-# 2. Arquitectura
+## Objetivo
 
-Chiri Platform utiliza una arquitectura basada en separación de responsabilidades.
+Chiri busca proporcionar una plataforma centralizada para interactuar con los servicios personales y del hogar mediante una arquitectura modular.
+
+La aplicación Android actúa como cliente principal y se comunica con el Backend de Chiri mediante una API HTTPS.
 
 ```text
-                    ┌─────────────────────┐
-                    │   Android Chiri     │
-                    │      Cliente        │
-                    └──────────┬──────────┘
-                               │
-                              HTTPS
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │      API Chiri      │
-                    └──────────┬──────────┘
-                               │
-                               ▼
-                    ┌─────────────────────┐
-                    │   Backend Chiri    │
-                    │  Lógica de negocio │
-                    └───────┬─────┬───────┘
-                            │     │
-                            │     └──────────────────┐
-                            │                        │
-                            ▼                        ▼
-                  ┌─────────────────┐      ┌────────────────────┐
-                  │   PostgreSQL    │      │ Servicios externos │
-                  │   Persistencia  │      │ / integraciones    │
-                  └─────────────────┘      └────────────────────┘
-````
-
-El cliente Android no accede directamente a PostgreSQL ni a los servicios internos.
-
-El Backend es responsable de la lógica de negocio y constituye el punto de acceso a la persistencia y a las integraciones.
-
----
-
-# 3. Componentes principales
-
-## Android
-
-Aplicación cliente oficial de Chiri Platform.
-
-Tecnologías principales:
-
-* Kotlin
-* Jetpack Compose
-* Material 3
-* MVVM
-* Gradle
-
-Paquete Android:
-
-```text
-com.chirihome.platform
+┌──────────────────────┐
+│      Android App     │
+└──────────┬───────────┘
+           │ HTTPS
+           ▼
+┌──────────────────────┐
+│      Cloudflare      │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│        Caddy         │
+│    Reverse Proxy     │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│    Chiri Backend     │
+│       FastAPI        │
+└──────────┬───────────┘
+           │
+           ▼
+┌──────────────────────┐
+│      PostgreSQL      │
+└──────────────────────┘
 ```
 
-El proyecto Android se encuentra en:
+---
+
+## Módulos funcionales
+
+La plataforma está organizada en cinco áreas principales:
 
 ```text
-source/android/
+Chiri
+│
+├── Home
+├── Multimedia
+├── Inteligencia Artificial
+├── Personal
+└── Configuración
+```
+
+### Home
+
+Centro de acceso y resumen de Chiri.
+
+Incluye inicialmente:
+
+* Bienvenida al usuario.
+* Estado general del hogar.
+* Acciones rápidas.
+* Información básica de conectividad y servidor.
+
+### Multimedia
+
+Área destinada a:
+
+* Música.
+* Videos.
+* Fotos.
+
+### Inteligencia Artificial
+
+Área destinada a las funcionalidades de inteligencia artificial de Chiri.
+
+### Personal
+
+Área destinada a servicios y funcionalidades personales.
+
+### Configuración
+
+Área destinada a la configuración y administración de Chiri.
+
+> El alcance de cada módulo se implementa únicamente cuando la funcionalidad correspondiente sea necesaria y esté definida.
+
+---
+
+## Arquitectura
+
+El proyecto sigue una arquitectura cliente-servidor:
+
+```text
+Android
+   │
+   │ HTTPS + Bearer Token
+   ▼
+Cloudflare
+   │
+   ▼
+Caddy
+   │
+   ▼
+FastAPI
+   │
+   ├── Application
+   ├── Domain
+   └── Infrastructure
+          │
+          ▼
+      PostgreSQL
+```
+
+Los servicios externos, cuando corresponda, se integran mediante sus propias APIs o mecanismos de comunicación.
+
+Android **no accede directamente a PostgreSQL**.
+
+---
+
+## Autenticación
+
+La autenticación de v1.0 está implementada.
+
+Incluye:
+
+* Login.
+* Access Token JWT.
+* Firma RS256.
+* RSA 3072.
+* Refresh Token.
+* Rotación de Refresh Token.
+* Detección de reutilización de Refresh Token.
+* Sesiones persistentes en PostgreSQL.
+* Revocación de sesión.
+* Logout.
+* Validación mediante `/auth/me`.
+* Renovación automática desde Android.
+* Retry de solicitudes después del refresh.
+
+Endpoints principales:
+
+```text
+POST /api/auth/login
+POST /api/auth/refresh
+GET  /api/auth/me
+POST /api/auth/logout
 ```
 
 ---
 
 ## API
 
-Capa de comunicación entre los clientes y el Backend.
-
-Características principales:
-
-* REST
-* JSON
-* HTTPS
-* Versionamiento de API
-* OpenAPI
-* Autenticación y autorización
-* Validación de solicitudes
-* Manejo consistente de errores
-
-La API utiliza el espacio:
+La API pública se encuentra detrás de HTTPS:
 
 ```text
-/api/v1/
+https://api.chirihome.com/api/
+```
+
+Endpoint de salud:
+
+```text
+GET /api/health
+```
+
+Respuesta esperada:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+La API requiere autenticación para los recursos protegidos.
+
+---
+
+## Despliegue
+
+El servidor principal utiliza:
+
+```text
+Raspberry Pi 4B
+├── Debian GNU/Linux
+├── Docker
+├── PostgreSQL
+├── Caddy
+├── Cloudflare Tunnel
+└── Chiri Backend
+```
+
+La infraestructura utiliza dos túneles Cloudflare separados:
+
+```text
+chiri-web
+└── WEB
+
+chiri-home
+└── API
+```
+
+La separación permite mantener diferenciados el acceso web y el acceso al Backend.
+
+---
+
+## Seguridad
+
+Las principales medidas implementadas incluyen:
+
+* HTTPS.
+* JWT firmado mediante RS256.
+* Claves RSA protegidas.
+* Password hashing mediante Argon2.
+* Sesiones persistentes.
+* Revocación de sesiones.
+* Rotación de Refresh Token.
+* Detección de reutilización de Refresh Token.
+* Bearer Token.
+* Protección del servicio Backend mediante systemd.
+* Ejecución del Backend con usuario dedicado.
+* Restricciones de systemd.
+* Android utiliza almacenamiento seguro para los tokens.
+
+La documentación detallada de seguridad se encuentra en:
+
+```text
+docs/070_Seguridad.md
 ```
 
 ---
 
-## Backend
+## Estado actual
 
-Núcleo de la plataforma.
+### Completado
 
-Responsabilidades:
+* [x] Arquitectura base.
+* [x] Modelo inicial de Base de Datos.
+* [x] PostgreSQL.
+* [x] Backend FastAPI.
+* [x] Sistema de autenticación.
+* [x] Gestión de sesiones.
+* [x] Refresh Token y rotación.
+* [x] Logout.
+* [x] Cliente Android de autenticación.
+* [x] Persistencia segura de sesión.
+* [x] Refresh automático en Android.
+* [x] Validación E2E de autenticación.
+* [x] Despliegue del Backend en Raspberry Pi.
+* [x] Caddy.
+* [x] Cloudflare.
+* [x] API pública HTTPS.
+* [x] Integración Android → API HTTPS.
 
-* lógica de negocio;
-* validación;
-* seguridad;
-* acceso a PostgreSQL;
-* integración con servicios externos;
-* auditoría;
-* coordinación de operaciones.
+### En implementación
 
-Tecnología principal:
+* [ ] UC-002 — Consultar funcionalidades disponibles.
+* [ ] Home v1.0.
+
+### Pendiente
+
+* [ ] Multimedia.
+* [ ] Inteligencia Artificial.
+* [ ] Personal.
+* [ ] Configuración.
+* [ ] Funcionalidades adicionales según el alcance aprobado de v1.0.
+
+El estado detallado se mantiene en:
 
 ```text
-Python
-FastAPI
+docs/STATUS.md
 ```
 
 ---
 
-## PostgreSQL
+## Casos de uso
 
-PostgreSQL es el sistema de persistencia oficial de Chiri Platform v1.0.
-
-El acceso a PostgreSQL se realiza exclusivamente desde el Backend.
-
-```text
-Backend
-   │
-   ▼
-PostgreSQL
-```
-
-Chiri Platform no accede directamente a las bases de datos internas de los servicios integrados.
+| ID     | Caso de uso                           | Estado               |
+| ------ | ------------------------------------- | -------------------- |
+| UC-001 | Autenticarse                          | ✅ Completado         |
+| UC-002 | Consultar funcionalidades disponibles | 🔄 En implementación |
+| UC-003 | Ejecutar funcionalidad                | ⬜ Pendiente          |
+| UC-004 | Gestionar usuarios                    | ⬜ Pendiente          |
+| UC-005 | Gestionar permisos                    | ⬜ Pendiente          |
+| UC-006 | Administrar configuración             | ⬜ Pendiente          |
 
 ---
 
-## Servicios integrados
-
-El Backend puede integrarse con diferentes servicios del entorno Chiri.
-
-Entre ellos pueden encontrarse:
-
-* Home Assistant
-* Music Assistant
-* Navidrome
-* Jellyfin
-* servicios de inteligencia artificial
-
-Las integraciones son responsabilidad del Backend.
-
-Los clientes no acceden directamente a estos servicios.
-
----
-
-# 4. Estructura del repositorio
-
-La estructura principal del repositorio es:
+## Estructura del repositorio
 
 ```text
 Chiri/
+│
+├── assets/
 │
 ├── docs/
 │   ├── 000_Principios.md
@@ -199,295 +317,114 @@ Chiri/
 │   ├── 070_Seguridad.md
 │   ├── 080_Despliegue.md
 │   ├── 090_GuiaProgramacion.md
-│   └── 100_DecisionesArquitectura.md
+│   ├── 100_DecisionesArquitectura.md
+│   └── STATUS.md
 │
 ├── source/
-│   └── android/
+│   ├── android/
+│   └── server/
 │
+├── .gitignore
 └── README.md
 ```
 
-La implementación de Backend, API, base de datos e integraciones se incorporará progresivamente durante el desarrollo.
+---
+
+## Documentación
+
+La documentación técnica y de arquitectura se encuentra en `docs/`.
+
+| Documento                       | Contenido                  |
+| ------------------------------- | -------------------------- |
+| `000_Principios.md`             | Principios del proyecto    |
+| `010_Proyecto.md`               | Definición general         |
+| `020_Arquitectura.md`           | Arquitectura               |
+| `030_Backend.md`                | Backend                    |
+| `040_Android.md`                | Aplicación Android         |
+| `050_BaseDatos.md`              | Base de Datos              |
+| `060_API.md`                    | Contratos API              |
+| `070_Seguridad.md`              | Seguridad                  |
+| `080_Despliegue.md`             | Despliegue                 |
+| `090_GuiaProgramacion.md`       | Guía de programación       |
+| `100_DecisionesArquitectura.md` | Decisiones arquitectónicas |
+| `STATUS.md`                     | Estado y seguimiento       |
 
 ---
 
-# 5. Documentación
+## Desarrollo
 
-## Arquitectura y fundamentos
+### Entorno
 
-La documentación oficial de la arquitectura se encuentra en:
+El entorno de desarrollo utiliza:
+
+* Windows 11.
+* Android Studio.
+* VS Code.
+* Docker Desktop.
+* Git.
+* Python.
+* Raspberry Pi como servidor de despliegue.
+
+### Flujo de trabajo
+
+El desarrollo sigue este ciclo:
 
 ```text
-docs/
+Definir
+   ↓
+Diseñar
+   ↓
+Aprobar
+   ↓
+Implementar
+   ↓
+Probar
+   ↓
+Validar
+   ↓
+Documentar
+   ↓
+Commit
 ```
 
-### Documentos aprobados
-
-```text
-000_Principios.md
-010_Proyecto.md
-020_Arquitectura.md
-030_Backend.md
-040_Android.md
-050_BaseDatos.md
-060_API.md
-070_Seguridad.md
-080_Despliegue.md
-090_GuiaProgramacion.md
-100_DecisionesArquitectura.md
-```
-
-Estos documentos definen:
-
-* principios del proyecto;
-* arquitectura;
-* Backend;
-* Android;
-* PostgreSQL;
-* API;
-* seguridad;
-* despliegue;
-* reglas de programación;
-* decisiones arquitectónicas.
+No se implementan componentes anticipadamente solamente porque estén contemplados en la arquitectura.
 
 ---
 
-# 6. Implementación
+## Principios de desarrollo
 
-La implementación de Chiri Platform v1.0 se realizará progresivamente a partir de la arquitectura aprobada.
-
-Orden general previsto:
-
-```text
-Arquitectura aprobada
-        │
-        ▼
-Preparación del entorno
-        │
-        ▼
-Backend
-        │
-        ▼
-PostgreSQL
-        │
-        ▼
-API
-        │
-        ▼
-Android
-        │
-        ▼
-Integraciones
-        │
-        ▼
-Funcionalidades de Chiri
-```
-
-Los componentes se desarrollarán de forma incremental y verificable.
+1. Mantener el alcance de v1.0 controlado.
+2. Implementar únicamente funcionalidades aprobadas.
+3. No reimplementar componentes ya terminados.
+4. No crear componentes únicamente por estructura teórica.
+5. Los cambios de Base de Datos se realizan mediante Alembic.
+6. Android no accede directamente a PostgreSQL.
+7. Mantener separación entre módulos.
+8. Toda funcionalidad debe tener pruebas.
+9. Los cambios importantes deben quedar registrados mediante Git.
+10. Los cambios arquitectónicos requieren revisión.
+11. La documentación debe mantenerse alineada con el código real.
+12. Una funcionalidad no se considera terminada únicamente porque el código exista; debe ser probada y validada.
+13. No ampliar el alcance sin una decisión explícita.
 
 ---
 
-# 7. Desarrollo Android
+## Repositorio
 
-El proyecto Android existente se encuentra en:
+Código fuente:
 
-```text
-source/android/
-```
+[GitHub — Chiri Platform](https://github.com/chirijose79-ui/Chiri?utm_source=chatgpt.com)
 
-Configuración principal:
+Branch principal:
 
 ```text
-Namespace:
-com.chirihome.platform
-
-Application ID:
-com.chirihome.platform
-```
-
-La arquitectura Android seguirá:
-
-```text
-UI
- │
- ▼
-ViewModel
- │
- ▼
-Use Case
- │
- ▼
-Repository
- │
- ▼
-Data
- ├── API
- └── almacenamiento local
-```
-
-La aplicación consumirá exclusivamente las capacidades expuestas por la API de Chiri.
-
----
-
-# 8. Seguridad
-
-La seguridad es un principio transversal de la plataforma.
-
-Se consideran, entre otros:
-
-* autenticación;
-* autorización;
-* HTTPS;
-* protección de credenciales;
-* gestión de secretos;
-* validación de entradas;
-* protección de API;
-* auditoría;
-* actualización controlada;
-* protección de datos.
-
-Los secretos y credenciales no deben almacenarse en el repositorio.
-
----
-
-# 9. Base de datos
-
-Chiri Platform v1.0 utiliza:
-
-```text
-PostgreSQL
-```
-
-El acceso se realiza exclusivamente mediante el Backend.
-
-```text
-Android
-   │
-   ▼
-API
-   │
-   ▼
-Backend
-   │
-   ▼
-PostgreSQL
-```
-
-Los servicios integrados mantienen sus propios datos y bases de datos cuando corresponda.
-
-Chiri no debe duplicar innecesariamente esos datos.
-
----
-
-# 10. Ambientes
-
-La plataforma contempla diferentes ambientes:
-
-```text
-DESARROLLO
-PRUEBAS
-PRODUCCIÓN
-```
-
-Cada ambiente deberá mantener su propia configuración.
-
-La configuración sensible no debe formar parte del código fuente.
-
----
-
-# 11. Git
-
-El proyecto utiliza Git para control de versiones.
-
-Los commits siguen Conventional Commits.
-
-Ejemplos:
-
-```text
-feat: agregar nueva funcionalidad
-fix: corregir error
-docs: actualizar documentación
-chore: actualizar configuración
-```
-
-Los cambios que modifiquen decisiones arquitectónicas deben registrarse en:
-
-```text
-docs/100_DecisionesArquitectura.md
+master
 ```
 
 ---
 
-# 12. Principios de desarrollo
+## Licencia
 
-El desarrollo debe mantener:
+Proyecto personal.
 
-* separación de responsabilidades;
-* código simple;
-* mantenibilidad;
-* seguridad;
-* pruebas;
-* validación;
-* trazabilidad;
-* documentación de decisiones importantes.
-
-La implementación debe respetar la arquitectura aprobada.
-
-No se deben introducir tecnologías o patrones que contradigan las decisiones arquitectónicas sin registrar primero la correspondiente decisión.
-
----
-
-# 13. Estado actual
-
-Actualmente:
-
-```text
-Documentación arquitectónica    ✅ Aprobada
-Proyecto Android                🟡 Base inicial creada
-Backend                         ⏳ Pendiente de implementación
-API                             ⏳ Pendiente de implementación
-PostgreSQL                      ⏳ Pendiente de implementación
-Integraciones                   ⏳ Pendiente de implementación
-Funcionalidades                 ⏳ Pendientes
-```
-
-El siguiente objetivo de desarrollo es establecer la base técnica ejecutable de Chiri Platform v1.0.
-
----
-
-# 14. Próximos pasos
-
-El desarrollo continuará de forma incremental:
-
-1. Alinear la implementación Android con la arquitectura aprobada.
-2. Preparar la estructura inicial del Backend.
-3. Preparar PostgreSQL.
-4. Implementar la API base.
-5. Implementar pruebas iniciales.
-6. Conectar Android con la API.
-7. Implementar las primeras capacidades funcionales.
-8. Incorporar las integraciones de servicios.
-
----
-
-# 15. Proyecto
-
-**Chiri Platform v1.0**
-
-Repositorio:
-
-```text
-chirijose79-ui/Chiri
-```
-
-Dominio:
-
-```text
-chirihome.com
-```
-
-Android Application ID:
-
-```text
-com.chirihome.platform
-```
+La licencia y condiciones de distribución se definirán según la evolución del proyecto.

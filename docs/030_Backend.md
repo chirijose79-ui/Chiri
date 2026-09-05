@@ -31,7 +31,7 @@ Su función es:
 
 El objetivo del Backend es proporcionar una API estable y segura que permita a los diferentes clientes interactuar con la plataforma sin conocer la implementación interna de los servicios integrados.
 
-El Backend debe ocultar la complejidad del ecosistema y ofrecer una interfaz coherente para:
+El Backend deberá ocultar la complejidad del ecosistema y ofrecer una interfaz coherente para:
 
 * domótica,
 * multimedia,
@@ -49,7 +49,7 @@ El Backend será responsable de:
 * Ejecutar lógica de negocio.
 * Coordinar módulos internos.
 * Integrar servicios externos.
-* Gestionar datos propios de la plataforma.
+* Gestionar los datos propios de la plataforma.
 * Registrar eventos importantes.
 * Mantener contratos estables con los clientes.
 
@@ -63,7 +63,7 @@ El Backend no será responsable de:
 * Administrar dispositivos físicos directamente.
 * Gestionar bibliotecas multimedia propias.
 * Sustituir servicios especializados.
-* Ejecutar lógica perteneciente a plataformas externas.
+* Ejecutar lógica que pertenezca a plataformas externas.
 
 Ejemplos:
 
@@ -85,8 +85,9 @@ La tecnología definida para el Backend es:
 * Framework API: FastAPI.
 * Base de datos: PostgreSQL.
 * Contenedores: Docker.
+* Orquestación de servicios: Docker Compose.
 
-El diseño deberá aprovechar las capacidades del ecosistema Python manteniendo una arquitectura limpia y mantenible.
+El diseño deberá aprovechar las capacidades del ecosistema Python manteniendo una arquitectura limpia, segura y mantenible.
 
 ---
 
@@ -106,7 +107,7 @@ El Backend implementa la capa central definida en:
 
 Su posición dentro del sistema es:
 
-```mermaid id="c8g4ks"
+```mermaid
 flowchart TB
 
     Clientes["Clientes Chiri"]
@@ -129,7 +130,7 @@ flowchart TB
 
 # 1.7 Estado del Documento
 
-Este documento definirá las reglas internas del Backend y será la referencia para la implementación posterior.
+Este documento definirá las reglas internas del Backend y será la referencia arquitectónica para su implementación.
 
 No contiene código.
 
@@ -156,7 +157,7 @@ La estructura interna seguirá el principio:
 
 La arquitectura interna del Backend será:
 
-```mermaid id="8p7s3m"
+```mermaid
 flowchart TB
 
     API["API Layer<br/>FastAPI"]
@@ -279,7 +280,7 @@ Ejemplos:
 
 ## Ejemplo conceptual:
 
-```mermaid id="l8n5q2"
+```mermaid
 flowchart LR
 
     UseCase["Caso de Uso Chiri"]
@@ -334,7 +335,7 @@ Ejemplos:
 
 Las dependencias deberán seguir una dirección controlada:
 
-```mermaid id="5f7n0q"
+```mermaid
 flowchart LR
 
     API --> Application
@@ -389,7 +390,7 @@ La organización deberá favorecer:
 
 La carpeta del Backend será:
 
-```
+```text
 server/
 │
 ├── app/
@@ -417,25 +418,17 @@ Contendrá todo el código fuente de Chiri Backend.
 
 Estructura:
 
-```
+```text
 app/
 
 ├── api/
-│
 ├── application/
-│
 ├── domain/
-│
 ├── integrations/
-│
 ├── infrastructure/
-│
 ├── database/
-│
 ├── security/
-│
 ├── config/
-│
 └── main.py
 ```
 
@@ -449,7 +442,7 @@ Contiene la capa de exposición HTTP mediante FastAPI.
 
 Ejemplo:
 
-```
+```text
 api/
 
 ├── routes/
@@ -480,7 +473,7 @@ Contiene los casos de uso de Chiri.
 
 Ejemplo:
 
-```
+```text
 application/
 
 ├── services/
@@ -504,7 +497,7 @@ Contiene las reglas propias de Chiri.
 
 Ejemplo:
 
-```
+```text
 domain/
 
 ├── models/
@@ -535,7 +528,7 @@ Contiene adaptadores para servicios externos.
 
 Ejemplo:
 
-```
+```text
 integrations/
 
 ├── home_assistant/
@@ -557,7 +550,7 @@ Gestiona la persistencia de Chiri.
 
 Ejemplo:
 
-```
+```text
 database/
 
 ├── models/
@@ -581,7 +574,7 @@ Agrupa componentes relacionados con seguridad.
 
 Ejemplo:
 
-```
+```text
 security/
 
 ├── authentication/
@@ -599,7 +592,7 @@ Gestiona configuración del sistema.
 
 Ejemplo:
 
-```
+```text
 config/
 
 ├── settings.py
@@ -627,13 +620,13 @@ No contendrá lógica de negocio.
 
 La carpeta:
 
-```
+```text
 tests/
 ```
 
 contendrá pruebas organizadas según capas:
 
-```
+```text
 tests/
 
 ├── api/
@@ -903,7 +896,7 @@ Ejemplo:
 
 Correcto:
 
-```
+```text
 Módulo Multimedia
         |
         +-- Music Assistant
@@ -912,7 +905,7 @@ Módulo Multimedia
 
 Incorrecto:
 
-```
+```text
 Módulo Music Assistant
 Módulo Jellyfin
 ```
@@ -963,10 +956,15 @@ flowchart TB
 
 
     Client --> API
+
     API --> Auth
+
     Auth --> UseCase
+
     UseCase --> Domain
+
     UseCase --> Adapter
+
     UseCase --> Repository
 
     Adapter --> External
@@ -1038,16 +1036,19 @@ Ejemplo:
 Apagar luz salón
 
         |
+
         v
 
 Caso de Uso Domótica
 
         |
+
         v
 
 Validar operación
 
         |
+
         v
 
 Solicitar acción a Home Assistant
@@ -1083,8 +1084,8 @@ Chiri:
 
 ```json
 {
- "action": "turn_off",
- "device": "living_room_light"
+  "action": "turn_off",
+  "device": "living_room_light"
 }
 ```
 
@@ -1092,8 +1093,11 @@ Adaptador:
 
 ```text
 Convertir solicitud
+
         |
+
         v
+
 Home Assistant API
 ```
 
@@ -1133,8 +1137,11 @@ flowchart LR
 
 
     External --> Adapter
+
     Adapter --> UseCase
+
     UseCase --> API
+
     API --> Client
 ```
 
@@ -1156,8 +1163,8 @@ Será transformado en:
 
 ```json
 {
- "error": "HOME_SERVICE_UNAVAILABLE",
- "message": "El servicio de hogar inteligente no está disponible"
+  "error": "HOME_SERVICE_UNAVAILABLE",
+  "message": "El servicio de hogar inteligente no está disponible"
 }
 ```
 
@@ -1173,15 +1180,19 @@ Ejemplo:
 
 ```text
 Usuario:
+
 José
 
 Acción:
+
 Apagar luz salón
 
 Resultado:
+
 Correcto
 
 Fecha:
+
 2026-08-06
 ```
 
@@ -1552,7 +1563,7 @@ Cada dato deberá tener un único sistema responsable.
 
 Ejemplo:
 
-```mermaid id="m8c7q4"
+```mermaid
 flowchart LR
 
     Users["Usuarios"]
@@ -1582,7 +1593,7 @@ El acceso a PostgreSQL estará encapsulado mediante la capa de datos.
 
 Flujo:
 
-```mermaid id="8x0qkg"
+```mermaid
 flowchart LR
 
     UseCase["Caso de Uso"]
@@ -1621,16 +1632,21 @@ No deberán contener:
 
 Los modelos de base de datos deberán representar conceptos propios de Chiri.
 
-Ejemplos futuros:
+## Actualmente implementados
 
 * User.
+* Session.
+* RefreshToken.
+
+## Entidades previstas
+
 * Role.
 * Permission.
 * Setting.
 * Integration.
 * AuditEvent.
 
-No deberán representar directamente entidades externas.
+Los modelos de servicios externos no deberán incorporarse directamente al modelo de datos de Chiri.
 
 Incorrecto:
 
@@ -1643,10 +1659,26 @@ JellyfinMovie
 Correcto:
 
 ```text
+User
 UserPreference
 IntegrationStatus
 AuditEvent
 ```
+
+`UserPreference` e `IntegrationStatus` representan conceptos propios de Chiri, aunque todavía no estén implementados.
+
+No se requiere modificar la arquitectura ni agregar nuevas tablas únicamente por esta definición. El diseño de base de datos deberá evolucionar conforme existan necesidades funcionales reales.
+
+La separación actual mantiene:
+
+```text
+Chiri
+ └── PostgreSQL
+       ├── identity
+       └── security
+```
+
+mientras que los datos propios de los servicios externos permanecen bajo responsabilidad de dichos servicios.
 
 ---
 
@@ -1772,7 +1804,7 @@ Objetivo:
 
 La configuración seguirá una estructura similar:
 
-```text id="k8m2da"
+```text
 server/
 
 ├── .env.example
@@ -1794,7 +1826,7 @@ Las variables de entorno podrán contener:
 
 Ejemplo:
 
-```text id="3kqf1h"
+```text
 APP_NAME=Chiri
 APP_ENV=production
 APP_PORT=8000
@@ -1806,7 +1838,7 @@ APP_PORT=8000
 
 Ejemplo:
 
-```text id="m2r5fz"
+```text
 DATABASE_HOST=postgres
 DATABASE_PORT=5432
 DATABASE_NAME=chiri
@@ -1818,7 +1850,7 @@ DATABASE_NAME=chiri
 
 Ejemplo conceptual:
 
-```text id="w7j4az"
+```text
 HOME_ASSISTANT_URL=
 MUSIC_ASSISTANT_URL=
 JELLYFIN_URL=
@@ -1849,6 +1881,8 @@ Permitido:
 API_KEY=os.getenv("API_KEY")
 ```
 
+Los archivos que contengan secretos reales deberán permanecer fuera del control de versiones.
+
 ---
 
 # 8.6 Clase de Configuración
@@ -1870,6 +1904,8 @@ flowchart TB
     ENV --> Settings
     Settings --> App
 ```
+
+La aplicación deberá acceder a la configuración mediante este componente, evitando que cada módulo gestione directamente las variables de entorno.
 
 ---
 
@@ -1912,6 +1948,8 @@ services:
       DATABASE_HOST: postgres
 ```
 
+Los valores sensibles deberán proporcionarse mediante mecanismos de configuración y gestión de secretos adecuados al entorno, evitando incorporarlos directamente al archivo de Compose cuando este se encuentre bajo control de versiones.
+
 ---
 
 # 8.9 Validación de Configuración
@@ -1920,15 +1958,15 @@ Al iniciar el Backend deberá validar:
 
 * variables obligatorias existentes.
 * formatos correctos.
-* disponibilidad de servicios críticos.
+* disponibilidad de servicios críticos cuando corresponda.
 
-Si la configuración es incorrecta, el servicio deberá informar claramente el problema.
+Si la configuración es incorrecta, el servicio deberá informar claramente el problema sin exponer secretos ni credenciales.
 
 ---
 
 # 8.10 Registro de Configuración
 
-La aplicación podrá mostrar información general del ambiente:
+La aplicación podrá mostrar información general del ambiente.
 
 Permitido:
 
@@ -1944,6 +1982,8 @@ Database Password: xxxx
 API Token: xxxx
 ```
 
+Los logs tampoco deberán registrar contraseñas, tokens, claves API u otros secretos.
+
 ---
 
 # 8.11 Principio Arquitectónico
@@ -1951,7 +1991,6 @@ API Token: xxxx
 La configuración pertenece al entorno de ejecución, no al código fuente.
 
 El mismo Backend debe poder funcionar en diferentes ambientes únicamente cambiando su configuración.
-
 
 # 9. Logging, Monitoreo y Diagnóstico
 
@@ -1983,7 +2022,9 @@ flowchart TB
     Observability["Observabilidad Chiri"]
 
     Logs --> Observability
+
     Metrics --> Observability
+
     Health --> Observability
 ```
 
@@ -2010,6 +2051,14 @@ MusicIntegration
 Playback request completed
 ```
 
+Los logs deberán evitar almacenar información sensible, incluyendo:
+
+* contraseñas.
+* tokens de autenticación.
+* claves API.
+* credenciales.
+* información sensible de sesión.
+
 ---
 
 # 9.3 Niveles de Log
@@ -2023,7 +2072,7 @@ Información detallada para desarrollo.
 Ejemplo:
 
 * solicitudes internas.
-* datos técnicos.
+* datos técnicos no sensibles.
 
 ---
 
@@ -2047,6 +2096,7 @@ Ejemplo:
 
 * servicio lento.
 * reintento de conexión.
+* comportamiento inesperado recuperable.
 
 ---
 
@@ -2058,6 +2108,7 @@ Ejemplo:
 
 * integración no disponible.
 * error de comunicación.
+* operación fallida.
 
 ---
 
@@ -2068,17 +2119,22 @@ Problemas graves del sistema.
 Ejemplo:
 
 * Backend no puede iniciar.
-* pérdida de conexión crítica.
+* pérdida de una dependencia crítica.
+* condición que compromete el funcionamiento general de la plataforma.
 
 ---
 
 # 9.4 Separación de Información
 
-Los logs deberán diferenciar:
+Los logs deberán diferenciar entre información técnica y la información que puede ser expuesta a los clientes.
 
 ## Información técnica
 
-Para administración y desarrollo.
+Orientada a:
+
+* administración.
+* desarrollo.
+* diagnóstico.
 
 Ejemplo:
 
@@ -2088,19 +2144,20 @@ Connection timeout Home Assistant API
 
 ---
 
-## Información de usuario
+## Información para el cliente
 
-Para mostrar en clientes.
+Orientada a comunicar el resultado de una operación sin exponer detalles internos.
 
 Ejemplo:
 
 ```json id="a5c8x7"
 {
- "error": "HOME_SERVICE_UNAVAILABLE"
+  "error": "HOME_SERVICE_UNAVAILABLE",
+  "message": "El servicio de hogar inteligente no está disponible"
 }
 ```
 
-Los detalles internos nunca deberán exponerse al usuario.
+Los detalles internos, excepciones, credenciales, tokens y otra información sensible nunca deberán exponerse al cliente.
 
 ---
 
@@ -2118,15 +2175,19 @@ Respuesta:
 
 ```json id="4g8s2n"
 {
- "status": "healthy"
+  "status": "healthy"
 }
 ```
+
+El Health Check deberá permitir determinar si el Backend está operativo.
+
+Cuando sea necesario, podrán existir comprobaciones adicionales para conocer el estado de sus dependencias.
 
 ---
 
 # 9.6 Estado de Integraciones
 
-Chiri deberá poder consultar el estado de servicios externos.
+Chiri deberá poder consultar el estado de sus servicios externos.
 
 Ejemplo:
 
@@ -2136,7 +2197,9 @@ flowchart LR
     Backend["Chiri Backend"]
 
     HA["Home Assistant"]
+
     MA["Music Assistant"]
+
     JF["Jellyfin"]
 
     Backend --> HA
@@ -2144,17 +2207,19 @@ flowchart LR
     Backend --> JF
 ```
 
-Resultado:
+Resultado conceptual:
 
 ```json id="j2n7pv"
 {
- "services": {
-   "home_assistant": "online",
-   "music": "online",
-   "jellyfin": "offline"
- }
+  "services": {
+    "home_assistant": "online",
+    "music": "online",
+    "jellyfin": "offline"
+  }
 }
 ```
+
+El estado de una integración deberá permitir distinguir, como mínimo, entre un servicio disponible y uno no disponible.
 
 ---
 
@@ -2180,6 +2245,8 @@ Error:
 Servicio no disponible
 ```
 
+La información técnica necesaria para diagnosticar el problema deberá permanecer en los logs y mecanismos internos de diagnóstico.
+
 ---
 
 # 9.8 Auditoría vs Logs
@@ -2194,6 +2261,8 @@ Orientados a:
 * diagnóstico.
 * funcionamiento interno.
 
+Los logs describen eventos técnicos y operacionales del sistema.
+
 ---
 
 ## Auditoría
@@ -2203,15 +2272,23 @@ Orientada a:
 * acciones importantes.
 * usuarios.
 * seguridad.
+* trazabilidad.
 
 Ejemplo:
 
 Auditoría:
 
 ```text id="5g0s7h"
-Usuario José ejecutó:
+Usuario ejecutó:
+
 Apagar luz salón
+
+Resultado:
+
+Correcto
 ```
+
+La auditoría deberá registrar únicamente los eventos relevantes para la trazabilidad de la plataforma y no sustituirá al sistema de logs.
 
 ---
 
@@ -2226,7 +2303,7 @@ Ejemplos futuros:
 * alertas.
 * análisis histórico.
 
-Sin modificar la arquitectura principal.
+Estas capacidades podrán incorporarse sin modificar la arquitectura principal de Chiri.
 
 ---
 
@@ -2280,7 +2357,14 @@ El desarrollo del Backend deberá cumplir:
 
 # 10.2 Tipos de Pruebas
 
-Chiri utilizará diferentes niveles de pruebas.
+Chiri utilizará diferentes niveles de pruebas:
+
+* pruebas unitarias.
+* pruebas de integración.
+* pruebas de integraciones externas.
+* pruebas de API.
+
+Cada nivel tendrá un objetivo específico y deberá utilizarse de acuerdo con el tipo de cambio realizado.
 
 ---
 
@@ -2338,6 +2422,8 @@ Estas pruebas deberán considerar:
 * respuestas esperadas.
 * manejo de errores.
 
+Cuando una prueba dependa de un servicio externo real, deberá identificarse como tal y no confundirse con una prueba unitaria.
+
 ---
 
 # 10.6 Pruebas de API
@@ -2362,10 +2448,12 @@ Respuesta esperada:
 
 ```json id="7k2n1m"
 {
- "name": "Usuario",
- "status": "active"
+  "name": "Usuario",
+  "status": "active"
 }
 ```
+
+Las pruebas de API deberán incluir tanto casos correctos como casos de error y acceso no autorizado.
 
 ---
 
@@ -2379,11 +2467,13 @@ Antes de desplegar una versión en Raspberry Pi deberán validarse:
 * estado de integraciones necesarias.
 * funcionamiento básico de API.
 
+Una versión que no supere las validaciones necesarias no deberá considerarse lista para producción.
+
 ---
 
 # 10.8 Calidad del Código
 
-El código deberá seguir reglas:
+El código deberá seguir reglas claras.
 
 ## Nombres claros
 
@@ -2415,7 +2505,7 @@ La lógica común deberá reutilizarse.
 
 ## Separación de responsabilidades
 
-Cada componente debe estar ubicado donde corresponde.
+Cada componente deberá estar ubicado donde corresponde y no deberá asumir responsabilidades de otras capas.
 
 ---
 
@@ -2427,6 +2517,8 @@ Antes de incorporar cambios importantes deberá revisarse:
 * compatibilidad.
 * seguridad.
 * pruebas realizadas.
+
+Los cambios que afecten componentes críticos deberán verificarse antes de su despliegue.
 
 ---
 
@@ -2454,7 +2546,7 @@ Debe cumplir:
 
 # 11. Despliegue del Backend
 
-El despliegue del Backend de Chiri Platform estará basado en contenedores Docker, permitiendo mantener consistencia entre ambientes de desarrollo y producción.
+El despliegue del Backend de Chiri Platform estará basado en contenedores Docker, permitiendo mantener consistencia entre los ambientes de desarrollo y producción.
 
 El objetivo es que el mismo componente pueda ejecutarse en diferentes infraestructuras mediante configuración externa.
 
@@ -2476,7 +2568,7 @@ El Backend deberá cumplir:
 
 La arquitectura de despliegue será:
 
-```mermaid id="9c4k2m"
+```mermaid
 flowchart TB
 
     Developer["PC Desarrollo<br/>Windows 11"]
@@ -2510,12 +2602,12 @@ El Backend será ejecutado dentro de un contenedor independiente.
 
 Responsabilidades del contenedor:
 
-* ejecutar aplicación FastAPI.
-* cargar configuración.
+* ejecutar la aplicación FastAPI.
+* cargar la configuración.
 * comunicarse con servicios internos.
-* exponer API de Chiri.
+* exponer la API de Chiri.
 
-No deberá contener:
+El contenedor no deberá contener:
 
 * datos persistentes.
 * secretos permanentes.
@@ -2534,7 +2626,7 @@ El proyecto deberá incluir un Dockerfile responsable de definir:
 
 Ejemplo conceptual:
 
-```text id="j2m6x8"
+```text
 Dockerfile
 
 Imagen Python
@@ -2554,14 +2646,15 @@ En producción, Chiri Backend será administrado mediante Docker Compose.
 
 Responsabilidades:
 
-* crear contenedor.
+* crear y administrar el contenedor.
 * conectar redes.
-* cargar variables.
+* cargar variables de entorno.
 * montar volúmenes necesarios.
+* definir las dependencias entre servicios.
 
 Ejemplo conceptual:
 
-```yaml id="k8n4q7"
+```yaml
 services:
 
   chiri-backend:
@@ -2576,11 +2669,11 @@ services:
 
 # 11.6 Comunicación con Servicios Internos
 
-Los contenedores deberán comunicarse mediante redes Docker.
+Los contenedores deberán comunicarse mediante redes Docker cuando los servicios formen parte del mismo entorno de contenedores.
 
 Ejemplo:
 
-```mermaid id="6y3p9w"
+```mermaid
 flowchart LR
 
     Backend["Chiri Backend"]
@@ -2600,17 +2693,17 @@ flowchart LR
     Backend --> JF
 ```
 
+Los servicios externos que no formen parte de la misma red Docker deberán ser accesibles mediante sus URLs o mecanismos de comunicación configurados para cada ambiente.
+
 ---
 
 # 11.7 Persistencia
 
-Los datos persistentes deberán estar fuera del ciclo de vida del contenedor.
+Los datos persistentes deberán mantenerse fuera del ciclo de vida del contenedor.
 
-Ejemplos:
+Ejemplo correcto:
 
-Correcto:
-
-```text id="4v7n1k"
+```text
 Container
     |
     +--> Volume
@@ -2618,13 +2711,15 @@ Container
             +--> Data persistente
 ```
 
-Incorrecto:
+Ejemplo incorrecto:
 
-```text id="8p5m2d"
+```text
 Container
     |
     +--> Datos importantes internos
 ```
+
+La recreación o actualización del contenedor no deberá provocar pérdida de información persistente.
 
 ---
 
@@ -2632,7 +2727,7 @@ Container
 
 Las actualizaciones deberán seguir un proceso controlado:
 
-```mermaid id="q8x5r2"
+```mermaid
 flowchart LR
 
     Code["Nuevo Código"]
@@ -2652,6 +2747,8 @@ flowchart LR
     Deploy --> Verify
 ```
 
+Una nueva versión no deberá desplegarse en producción mientras las pruebas definidas para dicha versión no hayan sido completadas satisfactoriamente.
+
 ---
 
 # 11.9 Recuperación
@@ -2661,23 +2758,28 @@ El sistema deberá permitir:
 * recrear contenedores.
 * restaurar configuración.
 * recuperar datos persistentes.
-* volver a una versión anterior si fuera necesario.
+* volver a una versión anterior cuando sea necesario.
+
+La recuperación deberá basarse en procedimientos conocidos y reproducibles.
 
 ---
 
 # 11.10 Diferencia Desarrollo / Producción
 
-La diferencia entre ambientes deberá estar limitada a:
+La diferencia entre ambientes deberá estar limitada principalmente a:
 
 * configuración.
 * datos.
 * servicios disponibles.
+* infraestructura de ejecución.
 
 No deberá existir:
 
 * código diferente.
 * lógica diferente.
-* comportamiento diferente.
+* comportamiento diferente por ambiente.
+
+El mismo código deberá poder ejecutarse en ambos ambientes mediante la configuración correspondiente.
 
 ---
 
@@ -2687,21 +2789,22 @@ El despliegue de Chiri deberá responder:
 
 > Si la Raspberry Pi falla, ¿podemos reconstruir el sistema siguiendo un proceso conocido?
 
-Si la respuesta es no, el despliegue necesita mejorar.
+Si la respuesta es no, el proceso de despliegue deberá mejorar antes de considerarse estable.
+
 
 # 12. Evolución y Mantenimiento del Backend
 
 El Backend de Chiri Platform deberá estar preparado para evolucionar de forma controlada durante toda la vida del proyecto.
 
-Los cambios deberán realizarse respetando la arquitectura definida y evitando degradar la calidad del sistema.
+Los cambios deberán realizarse respetando la arquitectura definida y evitando degradar la calidad, seguridad y mantenibilidad del sistema.
 
 ---
 
 # 12.1 Principio de Evolución
 
-La evolución del Backend deberá seguir:
+La evolución del Backend deberá seguir el siguiente proceso:
 
-```mermaid id="4m8q2x"
+```mermaid
 flowchart LR
 
     Necesidad["Nueva Necesidad"]
@@ -2730,7 +2833,7 @@ No se realizarán cambios directamente sobre producción sin pasar por el proces
 
 # 12.2 Incorporación de Nuevas Funcionalidades
 
-Una nueva funcionalidad deberá determinar primero:
+Antes de incorporar una nueva funcionalidad deberá determinarse:
 
 * si pertenece a un módulo existente.
 * si requiere un nuevo módulo.
@@ -2748,15 +2851,16 @@ La pregunta principal será:
 Un nuevo módulo solamente deberá crearse cuando:
 
 * tenga una responsabilidad propia.
-* tenga reglas claras.
+* tenga reglas claramente definidas.
 * pueda evolucionar independientemente.
-* aporte una capacidad real.
+* aporte una capacidad real a Chiri.
 
-No se crearán módulos para:
+No se crearán módulos únicamente para:
 
 * agrupar archivos.
 * separar código temporal.
 * seguir tendencias técnicas.
+* ocultar problemas de organización existentes.
 
 ---
 
@@ -2767,18 +2871,19 @@ Las modificaciones deberán considerar:
 * compatibilidad con clientes existentes.
 * compatibilidad con datos existentes.
 * compatibilidad con integraciones actuales.
+* compatibilidad con contratos de API existentes.
 
-Los cambios que puedan romper contratos existentes deberán planificarse.
+Los cambios que puedan romper contratos existentes deberán planificarse antes de su implementación.
 
 ---
 
 # 12.5 Versionado de API
 
-La API de Chiri deberá considerar evolución mediante versiones.
+La API de Chiri deberá considerar mecanismos de evolución mediante versiones.
 
 Ejemplo conceptual:
 
-```text id="h4p8z2"
+```text
 API v1
 
 /api/v1/users
@@ -2786,22 +2891,23 @@ API v1
 /api/v1/home
 ```
 
-Esto permitirá evolucionar sin afectar clientes actuales.
+El versionado permitirá evolucionar los contratos de la API sin afectar innecesariamente a los clientes existentes.
 
 ---
 
 # 12.6 Refactorización
 
-La refactorización será una actividad normal del mantenimiento.
+La refactorización será una actividad normal del mantenimiento del Backend.
 
-Objetivos:
+Sus objetivos podrán ser:
 
-* mejorar claridad.
+* mejorar la claridad.
 * eliminar duplicación.
-* mejorar rendimiento.
 * simplificar código.
+* mejorar rendimiento.
+* mejorar mantenibilidad.
 
-La refactorización no deberá cambiar comportamiento esperado sin pruebas.
+La refactorización no deberá modificar el comportamiento esperado sin las pruebas correspondientes.
 
 ---
 
@@ -2814,9 +2920,10 @@ Se deberá evaluar:
 * seguridad.
 * compatibilidad.
 * mantenimiento.
+* estabilidad.
 * necesidad real.
 
-No se agregarán librerías solamente por conveniencia temporal.
+No se agregarán librerías únicamente por conveniencia temporal.
 
 ---
 
@@ -2824,11 +2931,15 @@ No se agregarán librerías solamente por conveniencia temporal.
 
 La documentación deberá mantenerse junto con la evolución del código.
 
-Cuando exista un cambio importante deberá actualizarse:
+Cuando exista un cambio importante deberá actualizarse, según corresponda:
 
 * documentación técnica.
 * diagramas.
+* contratos.
+* decisiones arquitectónicas.
 * ADR correspondiente.
+
+La documentación deberá permanecer alineada con la implementación real.
 
 ---
 
@@ -2836,22 +2947,25 @@ Cuando exista un cambio importante deberá actualizarse:
 
 Si un cambio afecta:
 
-* estructura principal.
+* estructura principal del sistema.
 * tecnologías base.
 * comunicación entre componentes.
 * modelo de seguridad.
+* responsabilidades de las capas.
+* límites entre módulos.
 
-deberá registrarse mediante ADR.
+deberá registrarse mediante un ADR.
 
 ---
 
 # 12.10 Principio de Mantenimiento
 
-El Backend de Chiri deberá priorizar:
+El mantenimiento del Backend deberá priorizar:
 
 * estabilidad antes que velocidad.
 * claridad antes que complejidad.
 * soluciones simples antes que soluciones sofisticadas.
+* cambios controlados antes que modificaciones improvisadas.
 
 ---
 
@@ -2863,6 +2977,7 @@ La arquitectura del Backend queda definida como una base preparada para:
 * crecimiento modular.
 * incorporación de nuevos clientes.
 * evolución tecnológica controlada.
+* mantenimiento a largo plazo.
 
 ---
 
@@ -2870,14 +2985,14 @@ La arquitectura del Backend queda definida como una base preparada para:
 
 Toda modificación futura deberá cumplir:
 
-> Mejorar la plataforma sin comprometer la arquitectura, seguridad y mantenibilidad definida.
+> Mejorar la plataforma sin comprometer la arquitectura, seguridad y mantenibilidad definidas.
 
 
 # 13. Conclusión del Backend
 
 El Backend de Chiri Platform v1.0 queda definido como el núcleo central de coordinación e integración de la plataforma.
 
-Su diseño establece una arquitectura modular, segura y escalable que permite conectar diferentes servicios manteniendo separación de responsabilidades.
+Su diseño establece una arquitectura modular, segura y mantenible que permite conectar diferentes servicios manteniendo una clara separación de responsabilidades.
 
 ---
 
@@ -2910,8 +3025,9 @@ El Backend será responsable de:
 * Gestionar usuarios y permisos.
 * Ejecutar lógica propia de la plataforma.
 * Coordinar servicios externos.
-* Mantener información propia.
+* Mantener información propia de Chiri.
 * Garantizar seguridad y trazabilidad.
+* Proporcionar mecanismos de diagnóstico y observabilidad.
 
 ---
 
@@ -2925,7 +3041,7 @@ El Backend no será responsable de reemplazar:
 * Jellyfin.
 * Servicios externos de IA.
 
-Su función será integrarlos y proporcionar una experiencia unificada.
+Su función será integrarlos y proporcionar una experiencia unificada mediante adaptadores y módulos propios de Chiri.
 
 ---
 
@@ -2937,9 +3053,12 @@ El desarrollo del Backend seguirá:
 * Separación de responsabilidades.
 * Código mantenible.
 * Seguridad por defecto.
+* Configuración externa.
+* Observabilidad y diagnóstico.
 * Documentación como fuente de verdad.
 * Integraciones mediante adaptadores.
 * Evolución controlada.
+* Pruebas antes de producción.
 
 ---
 
@@ -2963,4 +3082,4 @@ Los cambios que afecten la arquitectura deberán seguir el proceso ADR definido.
 
 El Backend de Chiri Platform v1.0 está preparado para pasar de la fase de diseño a la fase de implementación cuando el proyecto lo determine.
 
-La arquitectura proporciona una base estable para construir una plataforma personal modular, integrada y escalable.
+La arquitectura proporciona una base estable para construir una plataforma personal modular, integrada, segura y preparada para evolucionar de forma controlada.

@@ -44,7 +44,8 @@ No incluye:
 Chiri Platform v1.0 se despliega bajo una arquitectura distribuida donde:
 
 * Android funciona como cliente.
-* La API constituye el punto de entrada de los clientes.
+* Cloudflare Tunnel proporciona el acceso externo seguro.
+* Caddy constituye el punto de entrada HTTP del servidor y enruta las solicitudes de la API.
 * El Backend procesa las reglas de negocio.
 * PostgreSQL proporciona la persistencia de información.
 * Los servicios auxiliares se integran a través de los mecanismos definidos por la arquitectura.
@@ -53,17 +54,17 @@ Chiri Platform v1.0 se despliega bajo una arquitectura distribuida donde:
 flowchart TD
 
     Usuario --> Android
-    Android -->|HTTPS| API
-    API --> Backend
+    Android -->|HTTPS| Cloudflare
+    Cloudflare -->|Tunnel| Caddy
+    Caddy -->|/api/*| Backend
     Backend --> PostgreSQL
 
     Android["Aplicación Android"]
-    API["API Chiri Platform"]
-    Backend["Backend"]
+    Cloudflare["Cloudflare"]
+    Caddy["Caddy"]
+    Backend["Backend FastAPI"]
     PostgreSQL["PostgreSQL"]
-````
-
----
+```
 
 # 4. Componentes de Despliegue
 
@@ -93,15 +94,14 @@ Responsabilidad:
 * Recepción y validación de solicitudes.
 * Autenticación.
 * Autorización.
-* Comunicación con el Backend.
+* Enrutamiento de solicitudes hacia el Backend.
 
 Características:
 
-* Expone los endpoints definidos por la arquitectura de la API.
-* Utiliza HTTPS para las comunicaciones externas.
+* Se expone externamente mediante HTTPS a través de Cloudflare.
+* Caddy recibe las solicitudes `/api/*` y las enruta hacia el Backend.
+* El Backend implementa los endpoints y la lógica de negocio.
 * No deberá contener lógica de negocio que corresponda al Backend.
-
----
 
 ## 4.3 Backend
 
@@ -113,9 +113,13 @@ Responsabilidad:
 * Comunicación con PostgreSQL.
 * Integración con servicios internos.
 
-El Backend deberá ejecutarse como un componente independiente de la aplicación Android.
+Características:
 
----
+* Se ejecuta como un servicio independiente mediante systemd.
+* Ejecuta FastAPI/Uvicorn.
+* No se expone directamente a Internet.
+* Recibe las solicitudes de la API a través de Caddy.
+* El Backend deberá ejecutarse como un componente independiente de la aplicación Android.
 
 ## 4.4 Base de Datos PostgreSQL
 
@@ -146,32 +150,32 @@ La contenerización deberá permitir:
 
 La utilización de contenedores no deberá modificar las reglas de seguridad ni las responsabilidades definidas para cada componente.
 
----
-
 # 5. Arquitectura Física de Despliegue
 
-La distribución física de Chiri Platform es una representación conceptual.
+La distribución física de Chiri Platform representa la infraestructura utilizada para ejecutar los componentes de la plataforma.
 
-Los componentes podrán ejecutarse en uno o varios servidores dependiendo de las necesidades de infraestructura, seguridad, capacidad y disponibilidad.
-
-Una distribución posible es:
+En la implementación actual, los componentes principales se distribuyen de la siguiente manera:
 
 ```mermaid
 flowchart TD
 
-    DispositivoAndroid --> ServidorChiri
-    ServidorChiri --> PostgreSQL
+    DispositivoAndroid -->|HTTPS| Cloudflare
+    Cloudflare -->|Tunnel| Caddy
+    Caddy -->|/api/*| Backend
+    Backend --> PostgreSQL
 
     DispositivoAndroid["Dispositivo Android"]
-    ServidorChiri["Infraestructura Chiri Platform<br/>API + Backend"]
+    Cloudflare["Cloudflare"]
+    Caddy["Caddy"]
+    Backend["Backend FastAPI"]
     PostgreSQL["PostgreSQL"]
 ```
+
+Los componentes de la plataforma se ejecutan en el servidor Chiri Platform, mientras que el acceso externo se realiza mediante Cloudflare Tunnel.
 
 La distribución física no deberá modificar las responsabilidades lógicas establecidas en la arquitectura.
 
 Cuando sea necesario, PostgreSQL podrá ejecutarse en una infraestructura independiente del API y Backend.
-
----
 
 # 6. Ambientes de Despliegue
 
@@ -238,6 +242,10 @@ Las comunicaciones externas deberán utilizar:
 * Autorización.
 * Validación de solicitudes.
 
+El acceso externo a la plataforma se realizará mediante Cloudflare Tunnel.
+
+Caddy actuará como punto de entrada del servidor y enrutará las solicitudes `/api/*` hacia el Backend.
+
 La comunicación entre servicios internos deberá limitarse a los componentes que necesiten comunicarse entre sí.
 
 La Base de Datos PostgreSQL no deberá estar expuesta directamente a Internet.
@@ -245,17 +253,17 @@ La Base de Datos PostgreSQL no deberá estar expuesta directamente a Internet.
 ```mermaid
 flowchart TD
 
-    Android -->|HTTPS + Autenticación| API
-    API -->|Comunicación Interna| Backend
-    Backend -->|Conexión Segura| PostgreSQL
+    Android -->|HTTPS + Autenticación| Cloudflare
+    Cloudflare -->|Tunnel| Caddy
+    Caddy -->|/api/*| Backend
+    Backend -->|Comunicación Interna| PostgreSQL
 
     Android["Aplicación Android"]
-    API["API"]
-    Backend["Backend"]
+    Cloudflare["Cloudflare"]
+    Caddy["Caddy"]
+    Backend["Backend FastAPI"]
     PostgreSQL["PostgreSQL"]
 ```
-
----
 
 # 8. Configuración de Despliegue
 
@@ -290,12 +298,14 @@ El orden lógico es:
 flowchart TD
 
     PostgreSQL --> Backend
-    Backend --> API
-    API --> Android
+    Backend --> Caddy
+    Caddy --> Cloudflare
+    Cloudflare --> Android
 
     PostgreSQL["PostgreSQL Disponible"]
-    Backend["Backend Disponible"]
-    API["API Disponible"]
+    Backend["Backend FastAPI Disponible"]
+    Caddy["Caddy Disponible"]
+    Cloudflare["Cloudflare Tunnel Disponible"]
     Android["Cliente Android"]
 ```
 

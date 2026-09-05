@@ -72,7 +72,9 @@ class SecureSessionStorage(
     override suspend fun clearSession() {
         preferences.edit()
             .remove(KEY_ACCESS_TOKEN)
+            .remove("${KEY_ACCESS_TOKEN}_iv")
             .remove(KEY_REFRESH_TOKEN)
+            .remove("${KEY_REFRESH_TOKEN}_iv")
             .apply()
     }
 

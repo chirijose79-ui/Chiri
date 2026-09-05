@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+
 import uuid
 
 from sqlalchemy import select, update
@@ -6,6 +7,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.database.models.refresh_token import RefreshToken
 from app.database.models.session import Session
+from app.database.models.user import User
 from app.security.refresh_token import (
     generate_refresh_token,
     hash_refresh_token,
@@ -24,7 +26,7 @@ class RefreshTokenReuseError(Exception):
 class RefreshTokenValidationError(Exception):
     """
     Raised when a refresh token cannot be used because
-    its session or token state is invalid.
+    its session, user, or token state is invalid.
     """
 
 
@@ -96,7 +98,7 @@ def _revoke_all_session_refresh_tokens(
     session_id: uuid.UUID,
 ) -> None:
     """
-    Revoke all refresh tokens associated with a session.
+    Revoke all active refresh tokens associated with a session.
 
     Used when refresh-token reuse or another invalid
     refresh-token state is detected.
@@ -161,10 +163,8 @@ def get_active_refresh_token(
 
     if refresh_token.expires_at <= now:
         refresh_token.status = "EXPIRED"
-
         db.commit()
         db.refresh(refresh_token)
-
         return None
 
     return refresh_token
@@ -180,7 +180,6 @@ def revoke_refresh_token(
 
     if refresh_token.status == "ACTIVE":
         refresh_token.status = "REVOKED"
-
         db.commit()
         db.refresh(refresh_token)
 
@@ -263,28 +262,46 @@ def rotate_refresh_token(
 
     if session is None:
         raise RefreshTokenValidationError(
-            "Refresh token session not found"
+            "Invalid refresh token"
         )
 
-    now = datetime.now(timezone.utc)
+    user = db.scalar(
+        select(User).where(
+            User.id == session.user_id,
+        )
+    )
 
-    # Previously invalidated token.
-    #
-    # A revoked session means the token was invalidated
-    # because of logout or session revocation. In that case
-    # the token must simply be rejected.
-    if session.status == "REVOKED":
-        if refresh_token.status == "ACTIVE":
-            refresh_token.status = "REVOKED"
-            db.commit()
-
+    if user is None:
         raise RefreshTokenValidationError(
             "Invalid refresh token"
         )
 
-    # Previously invalidated token while the session is still
-    # active: possible refresh-token reuse attack.
-    if refresh_token.status in ("REVOKED", "EXPIRED"):
+    if user.status != "ACTIVE":
+        raise RefreshTokenValidationError(
+            "Invalid refresh token"
+        )
+
+    now = datetime.now(timezone.utc)
+
+    # ---------------------------------------------------------
+    # SESSION STATE
+    # ---------------------------------------------------------
+
+    if session.status == "REVOKED":
+        raise RefreshTokenValidationError(
+            "Invalid refresh token"
+        )
+
+    if session.status == "EXPIRED":
+        raise RefreshTokenValidationError(
+            "Invalid refresh token"
+        )
+
+    # ---------------------------------------------------------
+    # REFRESH TOKEN STATE
+    # ---------------------------------------------------------
+
+    if refresh_token.status == "REVOKED":
         session.status = "REVOKED"
 
         _revoke_all_session_refresh_tokens(
@@ -298,7 +315,11 @@ def rotate_refresh_token(
             "Refresh token reuse detected"
         )
 
-    # Token is not ACTIVE for any unexpected reason.
+    if refresh_token.status == "EXPIRED":
+        raise RefreshTokenValidationError(
+            "Invalid refresh token"
+        )
+
     if refresh_token.status != "ACTIVE":
         session.status = "REVOKED"
 
@@ -313,15 +334,9 @@ def rotate_refresh_token(
             "Invalid refresh token state"
         )
 
-    # The session itself must still be valid.
-    if session.status != "ACTIVE":
-        refresh_token.status = "REVOKED"
-
-        db.commit()
-
-        raise RefreshTokenValidationError(
-            "Session is not active"
-        )
+    # ---------------------------------------------------------
+    # SESSION VALIDATION
+    # ---------------------------------------------------------
 
     if session.expires_at <= now:
         session.status = "EXPIRED"
@@ -333,7 +348,10 @@ def rotate_refresh_token(
             "Session expired"
         )
 
-    # Refresh token expiration.
+    # ---------------------------------------------------------
+    # REFRESH TOKEN EXPIRATION
+    # ---------------------------------------------------------
+
     if refresh_token.expires_at <= now:
         refresh_token.status = "EXPIRED"
 
@@ -346,12 +364,9 @@ def rotate_refresh_token(
     # ---------------------------------------------------------
     # ATOMIC ROTATION
     # ---------------------------------------------------------
-    #
-    # The old token is revoked and the new token is created
-    # without an intermediate commit.
-    #
-    # A single commit below persists both changes together.
-    #
+
+    # Revoke the current token and create the replacement
+    # inside the same database transaction.
 
     refresh_token.status = "REVOKED"
 

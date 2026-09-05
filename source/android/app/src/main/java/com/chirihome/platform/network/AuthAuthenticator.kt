@@ -6,20 +6,11 @@ import okhttp3.Authenticator
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.Route
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 
 class AuthAuthenticator(
-    private val sessionStorage: SessionStorage
+    private val sessionStorage: SessionStorage,
+    private val refreshApi: AuthApi
 ) : Authenticator {
-
-    private val refreshApi: AuthApi by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(AuthApi::class.java)
-    }
 
     override fun authenticate(
         route: Route?,
@@ -30,15 +21,15 @@ class AuthAuthenticator(
             return null
         }
 
-        val refreshToken = runBlocking {
-            sessionStorage.getRefreshToken()
-        }
-
-        if (refreshToken.isNullOrBlank()) {
-            return null
-        }
-
         return synchronized(this) {
+
+            val refreshToken = runBlocking {
+                sessionStorage.getRefreshToken()
+            }
+
+            if (refreshToken.isNullOrBlank()) {
+                return@synchronized null
+            }
 
             val currentAccessToken = runBlocking {
                 sessionStorage.getAccessToken()
@@ -53,8 +44,8 @@ class AuthAuthenticator(
              * Otra petición pudo haber hecho refresh mientras
              * esta petición esperaba.
              *
-             * Si el token almacenado ya cambió, simplemente
-             * usamos el nuevo token y NO hacemos otro refresh.
+             * Si el token almacenado ya cambió, reutilizamos
+             * el token actualizado y evitamos otro refresh.
              */
             if (
                 !currentAccessToken.isNullOrBlank() &&
@@ -119,10 +110,5 @@ class AuthAuthenticator(
         }
 
         return count
-    }
-
-    companion object {
-        private const val BASE_URL =
-            "http://192.168.1.88:8000/"
     }
 }
