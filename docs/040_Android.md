@@ -1041,16 +1041,66 @@ La navegación deberá estar centralizada en el sistema de navegación de la apl
 
 ## Responsabilidad
 
-Será el punto principal de entrada del usuario.
+Será el punto principal de entrada del usuario después de una sesión válida.
 
-Podrá mostrar:
+La pantalla Inicio proporcionará un resumen general del estado de Chiri y actuará como punto de entrada hacia las capacidades principales de la plataforma.
 
-* estado general de Chiri.
-* accesos rápidos.
-* información relevante.
-* eventos importantes.
+En la versión v1.0 mostrará:
 
-No deberá contener lógica compleja.
+* bienvenida al usuario.
+* estado general del hogar.
+* acciones rápidas.
+* información básica de conectividad y servidor.
+
+Las acciones rápidas iniciales serán:
+
+* Música.
+* Multimedia.
+
+Las acciones rápidas representan puntos de entrada hacia sus respectivos módulos. La lógica funcional de cada módulo no pertenece a la pantalla Inicio.
+
+## Obtención de información
+
+La pantalla Inicio obtendrá la información mediante la API de Chiri.
+
+Flujo:
+
+```text
+InicioScreen
+    ↓
+HomeViewModel
+    ↓
+HomeUseCase
+    ↓
+HomeRepository
+    ↓
+HomeApi
+    ↓
+API Chiri
+```
+
+La aplicación Android no deberá comunicarse directamente con los servicios internos utilizados por Chiri.
+
+## Estados
+
+La pantalla deberá contemplar como mínimo:
+
+carga.
+información disponible.
+error.
+Alcance v1.0
+
+## La pantalla Inicio no implementará:
+
+control directo de dispositivos.
+lógica de Home Assistant.
+reproducción directa de servicios multimedia.
+configuración administrativa.
+inteligencia artificial.
+estadísticas históricas.
+actividad reciente.
+
+Estas capacidades pertenecen a sus respectivos módulos o a futuras versiones de la plataforma.
 
 ---
 

@@ -206,56 +206,56 @@
 
 ## Backend
 
-- [ ] Crear modelos Pydantic de Home
-- [ ] Crear servicio de Home
-- [ ] Integrar usuario autenticado
-- [ ] Implementar estado del hogar
-- [ ] Implementar acciones rápidas
-- [ ] Implementar información básica
-- [ ] Implementar `GET /api/home`
-- [ ] Validar respuesta `200`
-- [ ] Validar respuestas de error
-- [ ] Revisar seguridad del endpoint
+- [x] Crear modelos Pydantic de Home
+- [x] Crear servicio de Home
+- [x] Integrar usuario autenticado
+- [x] Implementar estado del hogar
+- [x] Implementar acciones rápidas
+- [x] Implementar información básica
+- [x] Implementar `GET /api/home`
+- [x] Validar respuesta `200`
+- [x] Validar respuestas de error
+- [x] Revisar seguridad del endpoint
 
 ## Pruebas Backend
 
-- [ ] Probar `GET /api/home` con sesión válida
-- [ ] Probar acceso sin token
-- [ ] Probar token inválido
+- [x] Probar `GET /api/home` con sesión válida
+- [x] Probar acceso sin token
+- [x] Probar token inválido
 - [ ] Probar token expirado
-- [ ] Probar usuario no disponible
-- [ ] Validar estructura de respuesta
-- [ ] Validar `display_name`
-- [ ] Validar `home.status`
-- [ ] Validar `quick_actions`
-- [ ] Validar `information`
-- [ ] Ejecutar suite completa de pruebas
+- [x] Probar usuario no disponible
+- [x] Validar estructura de respuesta
+- [x] Validar `display_name`
+- [x] Validar `home.status`
+- [x] Validar `quick_actions`
+- [x] Validar `information`
+- [x] Ejecutar suite completa de pruebas
 
 ## Android
 
-- [ ] Crear modelo de respuesta Home
-- [ ] Crear endpoint Retrofit
-- [ ] Crear repositorio Home
-- [ ] Crear ViewModel
-- [ ] Crear pantalla Home
-- [ ] Mostrar bienvenida
-- [ ] Mostrar estado del hogar
-- [ ] Mostrar acciones rápidas
-- [ ] Mostrar información básica
-- [ ] Manejar estado de carga
-- [ ] Manejar errores
-- [ ] Mantener navegación hacia los módulos correspondientes
+- [x] Crear modelo de respuesta Home
+- [x] Crear endpoint Retrofit
+- [x] Crear repositorio Home
+- [x] Crear ViewModel
+- [x] Crear pantalla Home
+- [x] Mostrar bienvenida
+- [x] Mostrar estado del hogar
+- [x] Mostrar acciones rápidas
+- [x] Mostrar información básica
+- [x] Manejar estado de carga
+- [x] Manejar errores
+- [x] Mantener navegación hacia los módulos correspondientes
 
 ## Integración
 
-- [ ] Probar Android contra API HTTPS
-- [ ] Validar Home con sesión existente
-- [ ] Validar rechazo de sesión inválida
-- [ ] Validar carga correcta de información
+- [x] Probar Android contra API HTTPS
+- [x] Validar Home con sesión existente
+- [x] Validar rechazo de sesión inválida
+- [x] Validar carga correcta de información
 - [ ] Validar navegación mediante acción `music`
 - [ ] Validar navegación mediante acción `multimedia`
-- [ ] Probar comportamiento con API no disponible
-- [ ] Ejecutar validación E2E de Home
+- [x] Probar comportamiento con API no disponible
+- [x] Ejecutar validación E2E de Home
 
 ## Documentación
 
@@ -267,11 +267,12 @@
 
 ## Git
 
-- [ ] Commit Backend Home
-- [ ] Commit pruebas Backend Home
-- [ ] Commit Android Home
-- [ ] Commit integración Home
-- [ ] Commit documentación Home
+- [x] Commit HOME v1.0
+- [x] Push a `master`
+- [x] Actualizar Raspberry
+- [x] Reiniciar `chiri-backend`
+- [x] Validar despliegue
+- [x] Validar funcionamiento E2E
 
 ---
 

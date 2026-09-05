@@ -891,3 +891,74 @@ El resultado confirma el comportamiento esperado:
 ### Regla arquitectónica
 
 > **Todo HTTP 401 producido por una petición autenticada deberá ser gestionado centralizadamente por `AuthAuthenticator`. Cuando varias peticiones fallen simultáneamente, solamente una deberá ejecutar la renovación efectiva; las demás deberán reutilizar el Access Token actualizado.**
+
+# ADR-016 — Home como Resumen y Punto de Entrada
+
+### Estado
+
+**APROBADO**
+
+### Contexto
+
+Chiri Platform requiere una pantalla principal que permita al usuario conocer rápidamente el estado general de la plataforma y acceder a sus capacidades principales.
+
+Esta pantalla no debe convertirse en un módulo de control completo ni concentrar lógica perteneciente a otros dominios.
+
+### Decisión
+
+Home será el resumen general y punto de entrada de Chiri Platform.
+
+Home mostrará:
+
+* bienvenida al usuario.
+* estado general del hogar.
+* acciones rápidas.
+* información básica de conectividad y servidor.
+
+Las acciones rápidas permitirán acceder a otros módulos de la plataforma.
+
+Home no implementará directamente la lógica de:
+
+* Multimedia.
+* Música.
+* Inteligencia Artificial.
+* Personal.
+* Configuración.
+* servicios externos especializados.
+
+La información de Home será proporcionada por la API de Chiri.
+
+### Flujo
+
+```mermaid
+flowchart LR
+
+    Android["Android Home"]
+
+    API["API Chiri"]
+
+    Backend["Backend Home"]
+
+    Navigation["Navegación Android"]
+
+    Modules["Módulos de Chiri"]
+
+    Android --> API
+    API --> Backend
+
+    Android --> Navigation
+    Navigation --> Modules
+```    
+
+## Justificación
+
+Esta decisión mantiene Home simple y evita concentrar funcionalidades de diferentes dominios en una única pantalla.
+
+Permite que cada módulo evolucione independientemente y mantiene la separación de responsabilidades definida por la arquitectura.
+
+## Consecuencias
+
+* Home permanece como punto central de acceso.
+* Los módulos mantienen su propia responsabilidad funcional.
+* Android no accede directamente a servicios internos.
+* Las capacidades futuras pueden incorporarse sin convertir Home en un módulo monolítico.
