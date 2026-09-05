@@ -235,7 +235,7 @@ Resultado actual de la suite Backend:
 
 ```text
 52 passed
-````
+```
 
 ## Android
 
@@ -270,8 +270,8 @@ Resultado actual de la suite Backend:
 * [x] Actualizar `060_API.md`
 * [x] Actualizar `040_Android.md`
 * [x] Registrar decisiones específicas de Home mediante ADR-016
-* [ ] Revisar `020_Arquitectura.md` únicamente si fuera necesario
-* [ ] Revisar `080_Despliegue.md` únicamente si fuera necesario
+* [x] Revisar `020_Arquitectura.md` — no requiere cambios
+* [x] Revisar `080_Despliegue.md` — no requiere cambios
 * [x] Actualizar `docs/STATUS.md`
 
 ## Git y despliegue
