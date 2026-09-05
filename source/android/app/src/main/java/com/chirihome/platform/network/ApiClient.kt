@@ -29,6 +29,6 @@ class ApiClient(
 
     companion object {
         private const val BASE_URL =
-            "http://192.168.1.88:8000/"
+            "https://api.chirihome.com/api/"
     }
 }
