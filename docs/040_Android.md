@@ -1088,17 +1088,18 @@ La pantalla deberá contemplar como mínimo:
 carga.
 información disponible.
 error.
-Alcance v1.0
 
-## La pantalla Inicio no implementará:
+## Alcance v1.0
 
-control directo de dispositivos.
-lógica de Home Assistant.
-reproducción directa de servicios multimedia.
-configuración administrativa.
-inteligencia artificial.
-estadísticas históricas.
-actividad reciente.
+La pantalla Inicio no implementará:
+
+* control directo de dispositivos.
+* lógica de Home Assistant.
+* reproducción directa de servicios multimedia.
+* configuración administrativa.
+* inteligencia artificial.
+* estadísticas históricas.
+* actividad reciente.
 
 Estas capacidades pertenecen a sus respectivos módulos o a futuras versiones de la plataforma.
 

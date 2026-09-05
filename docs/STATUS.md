@@ -231,48 +231,59 @@
 - [x] Validar `information`
 - [x] Ejecutar suite completa de pruebas
 
+Resultado actual de la suite Backend:
+
+```text
+52 passed
+````
+
 ## Android
 
-- [x] Crear modelo de respuesta Home
-- [x] Crear endpoint Retrofit
-- [x] Crear repositorio Home
-- [x] Crear ViewModel
-- [x] Crear pantalla Home
-- [x] Mostrar bienvenida
-- [x] Mostrar estado del hogar
-- [x] Mostrar acciones rápidas
-- [x] Mostrar información básica
-- [x] Manejar estado de carga
-- [x] Manejar errores
-- [x] Mantener navegación hacia los módulos correspondientes
+* [x] Crear modelo de respuesta Home
+* [x] Crear endpoint Retrofit
+* [x] Crear repositorio Home
+* [x] Crear Use Case
+* [x] Crear ViewModel
+* [x] Crear pantalla Inicio
+* [x] Mostrar bienvenida
+* [x] Mostrar estado del hogar
+* [x] Mostrar acciones rápidas
+* [x] Mostrar información básica
+* [x] Manejar estado de carga
+* [x] Manejar errores
+* [x] Implementar logout
+* [x] Preparar puntos de entrada hacia Música y Multimedia
 
 ## Integración
 
-- [x] Probar Android contra API HTTPS
-- [x] Validar Home con sesión existente
-- [x] Validar rechazo de sesión inválida
-- [x] Validar carga correcta de información
-- [ ] Validar navegación mediante acción `music`
-- [ ] Validar navegación mediante acción `multimedia`
-- [x] Probar comportamiento con API no disponible
-- [x] Ejecutar validación E2E de Home
+* [x] Probar Android contra API HTTPS
+* [x] Validar Home con sesión existente
+* [x] Validar rechazo de sesión inválida
+* [x] Validar carga correcta de información
+* [ ] Validar navegación mediante acción `music`
+* [ ] Validar navegación mediante acción `multimedia`
+* [x] Probar comportamiento con API no disponible
+* [x] Ejecutar validación E2E de Home
 
 ## Documentación
 
-- [ ] Actualizar `060_API.md`
-- [ ] Actualizar `040_Android.md`
-- [ ] Registrar decisiones específicas de Home
-- [ ] Revisar `020_Arquitectura.md` únicamente si fuera necesario
-- [ ] Revisar `080_Despliegue.md` únicamente si fuera necesario
+* [x] Actualizar `060_API.md`
+* [x] Actualizar `040_Android.md`
+* [x] Registrar decisiones específicas de Home mediante ADR-016
+* [ ] Revisar `020_Arquitectura.md` únicamente si fuera necesario
+* [ ] Revisar `080_Despliegue.md` únicamente si fuera necesario
+* [x] Actualizar `docs/STATUS.md`
 
-## Git
+## Git y despliegue
 
-- [x] Commit HOME v1.0
-- [x] Push a `master`
-- [x] Actualizar Raspberry
-- [x] Reiniciar `chiri-backend`
-- [x] Validar despliegue
-- [x] Validar funcionamiento E2E
+* [x] Commit HOME v1.0
+* [x] Push a `master`
+* [x] Actualizar Raspberry
+* [x] Reiniciar `chiri-backend`
+* [x] Validar servicio activo
+* [x] Validar endpoint `/health`
+* [x] Validar endpoint `/home`
+* [x] Validar funcionamiento E2E
 
 ---
 
@@ -280,34 +291,35 @@
 
 ### Conectividad
 
-- [x] Windows → `192.168.1.88:8000`
-- [x] TCP puerto `8000` accesible
-- [x] FastAPI `/docs` responde HTTP `200`
-- [x] Backend accesible desde la red LAN
-- [x] API pública HTTPS responde
-- [x] `GET /api/health` responde `200`
+* [x] Windows → `192.168.1.88:8000`
+* [x] TCP puerto `8000` accesible
+* [x] FastAPI `/docs` responde HTTP `200`
+* [x] Backend accesible desde la red LAN
+* [x] API pública HTTPS responde
+* [x] `GET /api/health` responde `200`
 
 ### Autenticación Backend
 
-- [x] `POST /auth/login`
-- [x] `GET /auth/me`
-- [x] `POST /auth/refresh`
-- [x] `POST /auth/logout`
-- [x] Creación de sesión
-- [x] Access Token RS256
-- [x] Refresh Token
-- [x] Rotación de Refresh Token
-- [x] Revocación de sesión
-- [x] Rechazo posterior de tokens/sesiones revocadas
+* [x] `POST /auth/login`
+* [x] `GET /auth/me`
+* [x] `POST /auth/refresh`
+* [x] `POST /auth/logout`
+* [x] Creación de sesión
+* [x] Access Token RS256
+* [x] Refresh Token
+* [x] Rotación de Refresh Token
+* [x] Revocación de sesión
+* [x] Rechazo posterior de tokens/sesiones revocadas
 
 ### Pruebas Backend
 
-- [x] Tests de autenticación
-- [x] Tests de sesión
-- [x] Tests de logout
-- [x] Tests de refresh
-- [x] Tests de revocación
-- [x] Suite existente validada
+* [x] Tests de autenticación
+* [x] Tests de sesión
+* [x] Tests de logout
+* [x] Tests de refresh
+* [x] Tests de revocación
+* [x] Tests de Home
+* [x] Suite completa validada
 
 ---
 
@@ -330,15 +342,15 @@ Las siguientes entidades están definidas para v1.0 pero **no deben implementars
 
 ### Authorization
 
-- [ ] `authorization.role`
-- [ ] `authorization.permission`
-- [ ] `authorization.user_role`
-- [ ] `authorization.role_permission`
+* [ ] `authorization.role`
+* [ ] `authorization.permission`
+* [ ] `authorization.user_role`
+* [ ] `authorization.role_permission`
 
 ### Platform
 
-- [ ] `platform.module`
-- [ ] `platform.functionality`
+* [ ] `platform.module`
+* [ ] `platform.functionality`
 
 > Estas entidades no deben implementarse únicamente por estar definidas. Se implementarán cuando exista una funcionalidad que realmente las necesite.
 
@@ -363,3 +375,4 @@ Las siguientes entidades están definidas para v1.0 pero **no deben implementars
 15. Mantener cada bloque funcional dentro del alcance aprobado para v1.0.
 16. No implementar infraestructura adicional si la infraestructura existente ya resuelve la necesidad.
 17. No agregar nuevas tablas de Base de Datos si el bloque funcional no requiere persistencia.
+
