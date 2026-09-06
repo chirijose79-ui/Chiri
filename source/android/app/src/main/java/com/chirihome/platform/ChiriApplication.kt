@@ -5,9 +5,11 @@ import com.chirihome.platform.domain.auth.LoginUseCase
 import com.chirihome.platform.domain.auth.LogoutUseCase
 import com.chirihome.platform.domain.auth.ValidateSessionUseCase
 import com.chirihome.platform.domain.home.HomeUseCase
+import com.chirihome.platform.domain.music.MusicUseCase
 import com.chirihome.platform.network.ApiClient
 import com.chirihome.platform.repository.auth.AuthRepositoryImpl
 import com.chirihome.platform.repository.home.HomeRepositoryImpl
+import com.chirihome.platform.repository.music.MusicRepositoryImpl
 import com.chirihome.platform.session.SessionManager
 import com.chirihome.platform.storage.SecureSessionStorage
 
@@ -28,6 +30,9 @@ class ChiriApplication : Application() {
     lateinit var homeUseCase: HomeUseCase
         private set
 
+    lateinit var musicUseCase: MusicUseCase
+        private set
+
     override fun onCreate() {
         super.onCreate()
 
@@ -43,6 +48,10 @@ class ChiriApplication : Application() {
 
         val homeRepository = HomeRepositoryImpl(
             homeApi = apiClient.homeApi
+        )
+
+        val musicRepository = MusicRepositoryImpl(
+            musicApi = apiClient.musicApi
         )
 
         sessionManager = SessionManager(
@@ -63,6 +72,10 @@ class ChiriApplication : Application() {
 
         homeUseCase = HomeUseCase(
             homeRepository = homeRepository
+        )
+
+        musicUseCase = MusicUseCase(
+            musicRepository = musicRepository
         )
     }
 }

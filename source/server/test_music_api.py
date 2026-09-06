@@ -129,6 +129,20 @@ class FakeMusicAssistantClient:
             ]
         }
 
+    def get_players(self) -> list[dict]:
+        return [
+            {
+                "id": "up2024ca64",
+                "name": "Decodificador multimedia Xiaomi",
+                "available": True,
+            },
+            {
+                "id": "up6d1b691c",
+                "name": "Samsung Q60AA 50 TV chiri",
+                "available": True,
+            },
+        ]
+
     def get_now_playing(self, player_id: str) -> dict | None:
         assert player_id == PLAYER_ID
 
@@ -209,6 +223,33 @@ def test_music_search(test_user, mock_music_assistant):
                 "uri": "library://track/221",
             }
         ]
+    }
+
+
+def test_music_players(test_user, mock_music_assistant):
+    access_token = login_test_user()
+
+    response = client.get(
+        "/music/players",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "id": "up2024ca64",
+                "name": "Decodificador multimedia Xiaomi",
+                "available": True,
+            },
+            {
+                "id": "up6d1b691c",
+                "name": "Samsung Q60AA 50 TV chiri",
+                "available": True,
+            },
+        ],
     }
 
 

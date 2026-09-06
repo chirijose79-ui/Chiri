@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.api.dependencies import get_current_user
 from app.application.music_service import (
     get_now_playing,
+    get_players,
     get_queue,
     next,
     pause,
@@ -25,6 +26,16 @@ class MusicSearchItem(BaseModel):
 
 class MusicSearchResponse(BaseModel):
     items: list[MusicSearchItem]
+
+
+class MusicPlayerItem(BaseModel):
+    id: str
+    name: str
+    available: bool
+
+
+class MusicPlayersResponse(BaseModel):
+    items: list[MusicPlayerItem]
 
 
 class MusicNowPlayingTrack(BaseModel):
@@ -65,6 +76,14 @@ def music_search(
 ) -> MusicSearchResponse:
     result = search(q)
     return MusicSearchResponse.model_validate(result)
+
+
+@router.get("/players", response_model=MusicPlayersResponse)
+def music_players(
+    current_user: User = Depends(get_current_user),
+) -> MusicPlayersResponse:
+    result = get_players()
+    return MusicPlayersResponse.model_validate(result)
 
 
 @router.get("/now-playing", response_model=MusicNowPlayingResponse)

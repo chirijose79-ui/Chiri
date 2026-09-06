@@ -34,6 +34,16 @@ def search(query: str) -> dict:
     finally:
         client.close()
 
+def get_players() -> dict:
+    client = MusicAssistantClient()
+
+    try:
+        return {
+            "items": client.get_players(),
+        }
+    finally:
+        client.close()
+
 def get_now_playing(player_id: str) -> dict | None:
     client = MusicAssistantClient()
 

@@ -40,6 +40,28 @@ class MusicAssistantClient:
             },
         )
 
+    def get_players(self) -> list[dict[str, Any]]:
+        players = self._request("players/all")
+
+        result = []
+
+        for player in players:
+            if player.get("hide_in_ui"):
+                continue
+
+            if player.get("private"):
+                continue
+
+            result.append(
+                {
+                    "id": player.get("player_id"),
+                    "name": player.get("name"),
+                    "available": player.get("available", False),
+                }
+            )
+
+        return result
+
     def get_now_playing(self, player_id: str) -> dict[str, Any] | None:
         players = self._request("players/all")
 
