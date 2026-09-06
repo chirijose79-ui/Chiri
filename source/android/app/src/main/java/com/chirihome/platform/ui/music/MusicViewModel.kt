@@ -8,6 +8,7 @@ import com.chirihome.platform.network.MusicQueueResponse
 import com.chirihome.platform.network.MusicSearchItem
 import com.chirihome.platform.network.MusicPlayRequest
 import com.chirihome.platform.network.MusicPlayerRequest
+import com.chirihome.platform.network.MusicPlayerItem
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +19,8 @@ data class MusicUiState(
     val isSearching: Boolean = false,
     val isExecutingAction: Boolean = false,
     val searchResults: List<MusicSearchItem> = emptyList(),
+    val players: List<MusicPlayerItem> = emptyList(),
+    val selectedPlayerId: String? = null,
     val nowPlaying: MusicNowPlayingResponse? = null,
     val queue: MusicQueueResponse? = null,
     val error: String? = null
@@ -62,10 +65,28 @@ class MusicViewModel(
         }
     }
 
+    fun loadPlayers() {
+        viewModelScope.launch {
+            try {
+                val response = musicUseCase.getPlayers()
+
+                _uiState.value = _uiState.value.copy(
+                    players = response.items,
+                    error = null
+                )
+            } catch (exception: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    error = "No se pudieron cargar los reproductores."
+                )
+            }
+        }
+    }
+
     fun loadPlayer(playerId: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isLoading = true,
+                selectedPlayerId = playerId,
                 error = null
             )
 

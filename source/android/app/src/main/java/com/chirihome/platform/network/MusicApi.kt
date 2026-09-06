@@ -12,6 +12,9 @@ interface MusicApi {
         @Query("q") query: String
     ): MusicSearchResponse
 
+    @GET("music/players")
+    suspend fun getPlayers(): MusicPlayersResponse
+
     @GET("music/now-playing")
     suspend fun getNowPlaying(
         @Query("player_id") playerId: String

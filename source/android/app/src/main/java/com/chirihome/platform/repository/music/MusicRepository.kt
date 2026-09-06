@@ -4,6 +4,7 @@ import com.chirihome.platform.network.MusicActionResponse
 import com.chirihome.platform.network.MusicNowPlayingResponse
 import com.chirihome.platform.network.MusicPlayRequest
 import com.chirihome.platform.network.MusicPlayerRequest
+import com.chirihome.platform.network.MusicPlayersResponse
 import com.chirihome.platform.network.MusicQueueResponse
 import com.chirihome.platform.network.MusicSearchResponse
 
@@ -12,6 +13,8 @@ interface MusicRepository {
     suspend fun search(
         query: String
     ): MusicSearchResponse
+
+    suspend fun getPlayers(): MusicPlayersResponse
 
     suspend fun getNowPlaying(
         playerId: String

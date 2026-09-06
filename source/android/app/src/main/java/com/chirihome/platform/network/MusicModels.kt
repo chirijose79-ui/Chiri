@@ -13,6 +13,17 @@ data class MusicSearchItem(
     val uri: String
 )
 
+
+data class MusicPlayersResponse(
+    val items: List<MusicPlayerItem>
+)
+
+data class MusicPlayerItem(
+    val id: String,
+    val name: String,
+    val available: Boolean
+)
+
 data class MusicNowPlayingResponse(
     val player_id: String,
     val state: String,
