@@ -7,6 +7,8 @@ import androidx.navigation.compose.rememberNavController
 import com.chirihome.platform.ui.screens.HomeScreen
 import com.chirihome.platform.ui.screens.LoginScreen
 import com.chirihome.platform.ui.screens.SplashScreen
+import com.chirihome.platform.ui.screens.MusicScreen
+import com.chirihome.platform.ui.screens.MultimediaScreen
 
 @Composable
 fun ChiriNavGraph() {
@@ -32,6 +34,14 @@ fun ChiriNavGraph() {
             HomeScreen(
                 navController = navController
             )
+        }
+
+        composable(Routes.MUSIC) {
+            MusicScreen()
+        }
+
+        composable(Routes.MULTIMEDIA) {
+            MultimediaScreen()
         }
     }
 }

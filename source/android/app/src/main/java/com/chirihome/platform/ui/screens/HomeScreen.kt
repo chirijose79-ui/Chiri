@@ -64,6 +64,12 @@ fun HomeScreen(
         uiState.home != null -> {
             HomeContent(
                 uiState = uiState,
+                onMusicClick = {
+                    navController.navigate(Routes.MUSIC)
+                },
+                onMultimediaClick = {
+                    navController.navigate(Routes.MULTIMEDIA)
+                },
                 onLogout = {
                     viewModel.logout(
                         onSuccess = {
@@ -128,6 +134,8 @@ private fun HomeError(
 @Composable
 private fun HomeContent(
     uiState: HomeUiState,
+    onMusicClick: () -> Unit,
+    onMultimediaClick: () -> Unit,
     onLogout: () -> Unit
 ) {
     val home = uiState.home ?: return
@@ -207,7 +215,7 @@ private fun HomeContent(
                             .firstOrNull { it.id == "music" }
                             ?.let { action ->
                                 Button(
-                                    onClick = { },
+                                    onClick = onMusicClick,
                                     enabled = action.enabled,
                                     modifier = Modifier.weight(1f)
                                 ) {
@@ -219,7 +227,7 @@ private fun HomeContent(
                             .firstOrNull { it.id == "multimedia" }
                             ?.let { action ->
                                 Button(
-                                    onClick = { },
+                                    onClick = onMultimediaClick,
                                     enabled = action.enabled,
                                     modifier = Modifier.weight(1f)
                                 ) {
