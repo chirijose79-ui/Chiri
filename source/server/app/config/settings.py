@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     jwt_key_id: str
     jwt_issuer: str
     jwt_audience: str
+    music_assistant_url: str
+    music_assistant_token: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
