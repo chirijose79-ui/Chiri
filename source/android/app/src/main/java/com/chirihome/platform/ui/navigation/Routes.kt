@@ -6,4 +6,6 @@ object Routes {
     const val HOME = "home"
     const val MUSIC = "music"
     const val MULTIMEDIA = "multimedia"
+    const val VIDEOS = "videos"
+    const val PHOTOS = "photos"
 }

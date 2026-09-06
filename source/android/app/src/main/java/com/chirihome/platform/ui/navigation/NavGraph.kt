@@ -9,6 +9,8 @@ import com.chirihome.platform.ui.screens.LoginScreen
 import com.chirihome.platform.ui.screens.SplashScreen
 import com.chirihome.platform.ui.screens.MusicScreen
 import com.chirihome.platform.ui.screens.MultimediaScreen
+import com.chirihome.platform.ui.screens.PhotosScreen
+import com.chirihome.platform.ui.screens.VideosScreen
 
 @Composable
 fun ChiriNavGraph() {
@@ -41,7 +43,25 @@ fun ChiriNavGraph() {
         }
 
         composable(Routes.MULTIMEDIA) {
-            MultimediaScreen()
+            MultimediaScreen(
+                onMusicClick = {
+                    navController.navigate(Routes.MUSIC)
+                },
+                onVideosClick = {
+                    navController.navigate(Routes.VIDEOS)
+                },
+                onPhotosClick = {
+                    navController.navigate(Routes.PHOTOS)
+                }
+            )
+        }
+
+        composable(Routes.VIDEOS) {
+            VideosScreen()
+        }
+
+        composable(Routes.PHOTOS) {
+            PhotosScreen()
         }
     }
 }
