@@ -62,6 +62,14 @@ class MusicAssistantClient:
 
         return result
 
+    def get_session_id(self, player_id: str) -> str | None:
+        return self._request(
+            "player_queues/get_session_id",
+            {
+                "queue_id": player_id,
+            },
+        )
+
     def get_now_playing(self, player_id: str) -> dict[str, Any] | None:
         players = self._request("players/all")
 

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     jwt_issuer: str
     jwt_audience: str
     music_assistant_url: str
+    music_assistant_stream_url: str
     music_assistant_token: str
 
     model_config = SettingsConfigDict(

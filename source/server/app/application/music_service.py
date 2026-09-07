@@ -1,3 +1,4 @@
+from app.config.settings import settings
 from app.integrations.music_assistant.client import MusicAssistantClient
 
 
@@ -44,11 +45,36 @@ def get_players() -> dict:
     finally:
         client.close()
 
+def get_session_id(player_id: str) -> str | None:
+    client = MusicAssistantClient()
+    try:
+        return client.get_session_id(player_id)
+    finally:
+        client.close()
+
 def get_now_playing(player_id: str) -> dict | None:
     client = MusicAssistantClient()
-
     try:
-        return client.get_now_playing(player_id)
+        result = client.get_now_playing(player_id)
+
+        if result is None:
+            return None
+
+        track = result.get("track")
+
+        if track:
+            session_id = client.get_session_id(player_id)
+            queue_item_id = track.get("queue_item_id")
+
+            if session_id and queue_item_id:
+                stream_url = (
+                    f"{settings.music_assistant_stream_url}"
+                    f"/flow/{session_id}/{player_id}/{queue_item_id}/{player_id}.flac"
+                )
+                track["stream_url"] = stream_url
+                track.pop("queue_item_id", None)
+
+        return result
     finally:
         client.close()
 

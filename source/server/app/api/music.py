@@ -45,6 +45,7 @@ class MusicNowPlayingTrack(BaseModel):
     album: str | None = None
     duration: int | None = None
     uri: str
+    stream_url: str | None = None
 
 
 class MusicNowPlayingResponse(BaseModel):

@@ -143,6 +143,12 @@ class FakeMusicAssistantClient:
             },
         ]
 
+
+    def get_session_id(self, player_id: str) -> str | None:
+        assert player_id == PLAYER_ID
+        return "session-test-123"
+
+
     def get_now_playing(self, player_id: str) -> dict | None:
         assert player_id == PLAYER_ID
 
@@ -156,6 +162,7 @@ class FakeMusicAssistantClient:
                 "album": "A Rush of Blood to the Head",
                 "duration": 309,
                 "uri": "library://track/221",
+                "queue_item_id": "queue-item-1",
             },
             "elapsed": 12,
         }
@@ -275,6 +282,7 @@ def test_music_now_playing(test_user, mock_music_assistant):
             "album": "A Rush of Blood to the Head",
             "duration": 309,
             "uri": "library://track/221",
+            "stream_url": "http://192.168.1.88:8097/flow/session-test-123/up2024ca64/queue-item-1/up2024ca64.flac",
         },
         "elapsed": 12,
     }
