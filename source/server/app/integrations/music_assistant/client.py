@@ -97,6 +97,7 @@ class MusicAssistantClient:
                     "album": current_media.get("album"),
                     "duration": current_media.get("duration"),
                     "uri": current_media.get("uri"),
+                    "queue_item_id": current_media.get("queue_item_id"),
                 },
                 "elapsed": int(current_media.get("elapsed_time", 0)),
             }
