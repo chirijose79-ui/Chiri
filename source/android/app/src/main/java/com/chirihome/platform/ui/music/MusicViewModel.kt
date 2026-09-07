@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import android.util.Log
 
 data class MusicUiState(
     val isLoading: Boolean = false,
@@ -120,6 +121,41 @@ class MusicViewModel(
                     uri = uri
                 )
             )
+        }
+    }
+
+    fun playLocal(
+        playerId: String,
+        uri: String
+    ) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                isExecutingAction = true,
+                error = null
+            )
+
+            try {
+                musicUseCase.play(
+                    MusicPlayRequest(
+                        player_id = playerId,
+                        uri = uri
+                    )
+                )
+
+                val nowPlaying = musicUseCase.getNowPlaying(playerId)
+
+                _uiState.value = _uiState.value.copy(
+                    isExecutingAction = false,
+                    nowPlaying = nowPlaying,
+                    error = null
+                )
+            } catch (exception: Exception) {
+                Log.e("MusicViewModel", "Error en playLocal", exception)
+                _uiState.value = _uiState.value.copy(
+                    isExecutingAction = false,
+                    error = "No se pudo reproducir la música."
+                )
+            }
         }
     }
 

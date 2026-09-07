@@ -23,9 +23,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.chirihome.platform.player.music.LocalMusicPlayer
 import com.chirihome.platform.network.MusicPlayerItem
 import com.chirihome.platform.ui.music.MusicViewModel
+import android.util.Log
 
 private const val LOCAL_PLAYER_ID = "local"
 
@@ -34,6 +38,26 @@ fun MusicScreen(
     musicViewModel: MusicViewModel
 ) {
     val uiState by musicViewModel.uiState.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+
+    val localMusicPlayer = remember {
+        LocalMusicPlayer(context)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            localMusicPlayer.release()
+        }
+    }
+
+    LaunchedEffect(uiState.nowPlaying?.track?.stream_url) {
+        if (uiState.selectedPlayerId == LOCAL_PLAYER_ID) {
+            uiState.nowPlaying?.track?.stream_url?.let { streamUrl ->
+                localMusicPlayer.play(streamUrl)
+            }
+        }
+    }
 
     var query by remember {
         mutableStateOf("")
@@ -179,8 +203,14 @@ fun MusicScreen(
 
                     Button(
                         onClick = {
+                            Log.d("MusicScreen", "CLICK Reproducir - playerId=${uiState.selectedPlayerId}")
                             uiState.selectedPlayerId?.let { playerId ->
-                                if (playerId != LOCAL_PLAYER_ID) {
+                                if (playerId == LOCAL_PLAYER_ID) {
+                                    musicViewModel.playLocal(
+                                        playerId = playerId,
+                                        uri = item.uri
+                                    )
+                                } else {
                                     musicViewModel.play(
                                         playerId = playerId,
                                         uri = item.uri
@@ -189,7 +219,6 @@ fun MusicScreen(
                             }
                         },
                         enabled = uiState.selectedPlayerId != null &&
-                                uiState.selectedPlayerId != LOCAL_PLAYER_ID &&
                                 !uiState.isExecutingAction
                     ) {
                         Text("Reproducir")

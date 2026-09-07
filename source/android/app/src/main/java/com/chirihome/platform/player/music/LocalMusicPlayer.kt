@@ -10,8 +10,8 @@ class LocalMusicPlayer(
 
     private val player = ExoPlayer.Builder(context).build()
 
-    fun play(uri: String) {
-        val mediaItem = MediaItem.fromUri(uri)
+    fun play(streamUrl: String) {
+        val mediaItem = MediaItem.fromUri(streamUrl)
 
         player.setMediaItem(mediaItem)
         player.prepare()

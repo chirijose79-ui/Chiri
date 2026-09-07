@@ -37,7 +37,8 @@ data class MusicNowPlayingTrack(
     val artist: String?,
     val album: String?,
     val duration: Int?,
-    val uri: String
+    val uri: String,
+    val stream_url: String?
 )
 
 data class MusicQueueResponse(
