@@ -155,7 +155,7 @@ class SendspinNoiseHandshakeTest {
         assertTrue(responder.isComplete)
 
         assertNotNull(responder.handshakeHash)
-        assertNotNull(responder.result)
+        assertNotNull(responder.noiseTransport)
 
         assertArrayEquals(
             serverStaticPublicKey,

@@ -1,9 +1,9 @@
 package com.chirihome.platform.player.music.sendspin.protocol
 
-import com.chirihome.platform.player.music.sendspin.crypto.HandshakeResult
 import com.chirihome.platform.player.music.sendspin.crypto.HandshakeState
 import com.chirihome.platform.player.music.sendspin.crypto.NoiseCrypto
 import com.chirihome.platform.player.music.sendspin.crypto.NoiseRole
+import com.chirihome.platform.player.music.sendspin.crypto.NoiseTransport
 import com.chirihome.platform.player.music.sendspin.crypto.SendspinBase64
 import com.chirihome.platform.player.music.sendspin.crypto.SendspinIdentity
 import com.chirihome.platform.player.music.sendspin.crypto.SendspinIdentityProvider
@@ -237,8 +237,8 @@ class SendspinNoiseHandshake(
                 ?.takeIf { it.isComplete }
                 ?.handshakeHash
 
-    val result: HandshakeResult?
-        get() = handshakeState?.result
+    override val noiseTransport: NoiseTransport?
+        get() = handshakeState?.result?.transport
 
     fun getClientInitRaw(): String? = clientInitRaw
 

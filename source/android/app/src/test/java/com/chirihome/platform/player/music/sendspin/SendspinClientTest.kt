@@ -1,5 +1,6 @@
 package com.chirihome.platform.player.music.sendspin
 
+import com.chirihome.platform.player.music.sendspin.crypto.NoiseTransport
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
@@ -98,6 +99,9 @@ class SendspinClientTest {
 
         var receivedNoiseMessage1: String? = null
             private set
+
+        override val noiseTransport: NoiseTransport?
+            get() = null
 
         override suspend fun createClientInit(): String {
             createClientInitCalls++

@@ -1,5 +1,6 @@
 package com.chirihome.platform.player.music.sendspin
 
+import com.chirihome.platform.player.music.sendspin.crypto.NoiseTransport
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
@@ -24,6 +25,8 @@ class SendspinClient(
 ) {
 
     private var eventJob: Job? = null
+
+    private var noiseTransport: NoiseTransport? = null
 
     /**
      * Indica si existe una conexión activa.
@@ -171,6 +174,10 @@ class SendspinClient(
                     handshake.receiveNoiseMessage1(message)
 
                 transport.send(noiseMessage2)
+
+                noiseTransport =
+                    handshake.noiseTransport
+                        ?: error("Noise handshake did not produce a transport")
             }
 
             else -> {
