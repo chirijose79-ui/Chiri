@@ -102,6 +102,12 @@ class SendspinClientTest {
             receiveServerInitCalls++
             receivedServerInit = rawMessage
         }
+
+        override suspend fun receiveNoiseMessage1(
+            rawMessage: String
+        ): String {
+            return "noise-message-2"
+        }
     }
 
     @Test

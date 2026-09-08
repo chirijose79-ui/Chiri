@@ -113,6 +113,13 @@ class SendspinNoiseHandshake(
         resolvedPskCategory = null
     }
 
+    override suspend fun receiveNoiseMessage1(
+        rawMessage: String
+    ): String {
+        readNoiseMessage1(rawMessage)
+        return createNoiseMessage2()
+    }
+
     suspend fun readNoiseMessage1(rawMessage: String): SendspinNoiseMsg1Payload {
         require(rawMessage.isNotBlank()) {
             "Empty noise/handshake message"

@@ -6,4 +6,7 @@ interface SendspinHandshake {
 
     fun receiveServerInit(rawMessage: String)
 
+    suspend fun receiveNoiseMessage1(
+        rawMessage: String
+    ): String
 }
