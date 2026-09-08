@@ -1,5 +1,6 @@
 package com.chirihome.platform.player.music.sendspin
 
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import kotlinx.coroutines.CoroutineScope
@@ -10,14 +11,12 @@ import kotlinx.coroutines.launch
 /**
  * Cliente principal de Sendspin.
  *
- * Esta primera implementación administra el ciclo de vida
- * del transporte y centraliza la recepción de eventos.
- *
- * La negociación Noise y el protocolo Sendspin se integrarán
- * progresivamente sobre esta base.
+ * Administra el ciclo de vida del transporte y coordina
+ * la negociación inicial del protocolo Sendspin.
  */
 class SendspinClient(
     private val transport: SendspinTransport,
+    private val handshake: SendspinHandshake,
     private val scope: CoroutineScope
 ) {
 
@@ -66,9 +65,6 @@ class SendspinClient(
 
     /**
      * Envía un mensaje binario.
-     *
-     * Se utilizará para el handshake Noise y posteriormente
-     * para los frames binarios del protocolo Sendspin.
      */
     suspend fun sendBinary(data: ByteArray) {
         check(transport.isConnected) {
@@ -96,7 +92,7 @@ class SendspinClient(
     /**
      * Procesa los eventos recibidos desde el transporte.
      */
-    private fun handleTransportEvent(
+    private suspend fun handleTransportEvent(
         event: InboundTransportEvent
     ) {
         when (event) {
@@ -124,9 +120,19 @@ class SendspinClient(
 
     /**
      * Se invoca cuando el transporte establece la conexión.
+     *
+     * Primera transición del protocolo:
+     *
+     * Connected
+     *     ↓
+     * createClientInit()
+     *     ↓
+     * client/init
      */
-    private fun handleConnected() {
-        // Sendspin protocol initialization will be added next.
+    private suspend fun handleConnected() {
+        val clientInit = handshake.createClientInit()
+
+        transport.send(clientInit)
     }
 
     /**

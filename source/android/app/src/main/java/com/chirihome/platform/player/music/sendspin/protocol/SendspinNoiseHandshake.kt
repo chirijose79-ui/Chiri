@@ -14,7 +14,7 @@ class SendspinNoiseHandshake(
     private val identityProvider: SendspinIdentityProvider,
     private val crypto: NoiseCrypto,
     private val pskResolver: SendspinPskResolver
-) {
+) : SendspinHandshake {
 
     private val json = Json {
         encodeDefaults = true
@@ -33,7 +33,7 @@ class SendspinNoiseHandshake(
     private var resolvedPskId: String? = null
     private var resolvedPskCategory: String? = null
 
-    suspend fun createClientInit(): String {
+    override suspend fun createClientInit(): String {
         val currentIdentity = identityProvider.getOrCreate()
         identity = currentIdentity
 

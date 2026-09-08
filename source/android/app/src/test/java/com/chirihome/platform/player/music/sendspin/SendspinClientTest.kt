@@ -1,7 +1,10 @@
 package com.chirihome.platform.player.music.sendspin
 
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
@@ -71,15 +74,27 @@ class SendspinClientTest {
         }
     }
 
+    private class FakeSendspinHandshake(
+        private val clientInit: String = """{"type":"client/init"}"""
+    ) : SendspinHandshake {
+
+        var createClientInitCalls = 0
+            private set
+
+        override suspend fun createClientInit(): String {
+            createClientInitCalls++
+            return clientInit
+        }
+    }
+
     @Test
     fun initiallyNotConnected() {
         val transport = FakeSendspinTransport()
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         assertFalse(client.isConnected)
@@ -91,9 +106,8 @@ class SendspinClientTest {
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         client.connect()
@@ -109,9 +123,8 @@ class SendspinClientTest {
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         client.connect()
@@ -122,22 +135,49 @@ class SendspinClientTest {
     }
 
     @Test
+    fun connectedSendsClientInit() = runBlocking {
+        val transport = FakeSendspinTransport()
+
+        val clientInit =
+            """{"type":"client/init"}"""
+
+        val handshake =
+            createHandshake(clientInit)
+
+        val client = SendspinClient(
+            transport = transport,
+            handshake = handshake,
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        client.connect()
+
+        assertEquals(
+            1,
+            handshake.createClientInitCalls
+        )
+
+        assertEquals(
+            listOf(clientInit),
+            transport.sentMessages
+        )
+    }
+
+    @Test
     fun sendTextDelegatesToTransport() = runBlocking {
         val transport = FakeSendspinTransport()
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         client.connect()
         client.send("test-message")
 
-        assertEquals(
-            listOf("test-message"),
-            transport.sentMessages
+        assertTrue(
+            transport.sentMessages.contains("test-message")
         )
     }
 
@@ -147,9 +187,8 @@ class SendspinClientTest {
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         client.connect()
@@ -180,9 +219,8 @@ class SendspinClientTest {
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         client.connect()
@@ -199,9 +237,8 @@ class SendspinClientTest {
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         var failed = false
@@ -221,9 +258,8 @@ class SendspinClientTest {
 
         val client = SendspinClient(
             transport = transport,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.Dispatchers.Unconfined
-            )
+            handshake = createHandshake(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
         var failed = false
@@ -240,5 +276,11 @@ class SendspinClientTest {
         }
 
         assertTrue(failed)
+    }
+
+    private fun createHandshake(
+        clientInit: String = """{"type":"client/init"}"""
+    ): FakeSendspinHandshake {
+        return FakeSendspinHandshake(clientInit)
     }
 }
