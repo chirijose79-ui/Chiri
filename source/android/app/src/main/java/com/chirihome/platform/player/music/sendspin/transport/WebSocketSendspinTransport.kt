@@ -121,6 +121,18 @@ class WebSocketSendspinTransport(
         )
     }
 
+    override suspend fun sendBinary(data: ByteArray) {
+        val currentSession = session
+            ?: error("Sendspin WebSocket is not connected")
+
+        currentSession.send(
+            Frame.Binary(
+                fin = true,
+                data = data
+            )
+        )
+    }
+
     override suspend fun disconnect() {
         connectionMutex.withLock {
             val currentSession = session

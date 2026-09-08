@@ -28,6 +28,14 @@ interface SendspinTransport {
     suspend fun send(message: String)
 
     /**
+     * Envía un mensaje binario.
+     *
+     * Se utiliza para el handshake Noise y,
+     * posteriormente, para los frames binarios del protocolo.
+     */
+    suspend fun sendBinary(data: ByteArray)
+
+    /**
      * Cierra la conexión.
      */
     suspend fun disconnect()
