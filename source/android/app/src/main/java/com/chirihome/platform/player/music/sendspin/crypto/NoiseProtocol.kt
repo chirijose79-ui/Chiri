@@ -704,13 +704,9 @@ class HandshakeState private constructor(
                             ephemeral.publicKey
                         )
 
-                        if (
-                            pattern.hasPsk
-                        ) {
-                            symmetric.mixKey(
-                                ephemeral.publicKey
-                            )
-                        }
+                        symmetric.mixKey(
+                            ephemeral.publicKey
+                        )
                     }
 
                     NoiseToken.PSK -> {
@@ -812,13 +808,9 @@ class HandshakeState private constructor(
                             ephemeral
                         )
 
-                        if (
-                            pattern.hasPsk
-                        ) {
-                            symmetric.mixKey(
-                                ephemeral
-                            )
-                        }
+                        symmetric.mixKey(
+                            ephemeral
+                        )
                     }
 
                     NoiseToken.PSK -> {
