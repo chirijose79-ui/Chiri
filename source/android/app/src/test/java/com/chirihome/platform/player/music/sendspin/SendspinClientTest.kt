@@ -72,6 +72,12 @@ class SendspinClientTest {
                 InboundTransportEvent.Disconnected()
             )
         }
+
+        suspend fun emitTextMessage(message: String) {
+            _events.emit(
+                InboundTransportEvent.TextMessage(message)
+            )
+        }
     }
 
     private class FakeSendspinHandshake(
@@ -81,9 +87,20 @@ class SendspinClientTest {
         var createClientInitCalls = 0
             private set
 
+        var receiveServerInitCalls = 0
+            private set
+
+        var receivedServerInit: String? = null
+            private set
+
         override suspend fun createClientInit(): String {
             createClientInitCalls++
             return clientInit
+        }
+
+        override fun receiveServerInit(rawMessage: String) {
+            receiveServerInitCalls++
+            receivedServerInit = rawMessage
         }
     }
 
@@ -161,6 +178,24 @@ class SendspinClientTest {
             listOf(clientInit),
             transport.sentMessages
         )
+    }
+
+    @Test
+    fun serverInitTextMessageIsDelegatedToHandshake() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val handshake = createHandshake()
+        val client = SendspinClient(
+            transport = transport,
+            handshake = handshake,
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+        val serverInit = """{"type":"server/init","payload":{"server_id":"abc","version":1}}"""
+
+        client.connect()
+        transport.emitTextMessage(serverInit)
+
+        assertEquals(1, handshake.receiveServerInitCalls)
+        assertEquals(serverInit, handshake.receivedServerInit)
     }
 
     @Test

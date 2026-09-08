@@ -50,7 +50,7 @@ class SendspinNoiseHandshake(
         }
     }
 
-    fun receiveServerInit(rawMessage: String) {
+    override fun receiveServerInit(rawMessage: String) {
         require(rawMessage.isNotBlank()) {
             "Empty server/init message"
         }

@@ -139,7 +139,7 @@ class SendspinClient(
      * Se invoca cuando se recibe un mensaje de texto.
      */
     private fun handleTextMessage(message: String) {
-        // Sendspin protocol message handling will be added next.
+        handshake.receiveServerInit(message)
     }
 
     /**
