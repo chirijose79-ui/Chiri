@@ -93,6 +93,12 @@ class SendspinClientTest {
         var receivedServerInit: String? = null
             private set
 
+        var receiveNoiseMessage1Calls = 0
+            private set
+
+        var receivedNoiseMessage1: String? = null
+            private set
+
         override suspend fun createClientInit(): String {
             createClientInitCalls++
             return clientInit
@@ -106,6 +112,9 @@ class SendspinClientTest {
         override suspend fun receiveNoiseMessage1(
             rawMessage: String
         ): String {
+            receiveNoiseMessage1Calls++
+            receivedNoiseMessage1 = rawMessage
+
             return "noise-message-2"
         }
     }
@@ -190,19 +199,67 @@ class SendspinClientTest {
     fun serverInitTextMessageIsDelegatedToHandshake() = runBlocking {
         val transport = FakeSendspinTransport()
         val handshake = createHandshake()
+
         val client = SendspinClient(
             transport = transport,
             handshake = handshake,
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
-        val serverInit = """{"type":"server/init","payload":{"server_id":"abc","version":1}}"""
+
+        val serverInit =
+            """{"type":"server/init","payload":{"server_id":"abc","version":1}}"""
 
         client.connect()
         transport.emitTextMessage(serverInit)
 
-        assertEquals(1, handshake.receiveServerInitCalls)
-        assertEquals(serverInit, handshake.receivedServerInit)
+        assertEquals(
+            1,
+            handshake.receiveServerInitCalls
+        )
+
+        assertEquals(
+            serverInit,
+            handshake.receivedServerInit
+        )
     }
+
+    @Test
+    fun noiseHandshakeMessageIsProcessedAndMessage2IsSentAsText() =
+        runBlocking {
+            val transport = FakeSendspinTransport()
+            val handshake = createHandshake()
+
+            val client = SendspinClient(
+                transport = transport,
+                handshake = handshake,
+                scope = CoroutineScope(Dispatchers.Unconfined)
+            )
+
+            val noiseMessage1 =
+                """{"type":"noise/handshake","payload":{"data":"test-noise-data"}}"""
+
+            client.connect()
+            transport.emitTextMessage(noiseMessage1)
+
+            assertEquals(
+                1,
+                handshake.receiveNoiseMessage1Calls
+            )
+
+            assertEquals(
+                noiseMessage1,
+                handshake.receivedNoiseMessage1
+            )
+
+            assertEquals(
+                "noise-message-2",
+                transport.sentMessages.last()
+            )
+
+            assertTrue(
+                transport.sentBinaryMessages.isEmpty()
+            )
+        }
 
     @Test
     fun sendTextDelegatesToTransport() = runBlocking {

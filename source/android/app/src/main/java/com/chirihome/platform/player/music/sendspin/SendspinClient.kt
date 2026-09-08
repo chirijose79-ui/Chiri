@@ -7,6 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Cliente principal de Sendspin.
@@ -137,9 +140,43 @@ class SendspinClient(
 
     /**
      * Se invoca cuando se recibe un mensaje de texto.
+     *
+     * En la fase inicial del protocolo Sendspin se reciben
+     * mensajes de texto JSON.
+     *
+     * server/init
+     *     ↓
+     * receiveServerInit()
+     *
+     * noise/handshake
+     *     ↓
+     * receiveNoiseMessage1()
+     *     ↓
+     * noise/handshake Message 2
      */
-    private fun handleTextMessage(message: String) {
-        handshake.receiveServerInit(message)
+    private suspend fun handleTextMessage(message: String) {
+        val type = Json
+            .parseToJsonElement(message)
+            .jsonObject["type"]
+            ?.jsonPrimitive
+            ?.content
+
+        when (type) {
+            "server/init" -> {
+                handshake.receiveServerInit(message)
+            }
+
+            "noise/handshake" -> {
+                val noiseMessage2 =
+                    handshake.receiveNoiseMessage1(message)
+
+                transport.send(noiseMessage2)
+            }
+
+            else -> {
+                error("Unsupported Sendspin text message type: $type")
+            }
+        }
     }
 
     /**
