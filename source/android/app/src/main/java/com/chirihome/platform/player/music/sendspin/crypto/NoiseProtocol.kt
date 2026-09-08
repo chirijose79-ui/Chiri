@@ -1,882 +1,948 @@
 package com.chirihome.platform.player.music.sendspin.crypto
 
-/**
- * Low-level Noise protocol state used by Sendspin.
- *
- * This file intentionally starts with CipherState and SymmetricState.
- * The KKpsk2 handshake will be added only after these primitives are
- * independently validated.
- */
-object NoiseProtocol {
+internal const val DH_LEN = 32
+internal const val HASH_LEN = 32
+internal const val KEY_LEN = 32
+internal const val TAG_LEN = 16
 
-    /**
-     * Noise CipherState.
-     *
-     * Maintains:
-     * - encryption key k
-     * - nonce counter n
-     *
-     * Noise uses a 64-bit little-endian nonce encoded into the
-     * 12-byte nonce required by ChaCha20-Poly1305:
-     *
-     *   00 00 00 00 || uint64_le(n)
-     */
-    class CipherState(
-        private val crypto: NoiseCrypto
+class NoiseException(
+    message: String
+) : Exception(message)
+
+enum class NoiseRole {
+    INITIATOR,
+    RESPONDER
+}
+
+data class X25519KeyPair(
+    val privateKey: ByteArray,
+    val publicKey: ByteArray
+)
+
+internal enum class NoiseToken {
+    E,
+    ES,
+    SS,
+    EE,
+    SE,
+    PSK
+}
+
+internal data class NoisePattern(
+    val name: String,
+    val initiatorPreSharesStatic: Boolean,
+    val responderPreSharesStatic: Boolean,
+    val messages: List<List<NoiseToken>>,
+    val hasPsk: Boolean
+) {
+
+    companion object {
+
+        val KK =
+            NoisePattern(
+                name = "KK",
+                initiatorPreSharesStatic = true,
+                responderPreSharesStatic = true,
+                messages = listOf(
+                    listOf(
+                        NoiseToken.E,
+                        NoiseToken.ES,
+                        NoiseToken.SS
+                    ),
+                    listOf(
+                        NoiseToken.E,
+                        NoiseToken.EE,
+                        NoiseToken.SE
+                    )
+                ),
+                hasPsk = false
+            )
+
+        val KKPSK2 =
+            NoisePattern(
+                name = "KKpsk2",
+                initiatorPreSharesStatic = true,
+                responderPreSharesStatic = true,
+                messages = listOf(
+                    listOf(
+                        NoiseToken.E,
+                        NoiseToken.ES,
+                        NoiseToken.SS
+                    ),
+                    listOf(
+                        NoiseToken.E,
+                        NoiseToken.EE,
+                        NoiseToken.SE,
+                        NoiseToken.PSK
+                    )
+                ),
+                hasPsk = true
+            )
+    }
+}
+
+class CipherState(
+    private val crypto: NoiseCrypto
+) {
+
+    private var key: ByteArray? = null
+
+    internal var nonce: ULong = 0u
+
+    val hasKey: Boolean
+        get() = key != null
+
+    internal fun initializeKey(
+        newKey: ByteArray?
     ) {
-
-        private var key: ByteArray? = null
-        private var nonce: Long = 0
-
-        fun initializeKey(newKey: ByteArray?) {
-            if (newKey != null) {
-                require(newKey.size == 32) {
-                    "Noise cipher key must be 32 bytes"
-                }
-
-                key = newKey.copyOf()
-            } else {
-                key = null
+        if (newKey != null) {
+            require(newKey.size == KEY_LEN) {
+                "Cipher key must be 32 bytes"
             }
-
-            nonce = 0
         }
 
-        fun hasKey(): Boolean {
-            return key != null
-        }
+        key = newKey
+        nonce = 0u
+    }
 
-        fun getNonce(): Long {
-            return nonce
-        }
-
-        fun encryptWithAd(
-            aad: ByteArray,
-            plaintext: ByteArray
-        ): ByteArray {
-
-            val currentKey = key
-
-            /*
-             * Noise permits encryption before a key is established.
-             * In that case the payload is plaintext and the nonce
-             * does not advance.
-             */
-            if (currentKey == null) {
-                return plaintext.copyOf()
-            }
-
-            check(nonce != Long.MAX_VALUE) {
-                "Noise nonce exhausted"
-            }
-
-            val encrypted = crypto.chacha20Poly1305Encrypt(
-                key = currentKey,
-                nonce = nonceBytes(nonce),
-                plaintext = plaintext,
-                aad = aad
+    private fun checkNonce() {
+        if (nonce == ULong.MAX_VALUE) {
+            throw NoiseException(
+                "Cipher nonce exhausted"
             )
-
-            nonce++
-
-            return encrypted
-        }
-
-        fun decryptWithAd(
-            aad: ByteArray,
-            ciphertext: ByteArray
-        ): ByteArray? {
-
-            val currentKey = key
-
-            /*
-             * Before a key is established, Noise treats the payload
-             * as plaintext.
-             */
-            if (currentKey == null) {
-                return ciphertext.copyOf()
-            }
-
-            check(nonce != Long.MAX_VALUE) {
-                "Noise nonce exhausted"
-            }
-
-            val decrypted = crypto.chacha20Poly1305Decrypt(
-                key = currentKey,
-                nonce = nonceBytes(nonce),
-                ciphertext = ciphertext,
-                aad = aad
-            )
-
-            if (decrypted != null) {
-                nonce++
-            }
-
-            return decrypted
-        }
-
-        private fun nonceBytes(value: Long): ByteArray {
-            return ByteArray(12).also { bytes ->
-
-                /*
-                 * First four bytes remain zero.
-                 *
-                 * Noise specification:
-                 * 4 zero bytes || little-endian uint64 nonce
-                 */
-                for (i in 0 until 8) {
-                    bytes[4 + i] =
-                        (value ushr (8 * i)).toByte()
-                }
-            }
         }
     }
 
-    /**
-     * Noise SymmetricState.
-     *
-     * Contains:
-     * - chaining key ck
-     * - handshake hash h
-     * - CipherState
-     *
-     * This implements the fundamental Noise hash/key operations.
-     */
-    class SymmetricState(
-        private val crypto: NoiseCrypto,
-        private val cipherState: CipherState = CipherState(crypto)
-    ) {
+    private fun nonceBytes(): ByteArray {
+        val result =
+            ByteArray(12)
 
-        private lateinit var chainingKey: ByteArray
-        private lateinit var handshakeHash: ByteArray
+        for (index in 0 until 8) {
+            result[4 + index] =
+                (
+                        (nonce shr (index * 8)) and
+                                0xFFu
+                        ).toByte()
+        }
 
-        fun initializeSymmetric(
-            protocolName: ByteArray
-        ) {
-            require(protocolName.isNotEmpty()) {
-                "Noise protocol name must not be empty"
-            }
+        return result
+    }
 
-            /*
-             * Noise initialization:
-             *
-             * If protocol name <= HASHLEN:
-             *   h = protocolName padded with zeros
-             *
-             * Otherwise:
-             *   h = HASH(protocolName)
-             *
-             * For SHA-256 HASHLEN = 32.
-             */
-            if (protocolName.size <= 32) {
-                handshakeHash = ByteArray(32)
+    fun encryptWithAd(
+        associatedData: ByteArray,
+        plaintext: ByteArray
+    ): ByteArray {
 
-                protocolName.copyInto(
-                    destination = handshakeHash,
-                    destinationOffset = 0
+        val currentKey =
+            key
+                ?: return plaintext
+
+        checkNonce()
+
+        val ciphertext =
+            crypto.chacha20Poly1305Encrypt(
+                key = currentKey,
+                nonce = nonceBytes(),
+                plaintext = plaintext,
+                aad = associatedData
+            )
+
+        nonce++
+
+        return ciphertext
+    }
+
+    fun decryptWithAd(
+        associatedData: ByteArray,
+        ciphertext: ByteArray
+    ): ByteArray {
+
+        val currentKey =
+            key
+                ?: return ciphertext
+
+        checkNonce()
+
+        val plaintext =
+            crypto.chacha20Poly1305Decrypt(
+                key = currentKey,
+                nonce = nonceBytes(),
+                ciphertext = ciphertext,
+                aad = associatedData
+            )
+                ?: throw NoiseException(
+                    "AEAD authentication failed"
                 )
+
+        nonce++
+
+        return plaintext
+    }
+}
+
+internal class SymmetricState(
+    private val crypto: NoiseCrypto
+) {
+
+    private lateinit var chainingKey: ByteArray
+
+    lateinit var handshakeHash: ByteArray
+        private set
+
+    val cipher =
+        CipherState(crypto)
+
+    fun initialize(
+        protocolName: String
+    ) {
+        val protocolBytes =
+            protocolName.toByteArray()
+
+        handshakeHash =
+            if (protocolBytes.size <= HASH_LEN) {
+                protocolBytes.copyOf(HASH_LEN)
             } else {
-                handshakeHash = crypto.sha256(protocolName)
+                crypto.sha256(
+                    protocolBytes
+                )
             }
 
-            chainingKey = handshakeHash.copyOf()
+        chainingKey =
+            handshakeHash.copyOf()
+    }
 
-            cipherState.initializeKey(null)
-        }
+    private fun hkdf(
+        inputKeyMaterial: ByteArray,
+        outputCount: Int
+    ): List<ByteArray> {
 
-        fun mixHash(data: ByteArray) {
-            handshakeHash = crypto.sha256(
-                handshakeHash + data
-            )
-        }
-
-        fun mixKey(inputKeyMaterial: ByteArray) {
-            val output = hkdf2(
-                chainingKey,
-                inputKeyMaterial
-            )
-
-            chainingKey = output.first
-
-            cipherState.initializeKey(
-                output.second
-            )
-        }
-
-        fun mixKeyAndHash(
-            inputKeyMaterial: ByteArray
+        require(
+            outputCount in 1..3
         ) {
-            val output = hkdf3(
+            "HKDF output count must be 1..3"
+        }
+
+        val tempKey =
+            crypto.hmacSha256(
                 chainingKey,
                 inputKeyMaterial
             )
 
-            chainingKey = output.first
-
-            /*
-             * Noise mixKeyAndHash:
-             *
-             * ck, temp_h, temp_k = HKDF(ck, input_key_material)
-             *
-             * h = HASH(h || temp_h)
-             *
-             * k = temp_k
-             */
-
-            mixHash(output.second)
-
-            cipherState.initializeKey(
-                output.third
-            )
-        }
-
-        fun encryptAndHash(
-            plaintext: ByteArray
-        ): ByteArray {
-
-            val ciphertext = cipherState.encryptWithAd(
-                handshakeHash,
-                plaintext
-            )
-
-            mixHash(ciphertext)
-
-            return ciphertext
-        }
-
-        fun decryptAndHash(
-            ciphertext: ByteArray
-        ): ByteArray? {
-
-            val plaintext = cipherState.decryptWithAd(
-                handshakeHash,
-                ciphertext
-            )
-
-            if (plaintext != null) {
-                mixHash(ciphertext)
-            }
-
-            return plaintext
-        }
-
-        fun getHandshakeHash(): ByteArray {
-            return handshakeHash.copyOf()
-        }
-
-        fun getChainingKey(): ByteArray {
-            return chainingKey.copyOf()
-        }
-
-        fun getCipherState(): CipherState {
-            return cipherState
-        }
-
-        /**
-         * Noise HKDF with two outputs.
-         *
-         * HKDF:
-         *
-         * temp_key = HMAC(chainingKey, input)
-         * output1  = HMAC(temp_key, 0x01)
-         * output2  = HMAC(temp_key, output1 || 0x02)
-         */
-        private fun hkdf2(
-            chainingKey: ByteArray,
-            inputKeyMaterial: ByteArray
-        ): Pair<ByteArray, ByteArray> {
-
-            val tempKey = crypto.hmacSha256(
-                chainingKey,
-                inputKeyMaterial
-            )
-
-            val output1 = crypto.hmacSha256(
+        val output1 =
+            crypto.hmacSha256(
                 tempKey,
                 byteArrayOf(0x01)
             )
 
-            val output2 = crypto.hmacSha256(
-                tempKey,
-                output1 + byteArrayOf(0x02)
+        if (outputCount == 1) {
+            return listOf(
+                output1
             )
-
-            return output1 to output2
         }
 
-        /**
-         * Noise HKDF with three outputs.
-         */
-        private fun hkdf3(
-            chainingKey: ByteArray,
-            inputKeyMaterial: ByteArray
-        ): Triple<ByteArray, ByteArray, ByteArray> {
-
-            val tempKey = crypto.hmacSha256(
-                chainingKey,
-                inputKeyMaterial
-            )
-
-            val output1 = crypto.hmacSha256(
-                tempKey,
-                byteArrayOf(0x01)
-            )
-
-            val output2 = crypto.hmacSha256(
+        val output2 =
+            crypto.hmacSha256(
                 tempKey,
                 output1 + byteArrayOf(0x02)
             )
 
-            val output3 = crypto.hmacSha256(
+        if (outputCount == 2) {
+            return listOf(
+                output1,
+                output2
+            )
+        }
+
+        val output3 =
+            crypto.hmacSha256(
                 tempKey,
                 output2 + byteArrayOf(0x03)
             )
 
-            return Triple(
-                output1,
-                output2,
-                output3
+        return listOf(
+            output1,
+            output2,
+            output3
+        )
+    }
+
+    fun mixKey(
+        inputKeyMaterial: ByteArray
+    ) {
+        val outputs =
+            hkdf(
+                inputKeyMaterial,
+                2
             )
+
+        chainingKey =
+            outputs[0]
+
+        cipher.initializeKey(
+            outputs[1]
+        )
+    }
+
+    fun mixHash(
+        data: ByteArray
+    ) {
+        handshakeHash =
+            crypto.sha256(
+                handshakeHash + data
+            )
+    }
+
+    fun mixKeyAndHash(
+        inputKeyMaterial: ByteArray
+    ) {
+        val outputs =
+            hkdf(
+                inputKeyMaterial,
+                3
+            )
+
+        chainingKey =
+            outputs[0]
+
+        mixHash(
+            outputs[1]
+        )
+
+        cipher.initializeKey(
+            outputs[2]
+        )
+    }
+
+    fun encryptAndHash(
+        plaintext: ByteArray
+    ): ByteArray {
+
+        val ciphertext =
+            cipher.encryptWithAd(
+                associatedData = handshakeHash,
+                plaintext = plaintext
+            )
+
+        mixHash(
+            ciphertext
+        )
+
+        return ciphertext
+    }
+
+    fun decryptAndHash(
+        ciphertext: ByteArray
+    ): ByteArray {
+
+        val plaintext =
+            cipher.decryptWithAd(
+                associatedData = handshakeHash,
+                ciphertext = ciphertext
+            )
+
+        mixHash(
+            ciphertext
+        )
+
+        return plaintext
+    }
+
+    fun split(): Pair<CipherState, CipherState> {
+
+        val outputs =
+            hkdf(
+                ByteArray(0),
+                2
+            )
+
+        val initiatorCipher =
+            CipherState(crypto)
+
+        initiatorCipher.initializeKey(
+            outputs[0]
+        )
+
+        val responderCipher =
+            CipherState(crypto)
+
+        responderCipher.initializeKey(
+            outputs[1]
+        )
+
+        return Pair(
+            initiatorCipher,
+            responderCipher
+        )
+    }
+}
+
+class NoiseTransport internal constructor(
+    private val sending: CipherState,
+    private val receiving: CipherState,
+    val handshakeHash: ByteArray
+) {
+
+    fun encrypt(
+        plaintext: ByteArray
+    ): ByteArray {
+
+        return sending.encryptWithAd(
+            associatedData = ByteArray(0),
+            plaintext = plaintext
+        )
+    }
+
+    fun decrypt(
+        ciphertext: ByteArray
+    ): ByteArray {
+
+        return receiving.decryptWithAd(
+            associatedData = ByteArray(0),
+            ciphertext = ciphertext
+        )
+    }
+}
+
+class HandshakeResult internal constructor(
+    val transport: NoiseTransport,
+    val handshakeHash: ByteArray
+)
+
+class HandshakeState private constructor(
+    private val crypto: NoiseCrypto,
+    private val pattern: NoisePattern,
+    private val role: NoiseRole,
+    private val localStatic: X25519KeyPair,
+    private val remoteStaticPublic: ByteArray,
+    private var psk: ByteArray?,
+    private var localEphemeral: X25519KeyPair?
+) {
+
+    private val symmetric =
+        SymmetricState(
+            crypto
+        )
+
+    private var remoteEphemeralPublic:
+            ByteArray? = null
+
+    private var messageIndex =
+        0
+
+    private var poisoned =
+        false
+
+    var result:
+            HandshakeResult? =
+        null
+        private set
+
+    val isComplete: Boolean
+        get() = result != null
+
+    val handshakeHash: ByteArray
+        get() = symmetric.handshakeHash
+
+    init {
+        require(
+            localStatic.privateKey.size == DH_LEN
+        ) {
+            "Local static private key must be 32 bytes"
+        }
+
+        require(
+            localStatic.publicKey.size == DH_LEN
+        ) {
+            "Local static public key must be 32 bytes"
+        }
+
+        require(
+            remoteStaticPublic.size == DH_LEN
+        ) {
+            "Remote static public key must be 32 bytes"
+        }
+
+        require(
+            psk == null ||
+                    psk!!.size == KEY_LEN
+        ) {
+            "PSK must be 32 bytes"
+        }
+
+        symmetric.initialize(
+            "Noise_${pattern.name}_25519_ChaChaPoly_SHA256"
+        )
+    }
+
+    companion object {
+
+        fun createKkPsk2(
+            crypto: NoiseCrypto,
+            role: NoiseRole,
+            prologue: ByteArray,
+            localStatic: X25519KeyPair,
+            remoteStaticPublic: ByteArray,
+            psk: ByteArray? = null,
+            localEphemeral: X25519KeyPair? = null
+        ): HandshakeState {
+
+            val state =
+                HandshakeState(
+                    crypto = crypto,
+                    pattern = NoisePattern.KKPSK2,
+                    role = role,
+                    localStatic = localStatic,
+                    remoteStaticPublic =
+                        remoteStaticPublic,
+                    psk = psk,
+                    localEphemeral =
+                        localEphemeral
+                )
+
+            state.symmetric.mixHash(
+                prologue
+            )
+
+            if (
+                state.pattern
+                    .initiatorPreSharesStatic
+            ) {
+                state.symmetric.mixHash(
+                    if (
+                        role ==
+                        NoiseRole.INITIATOR
+                    ) {
+                        localStatic.publicKey
+                    } else {
+                        remoteStaticPublic
+                    }
+                )
+            }
+
+            if (
+                state.pattern
+                    .responderPreSharesStatic
+            ) {
+                state.symmetric.mixHash(
+                    if (
+                        role ==
+                        NoiseRole.RESPONDER
+                    ) {
+                        localStatic.publicKey
+                    } else {
+                        remoteStaticPublic
+                    }
+                )
+            }
+
+            return state
         }
     }
 
-    /**
-     * Noise handshake state for Sendspin KKpsk2.
-     *
-     * Sendspin uses:
-     *
-     *   -> e, es, ss
-     *   <- e, ee, se, psk
-     *
-     * The Sendspin server is the Noise initiator.
-     * The Android client is the Noise responder.
-     */
-    class HandshakeState(
-        private val crypto: NoiseCrypto
+    fun providePsk(
+        newPsk: ByteArray
     ) {
-
-        companion object {
-            const val SENDSPIN_PROTOCOL_NAME =
-                "Noise_KKpsk2_25519_ChaChaPoly_SHA256"
+        require(
+            newPsk.size == KEY_LEN
+        ) {
+            "PSK must be 32 bytes"
         }
 
-        private val symmetricState =
-            SymmetricState(crypto)
+        check(!isComplete) {
+            "Handshake already complete"
+        }
 
-        private var initialized = false
-        private var initiator = false
+        psk =
+            newPsk
+    }
 
-        private var localStaticPrivateKey: ByteArray? = null
-        private var localStaticPublicKey: ByteArray? = null
-
-        private var remoteStaticPublicKey: ByteArray? = null
-
-        private var localEphemeralPrivateKey: ByteArray? = null
-        private var localEphemeralPublicKey: ByteArray? = null
-
-        private var remoteEphemeralPublicKey: ByteArray? = null
-
-        private var psk: ByteArray? = null
-
-        /**
-         * Initializes the KKpsk2 handshake state.
-         */
-        fun initialize(
-            localStaticPrivateKey: ByteArray,
-            remoteStaticPublicKey: ByteArray,
-            prologue: ByteArray,
-            initiator: Boolean,
-            psk: ByteArray?
-        ) {
-            require(localStaticPrivateKey.size == 32) {
-                "Local X25519 private key must be 32 bytes"
+    private val writesMessage: Boolean
+        get() =
+            if (
+                role ==
+                NoiseRole.INITIATOR
+            ) {
+                messageIndex % 2 == 0
+            } else {
+                messageIndex % 2 != 0
             }
 
-            require(remoteStaticPublicKey.size == 32) {
-                "Remote X25519 public key must be 32 bytes"
+    private fun localEphemeralPrivate():
+            ByteArray {
+
+        return localEphemeral?.privateKey
+            ?: throw NoiseException(
+                "Missing local ephemeral key"
+            )
+    }
+
+    private fun localStaticPrivate():
+            ByteArray {
+        return localStatic.privateKey
+    }
+
+    private fun remoteEphemeral():
+            ByteArray {
+
+        return remoteEphemeralPublic
+            ?: throw NoiseException(
+                "Missing remote ephemeral key"
+            )
+    }
+
+    private fun remoteStatic():
+            ByteArray {
+        return remoteStaticPublic
+    }
+
+    private fun processDh(
+        token: NoiseToken
+    ) {
+
+        val sharedSecret =
+            when (token) {
+
+                NoiseToken.EE ->
+                    crypto.x25519Dh(
+                        localEphemeralPrivate(),
+                        remoteEphemeral()
+                    )
+
+                NoiseToken.SS ->
+                    crypto.x25519Dh(
+                        localStaticPrivate(),
+                        remoteStatic()
+                    )
+
+                NoiseToken.ES ->
+                    if (
+                        role ==
+                        NoiseRole.INITIATOR
+                    ) {
+                        crypto.x25519Dh(
+                            localEphemeralPrivate(),
+                            remoteStatic()
+                        )
+                    } else {
+                        crypto.x25519Dh(
+                            localStaticPrivate(),
+                            remoteEphemeral()
+                        )
+                    }
+
+                NoiseToken.SE ->
+                    if (
+                        role ==
+                        NoiseRole.INITIATOR
+                    ) {
+                        crypto.x25519Dh(
+                            localStaticPrivate(),
+                            remoteEphemeral()
+                        )
+                    } else {
+                        crypto.x25519Dh(
+                            localEphemeralPrivate(),
+                            remoteStatic()
+                        )
+                    }
+
+                else ->
+                    throw NoiseException(
+                        "Invalid DH token: $token"
+                    )
             }
 
-            if (psk != null) {
-                require(psk.size == 32) {
-                    "Noise PSK must be 32 bytes"
+        symmetric.mixKey(
+            sharedSecret
+        )
+    }
+
+    fun writeMessage(
+        payload: ByteArray
+    ): ByteArray {
+
+        check(!poisoned) {
+            "Handshake state is poisoned"
+        }
+
+        check(!isComplete) {
+            "Handshake already complete"
+        }
+
+        check(writesMessage) {
+            "It is not this side's turn to write"
+        }
+
+        return try {
+
+            val tokens =
+                pattern.messages[
+                    messageIndex
+                ]
+
+            var output =
+                ByteArray(0)
+
+            for (token in tokens) {
+
+                when (token) {
+
+                    NoiseToken.E -> {
+
+                        val ephemeral =
+                            localEphemeral
+                                ?: generateEphemeral()
+                                    .also {
+                                        localEphemeral =
+                                            it
+                                    }
+
+                        output +=
+                            ephemeral.publicKey
+
+                        symmetric.mixHash(
+                            ephemeral.publicKey
+                        )
+
+                        if (
+                            pattern.hasPsk
+                        ) {
+                            symmetric.mixKey(
+                                ephemeral.publicKey
+                            )
+                        }
+                    }
+
+                    NoiseToken.PSK -> {
+
+                        symmetric.mixKeyAndHash(
+                            psk
+                                ?: throw NoiseException(
+                                    "PSK required"
+                                )
+                        )
+                    }
+
+                    NoiseToken.ES,
+                    NoiseToken.SS,
+                    NoiseToken.EE,
+                    NoiseToken.SE -> {
+
+                        processDh(
+                            token
+                        )
+                    }
                 }
             }
 
-            this.localStaticPrivateKey =
-                localStaticPrivateKey.copyOf()
-
-            this.localStaticPublicKey =
-                crypto.x25519PublicKey(
-                    localStaticPrivateKey
+            output +=
+                symmetric.encryptAndHash(
+                    payload
                 )
 
-            this.remoteStaticPublicKey =
-                remoteStaticPublicKey.copyOf()
+            advance()
 
-            this.initiator = initiator
+            output
 
-            this.psk = psk?.copyOf()
+        } catch (
+            exception: Exception
+        ) {
 
-            symmetricState.initializeSymmetric(
-                SENDSPIN_PROTOCOL_NAME
-                    .toByteArray(Charsets.UTF_8)
-            )
+            poisoned = true
 
-            /*
-             * Noise prologue.
-             *
-             * Sendspin defines the prologue as the exact bytes
-             * transmitted during client/init and server/init.
-             */
-            symmetricState.mixHash(prologue)
+            throw exception
+        }
+    }
 
-            /*
-             * KK pre-messages.
-             *
-             * The initiator knows its own static key first,
-             * followed by the responder's static key.
-             *
-             * The responder sees the same keys in the opposite
-             * local/remote orientation.
-             */
-            if (initiator) {
-                symmetricState.mixHash(
-                    localStaticPublicKey
-                        ?: error("Local static public key missing")
+    fun readMessage(
+        message: ByteArray
+    ): ByteArray {
+
+        check(!poisoned) {
+            "Handshake state is poisoned"
+        }
+
+        check(!isComplete) {
+            "Handshake already complete"
+        }
+
+        check(!writesMessage) {
+            "It is not this side's turn to read"
+        }
+
+        return try {
+
+            val tokens =
+                pattern.messages[
+                    messageIndex
+                ]
+
+            var offset =
+                0
+
+            for (token in tokens) {
+
+                when (token) {
+
+                    NoiseToken.E -> {
+
+                        if (
+                            message.size -
+                            offset <
+                            DH_LEN
+                        ) {
+                            throw NoiseException(
+                                "Handshake message too short"
+                            )
+                        }
+
+                        val ephemeral =
+                            message.copyOfRange(
+                                offset,
+                                offset + DH_LEN
+                            )
+
+                        offset +=
+                            DH_LEN
+
+                        remoteEphemeralPublic =
+                            ephemeral
+
+                        symmetric.mixHash(
+                            ephemeral
+                        )
+
+                        if (
+                            pattern.hasPsk
+                        ) {
+                            symmetric.mixKey(
+                                ephemeral
+                            )
+                        }
+                    }
+
+                    NoiseToken.PSK -> {
+
+                        symmetric.mixKeyAndHash(
+                            psk
+                                ?: throw NoiseException(
+                                    "PSK required"
+                                )
+                        )
+                    }
+
+                    NoiseToken.ES,
+                    NoiseToken.SS,
+                    NoiseToken.EE,
+                    NoiseToken.SE -> {
+
+                        processDh(
+                            token
+                        )
+                    }
+                }
+            }
+
+            val ciphertext =
+                message.copyOfRange(
+                    offset,
+                    message.size
                 )
 
-                symmetricState.mixHash(
-                    remoteStaticPublicKey
-                        ?: error("Remote static public key missing")
-                )
-            } else {
-                symmetricState.mixHash(
-                    remoteStaticPublicKey
-                        ?: error("Remote static public key missing")
-                )
-
-                symmetricState.mixHash(
-                    localStaticPublicKey
-                        ?: error("Local static public key missing")
+            if (
+                symmetric.cipher.hasKey &&
+                ciphertext.size < TAG_LEN
+            ) {
+                throw NoiseException(
+                    "Handshake ciphertext too short"
                 )
             }
 
-            initialized = true
+            val payload =
+                symmetric.decryptAndHash(
+                    ciphertext
+                )
+
+            advance()
+
+            payload
+
+        } catch (
+            exception: Exception
+        ) {
+
+            poisoned = true
+
+            throw exception
         }
+    }
 
-        /**
-         * Generates a fresh ephemeral X25519 keypair.
-         */
-        fun generateEphemeralKeyPair() {
-            checkInitialized()
+    private fun generateEphemeral():
+            X25519KeyPair {
 
-            val privateKey =
-                crypto.generateX25519PrivateKey()
+        val privateKey =
+            crypto.generateX25519PrivateKey()
 
-            val publicKey =
-                crypto.x25519PublicKey(privateKey)
-
-            localEphemeralPrivateKey =
+        val publicKey =
+            crypto.x25519PublicKey(
                 privateKey
+            )
 
-            localEphemeralPublicKey =
-                publicKey
-        }
+        return X25519KeyPair(
+            privateKey = privateKey,
+            publicKey = publicKey
+        )
+    }
 
-        fun setEphemeralPrivateKey(privateKey: ByteArray) {
-            checkInitialized()
+    private fun advance() {
 
-            require(privateKey.size == 32) {
-                "Ephemeral X25519 private key must be 32 bytes"
-            }
+        messageIndex++
 
-            localEphemeralPrivateKey =
-                privateKey.copyOf()
-
-            localEphemeralPublicKey =
-                crypto.x25519PublicKey(
-                    privateKey
-                )
-        }
-
-        /**
-         * Returns the local static public key.
-         */
-        fun localStaticPublicKey(): ByteArray {
-            checkInitialized()
-
-            return localStaticPublicKey!!
-                .copyOf()
-        }
-
-        /**
-         * Returns the local ephemeral public key.
-         */
-        fun localEphemeralPublicKey(): ByteArray {
-            checkInitialized()
-
-            return localEphemeralPublicKey
-                ?.copyOf()
-                ?: error(
-                    "Ephemeral keypair has not been generated"
-                )
-        }
-
-        /**
-         * Stores the remote ephemeral public key.
-         */
-        fun setRemoteEphemeralPublicKey(
-            publicKey: ByteArray
+        if (
+            messageIndex ==
+            pattern.messages.size
         ) {
-            checkInitialized()
 
-            require(publicKey.size == 32) {
-                "Remote X25519 ephemeral public key must be 32 bytes"
-            }
+            val (
+                initiatorCipher,
+                responderCipher
+            ) =
+                symmetric.split()
 
-            remoteEphemeralPublicKey =
-                publicKey.copyOf()
-        }
+            val transport =
+                if (
+                    role ==
+                    NoiseRole.INITIATOR
+                ) {
 
-        /**
-         * Performs:
-         *
-         *   local static × remote static
-         */
-        fun dhStaticStatic() {
-            checkInitialized()
+                    NoiseTransport(
+                        sending =
+                            initiatorCipher,
+                        receiving =
+                            responderCipher,
+                        handshakeHash =
+                            symmetric.handshakeHash
+                    )
 
-            val localPrivate =
-                localStaticPrivateKey
-                    ?: error("Local static private key missing")
+                } else {
 
-            val remotePublic =
-                remoteStaticPublicKey
-                    ?: error("Remote static public key missing")
+                    NoiseTransport(
+                        sending =
+                            responderCipher,
+                        receiving =
+                            initiatorCipher,
+                        handshakeHash =
+                            symmetric.handshakeHash
+                    )
+                }
 
-            symmetricState.mixKey(
-                crypto.x25519Dh(
-                    localPrivate,
-                    remotePublic
+            result =
+                HandshakeResult(
+                    transport =
+                        transport,
+                    handshakeHash =
+                        symmetric.handshakeHash
                 )
-            )
-        }
-
-        /**
-         * Performs:
-         *
-         *   local ephemeral × remote static
-         */
-        fun dhEphemeralStatic() {
-            checkInitialized()
-
-            val localPrivate =
-                localEphemeralPrivateKey
-                    ?: error("Local ephemeral private key missing")
-
-            val remotePublic =
-                remoteStaticPublicKey
-                    ?: error("Remote static public key missing")
-
-            symmetricState.mixKey(
-                crypto.x25519Dh(
-                    localPrivate,
-                    remotePublic
-                )
-            )
-        }
-
-        /**
-         * Performs:
-         *
-         *   local ephemeral × remote ephemeral
-         */
-        fun dhEphemeralEphemeral() {
-            checkInitialized()
-
-            val localPrivate =
-                localEphemeralPrivateKey
-                    ?: error("Local ephemeral private key missing")
-
-            val remotePublic =
-                remoteEphemeralPublicKey
-                    ?: error("Remote ephemeral public key missing")
-
-            symmetricState.mixKey(
-                crypto.x25519Dh(
-                    localPrivate,
-                    remotePublic
-                )
-            )
-        }
-
-        /**
-         * Performs:
-         *
-         *   local static × remote ephemeral
-         */
-        fun dhStaticEphemeral() {
-            checkInitialized()
-
-            val localPrivate =
-                localStaticPrivateKey
-                    ?: error("Local static private key missing")
-
-            val remotePublic =
-                remoteEphemeralPublicKey
-                    ?: error("Remote ephemeral public key missing")
-
-            symmetricState.mixKey(
-                crypto.x25519Dh(
-                    localPrivate,
-                    remotePublic
-                )
-            )
-        }
-
-        /**
-         * Applies the KKpsk2 PSK operation.
-         *
-         * Noise:
-         *
-         *   mixKeyAndHash(psk)
-         */
-        fun mixPsk() {
-            checkInitialized()
-
-            val currentPsk =
-                psk ?: error("No PSK configured")
-
-            symmetricState.mixKeyAndHash(
-                currentPsk
-            )
-        }
-
-        /**
-         * Encrypts a handshake payload.
-         */
-        fun encryptAndHash(
-            plaintext: ByteArray
-        ): ByteArray {
-            checkInitialized()
-
-            return symmetricState.encryptAndHash(
-                plaintext
-            )
-        }
-
-        /**
-         * Decrypts a handshake payload.
-         */
-        fun decryptAndHash(
-            ciphertext: ByteArray
-        ): ByteArray? {
-            checkInitialized()
-
-            return symmetricState.decryptAndHash(
-                ciphertext
-            )
-        }
-
-        /**
-         * Returns the current handshake hash.
-         */
-        fun handshakeHash(): ByteArray {
-            checkInitialized()
-
-            return symmetricState
-                .getHandshakeHash()
-        }
-
-        /**
-         * Returns the current chaining key.
-         */
-        fun chainingKey(): ByteArray {
-            checkInitialized()
-
-            return symmetricState
-                .getChainingKey()
-        }
-
-        /**
-         * Returns the underlying CipherState.
-         */
-        fun cipherState(): CipherState {
-            checkInitialized()
-
-            return symmetricState
-                .getCipherState()
-        }
-
-        /**
-         * KKpsk2 message 1:
-         *
-         *   -> e, es, ss
-         *
-         * The initiator:
-         *
-         * 1. generates e
-         * 2. mixes e into h
-         * 3. performs DH(e, rs)
-         * 4. mixes that DH into ck
-         * 5. performs DH(s, rs)
-         * 6. mixes that DH into ck
-         *
-         * Returns the 32-byte ephemeral public key.
-         */
-        fun writeMessage1(): ByteArray {
-            checkInitialized()
-
-            check(initiator) {
-                "writeMessage1() is only valid for the initiator"
-            }
-
-            if (localEphemeralPrivateKey == null) {
-                generateEphemeralKeyPair()
-            }
-
-            val ephemeralPublic =
-                localEphemeralPublicKey()
-
-            symmetricState.mixHash(
-                ephemeralPublic
-            )
-
-            dhEphemeralStatic()
-            dhStaticStatic()
-
-            return ephemeralPublic
-        }
-
-        /**
-         * KKpsk2 message 1:
-         *
-         *   -> e, es, ss
-         *
-         * Responder receives the initiator ephemeral key.
-         */
-        fun readMessage1(
-            ephemeralPublicKey: ByteArray
-        ) {
-            checkInitialized()
-
-            check(!initiator) {
-                "readMessage1() is only valid for the responder"
-            }
-
-            setRemoteEphemeralPublicKey(
-                ephemeralPublicKey
-            )
-
-            symmetricState.mixHash(
-                ephemeralPublicKey
-            )
-
-            /*
-             * responder:
-             *
-             * es = DH(rs, ie)
-             * ss = DH(rs, is)
-             */
-            dhStaticEphemeral()
-            dhStaticStatic()
-        }
-
-        /**
-         * KKpsk2 message 2:
-         *
-         *   <- e, ee, se, psk
-         *
-         * The responder:
-         *
-         * 1. generates e
-         * 2. mixes e into h
-         * 3. performs DH(e, re)
-         * 4. performs DH(s, re)
-         * 5. applies PSK
-         *
-         * Returns the responder ephemeral public key.
-         */
-        fun writeMessage2(): ByteArray {
-            checkInitialized()
-
-            check(!initiator) {
-                "writeMessage2() is only valid for the responder"
-            }
-
-            if (localEphemeralPrivateKey == null) {
-                generateEphemeralKeyPair()
-            }
-
-            val ephemeralPublic =
-                localEphemeralPublicKey()
-
-            symmetricState.mixHash(
-                ephemeralPublic
-            )
-
-            /*
-             * ee = DH(e, re)
-             */
-            dhEphemeralEphemeral()
-
-            /*
-             * se = DH(s, re)
-             */
-            dhStaticEphemeral()
-
-            /*
-             * psk = mixKeyAndHash(psk)
-             */
-            mixPsk()
-
-            return ephemeralPublic
-        }
-
-        /**
-         * KKpsk2 message 2:
-         *
-         *   <- e, ee, se, psk
-         *
-         * Initiator receives the responder ephemeral key.
-         */
-        fun readMessage2(
-            ephemeralPublicKey: ByteArray
-        ) {
-            checkInitialized()
-
-            check(initiator) {
-                "readMessage2() is only valid for the initiator"
-            }
-
-            setRemoteEphemeralPublicKey(
-                ephemeralPublicKey
-            )
-
-            symmetricState.mixHash(
-                ephemeralPublicKey
-            )
-
-            /*
-             * ee = DH(e, re)
-             */
-            dhEphemeralEphemeral()
-
-            /*
-             * se = DH(s, re)
-             */
-            dhStaticEphemeral()
-
-            /*
-             * psk = mixKeyAndHash(psk)
-             */
-            mixPsk()
-        }
-
-        private fun checkInitialized() {
-            check(initialized) {
-                "Noise handshake has not been initialized"
-            }
         }
     }
 }
