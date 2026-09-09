@@ -10,6 +10,11 @@ import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.isActive
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.encodeToString
@@ -36,7 +41,8 @@ class LegacySession(
     private val capabilities: SendspinCapabilities,
     private val transport: SendspinTransport,
     private val messageSender: SendspinMessageSender,
-    private val clockSynchronizer: ClockSynchronizer
+    private val clockSynchronizer: ClockSynchronizer,
+    private val scope: CoroutineScope
 ) : SendspinProtocolSession {
 
     private val _events = MutableSharedFlow<SendspinSessionEvent>(
@@ -47,6 +53,8 @@ class LegacySession(
         _events.asSharedFlow()
 
     private val active = AtomicBoolean(false)
+
+    private var clockSyncJob: Job? = null
 
     private var clientHelloSent = false
 
@@ -97,6 +105,9 @@ class LegacySession(
             }
 
             is InboundTransportEvent.Disconnected -> {
+                clockSyncJob?.cancel()
+                clockSyncJob = null
+
                 active.set(false)
 
                 _events.emit(
@@ -107,6 +118,9 @@ class LegacySession(
             }
 
             is InboundTransportEvent.Error -> {
+                clockSyncJob?.cancel()
+                clockSyncJob = null
+
                 _events.emit(
                     SendspinSessionEvent.Error(
                         cause = event.cause
@@ -225,6 +239,7 @@ class LegacySession(
             if (!clientHelloSent) {
                 sendClientHello()
                 clientHelloSent = true
+                startClockSync()
             }
 
             _events.emit(
@@ -356,6 +371,43 @@ class LegacySession(
         )
     }
 
+    /**
+     * Envía una muestra de sincronización del reloj.
+     *
+     * T1 = instante local en que el cliente transmite client/time.
+     */
+    internal suspend fun sendClientTime() {
+        val clientTransmitted =
+            clockSynchronizer.localTimeMicros()
+
+        val message = ClientTimeMessage(
+            payload = ClientTimePayload(
+                clientTransmitted = clientTransmitted
+            )
+        )
+
+        messageSender.sendEncrypted(
+            json.encodeToString(message)
+        )
+    }
+
+    private fun startClockSync() {
+        clockSyncJob?.cancel()
+
+        clockSyncJob = scope.launch {
+            while (isActive) {
+                try {
+                    sendClientTime()
+                    delay(1_000)
+                } catch (exception: IllegalStateException) {
+                    break
+                } catch (exception: Exception) {
+                    break
+                }
+            }
+        }
+    }
+
     @Serializable
     private data class ClientHelloMessage(
         val type: String = "client/hello",
@@ -397,5 +449,17 @@ class LegacySession(
     @Serializable
     private data class UnpairedAccess(
         val enabled: Boolean = false
+    )
+
+    @Serializable
+    private data class ClientTimeMessage(
+        val type: String = "client/time",
+        val payload: ClientTimePayload
+    )
+
+    @Serializable
+    private data class ClientTimePayload(
+        @SerialName("client_transmitted")
+        val clientTransmitted: Long
     )
 }

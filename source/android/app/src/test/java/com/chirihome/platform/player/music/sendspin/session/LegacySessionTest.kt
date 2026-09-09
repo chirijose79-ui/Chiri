@@ -9,6 +9,11 @@ import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -76,24 +81,28 @@ class LegacySessionTest {
 
     private fun createSession(
         transport: FakeSendspinTransport,
-        messageSender: FakeSendspinMessageSender
+        messageSender: FakeSendspinMessageSender,
+        scope: CoroutineScope
     ): LegacySession =
         LegacySession(
             config = createConfig(),
             capabilities = createCapabilities(),
             transport = transport,
             messageSender = messageSender,
-            clockSynchronizer = ClockSynchronizer()
+            clockSynchronizer = ClockSynchronizer(),
+            scope = scope
         )
 
     @Test
     fun startDoesNotSendClientHello() = runBlocking {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
         val session = createSession(
             transport = transport,
-            messageSender = messageSender
+            messageSender = messageSender,
+            scope = scope
         )
 
         session.start()
@@ -101,16 +110,20 @@ class LegacySessionTest {
         assertTrue(session.isActive)
         assertTrue(messageSender.encryptedMessages.isEmpty())
         assertTrue(transport.sentMessages.isEmpty())
+
+        scope.cancel()
     }
 
     @Test
     fun connectedDoesNotSendClientHello() = runBlocking {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
         val session = createSession(
             transport = transport,
-            messageSender = messageSender
+            messageSender = messageSender,
+            scope = scope
         )
 
         session.handleTransportEvent(
@@ -120,16 +133,20 @@ class LegacySessionTest {
         assertTrue(session.isActive)
         assertTrue(messageSender.encryptedMessages.isEmpty())
         assertTrue(transport.sentMessages.isEmpty())
+
+        scope.cancel()
     }
 
     @Test
     fun serverHelloTriggersEncryptedClientHello() = runBlocking {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
         val session = createSession(
             transport = transport,
-            messageSender = messageSender
+            messageSender = messageSender,
+            scope = scope
         )
 
         val serverHello =
@@ -203,16 +220,145 @@ class LegacySessionTest {
         assertTrue(
             transport.sentBinaryMessages.isEmpty()
         )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun clientTimeSendsEncryptedClientTimeMessage() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val clockSynchronizer = ClockSynchronizer()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session =
+            LegacySession(
+                config = createConfig(),
+                capabilities = createCapabilities(),
+                transport = transport,
+                messageSender = messageSender,
+                clockSynchronizer = clockSynchronizer,
+                scope = scope
+            )
+
+        val before =
+            clockSynchronizer.localTimeMicros()
+
+        session.sendClientTime()
+
+        val after =
+            clockSynchronizer.localTimeMicros()
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.size
+        )
+
+        val clientTime =
+            messageSender.encryptedMessages.single()
+
+        assertTrue(
+            clientTime.contains("\"type\":\"client/time\"")
+        )
+
+        assertTrue(
+            clientTime.contains("\"client_transmitted\":")
+        )
+
+        val timestamp =
+            Regex(
+                "\"client_transmitted\":(\\d+)"
+            )
+                .find(clientTime)
+                ?.groupValues
+                ?.get(1)
+                ?.toLong()
+                ?: error("client_transmitted not found")
+
+        assertTrue(timestamp >= before)
+        assertTrue(timestamp <= after)
+        scope.cancel()
+    }
+
+    @Test
+    fun serverHelloStartsPeriodicClientTime() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session =
+            LegacySession(
+                config = createConfig(),
+                capabilities = createCapabilities(),
+                transport = transport,
+                messageSender = messageSender,
+                clockSynchronizer = ClockSynchronizer(),
+                scope = scope
+            )
+
+        val serverHello =
+            """{"type":"server/hello","payload":{"name":"Music Assistant"}}"""
+
+        session.handleMessage(serverHello)
+
+        delay(100)
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/hello\"")
+            }
+        )
+
+        assertTrue(
+            messageSender.encryptedMessages.any {
+                it.contains("\"type\":\"client/time\"")
+            }
+        )
+
+        delay(1_100)
+
+        val clientTimeCount =
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/time\"")
+            }
+
+        assertTrue(
+            "Expected at least two client/time messages",
+            clientTimeCount >= 2
+        )
+
+        session.handleTransportEvent(
+            InboundTransportEvent.Disconnected(null)
+        )
+
+        val countAfterDisconnect =
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/time\"")
+            }
+
+        delay(1_100)
+
+        assertEquals(
+            countAfterDisconnect,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/time\"")
+            }
+        )
+
+        scope.cancel()
     }
 
     @Test
     fun duplicateServerHelloDoesNotSendClientHelloAgain() = runBlocking {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
         val session = createSession(
             transport = transport,
-            messageSender = messageSender
+            messageSender = messageSender,
+            scope = scope
         )
 
         val serverHello =
@@ -223,8 +369,12 @@ class LegacySessionTest {
 
         assertEquals(
             1,
-            messageSender.encryptedMessages.size
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/hello\"")
+            }
         )
+
+        scope.cancel()
     }
 
     @Test
@@ -232,6 +382,7 @@ class LegacySessionTest {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()
         val clockSynchronizer = ClockSynchronizer()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
         val session =
             LegacySession(
@@ -239,7 +390,8 @@ class LegacySessionTest {
                 capabilities = createCapabilities(),
                 transport = transport,
                 messageSender = messageSender,
-                clockSynchronizer = clockSynchronizer
+                clockSynchronizer = clockSynchronizer,
+                scope = scope
             )
 
         val serverTime1 =
@@ -288,5 +440,7 @@ class LegacySessionTest {
             1995000L,
             clockSynchronizer.serverTimeToLocalMicros(2000000L)
         )
+
+        scope.cancel()
     }
 }
