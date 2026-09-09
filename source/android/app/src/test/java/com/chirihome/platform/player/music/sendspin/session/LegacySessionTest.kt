@@ -17,6 +17,7 @@ import kotlinx.coroutines.cancel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CopyOnWriteArrayList
 
 class LegacySessionTest {
 
@@ -58,7 +59,8 @@ class LegacySessionTest {
 
     private class FakeSendspinMessageSender : SendspinMessageSender {
 
-        val encryptedMessages = mutableListOf<String>()
+        val encryptedMessages =
+            CopyOnWriteArrayList<String>()
 
         override suspend fun sendEncrypted(message: String) {
             encryptedMessages += message
