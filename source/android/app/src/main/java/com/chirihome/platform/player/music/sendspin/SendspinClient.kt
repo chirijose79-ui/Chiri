@@ -5,6 +5,8 @@ import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
 import com.chirihome.platform.player.music.sendspin.session.SendspinProtocolSession
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
+import com.chirihome.platform.player.music.sendspin.audio.SendspinAudioSink
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinAudioFrameParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
@@ -23,6 +25,7 @@ class SendspinClient(
     private val transport: SendspinTransport,
     private val handshake: SendspinHandshake,
     private val session: SendspinProtocolSession,
+    private val audioSink: SendspinAudioSink,
     private val scope: CoroutineScope
 ) : SendspinMessageSender {
 
@@ -207,16 +210,32 @@ class SendspinClient(
 
         val messageType = plaintext[0].toInt() and 0xFF
 
-        check(messageType == 0x00) {
-            "Unsupported Sendspin message type: $messageType"
+        when (messageType) {
+            0x00 -> {
+                val message =
+                    plaintext
+                        .copyOfRange(1, plaintext.size)
+                        .toString(Charsets.UTF_8)
+
+                session.handleMessage(message)
+            }
+
+            0x04 -> {
+                val audioFrame =
+                    SendspinAudioFrameParser.parse(plaintext)
+
+                audioSink.processFrame(
+                    encodedData = audioFrame.encodedData,
+                    serverTimestampMicros = audioFrame.serverTimestampMicros
+                )
+            }
+
+            else -> {
+                error(
+                    "Unsupported Sendspin message type: $messageType"
+                )
+            }
         }
-
-        val message =
-            plaintext
-                .copyOfRange(1, plaintext.size)
-                .toString(Charsets.UTF_8)
-
-        session.handleMessage(message)
     }
 
     /**

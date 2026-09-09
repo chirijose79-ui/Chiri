@@ -1,5 +1,6 @@
 package com.chirihome.platform.player.music.sendspin
 
+import com.chirihome.platform.player.music.sendspin.audio.SendspinAudioSink
 import com.chirihome.platform.player.music.sendspin.crypto.HandshakeState
 import com.chirihome.platform.player.music.sendspin.crypto.JdkNoiseCrypto
 import com.chirihome.platform.player.music.sendspin.crypto.NoiseRole
@@ -137,6 +138,27 @@ class SendspinClientTest {
         }
     }
 
+    private class FakeSendspinAudioSink : SendspinAudioSink {
+
+        data class ReceivedFrame(
+            val encodedData: ByteArray,
+            val serverTimestampMicros: Long
+        )
+
+        val receivedFrames =
+            mutableListOf<ReceivedFrame>()
+
+        override suspend fun processFrame(
+            encodedData: ByteArray,
+            serverTimestampMicros: Long
+        ) {
+            receivedFrames += ReceivedFrame(
+                encodedData = encodedData.copyOf(),
+                serverTimestampMicros = serverTimestampMicros
+            )
+        }
+    }
+
     @Test
     fun initiallyNotConnected() {
         val transport = FakeSendspinTransport()
@@ -145,6 +167,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -159,6 +182,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -177,6 +201,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -201,6 +226,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = handshake,
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -226,6 +252,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = handshake,
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -256,6 +283,7 @@ class SendspinClientTest {
                 transport = transport,
                 handshake = handshake,
                 session = createSession(),
+                audioSink = createAudioSink(),
                 scope = CoroutineScope(Dispatchers.Unconfined)
             )
 
@@ -304,6 +332,7 @@ class SendspinClientTest {
                 transport = transport,
                 handshake = handshake,
                 session = session,
+                audioSink = createAudioSink(),
                 scope = CoroutineScope(Dispatchers.Unconfined)
             )
 
@@ -348,6 +377,93 @@ class SendspinClientTest {
         }
 
     @Test
+    fun encryptedAudioMessageIsDeliveredToAudioSink() =
+        runBlocking {
+            val (initiatorTransport, responderTransport) =
+                createTestNoiseTransports()
+
+            val transport = FakeSendspinTransport()
+            val handshake =
+                createHandshake(
+                    noiseTransport = responderTransport
+                )
+
+            val session =
+                FakeSendspinProtocolSession()
+
+            val audioSink =
+                FakeSendspinAudioSink()
+
+            val client = SendspinClient(
+                transport = transport,
+                handshake = handshake,
+                session = session,
+                audioSink = audioSink,
+                scope = CoroutineScope(Dispatchers.Unconfined)
+            )
+
+            val serverInit =
+                """{"type":"server/init","payload":{"server_id":"abc","version":1}}"""
+
+            val noiseMessage1 =
+                """{"type":"noise/handshake","payload":{"data":"test-noise-data"}}"""
+
+            val audioPayload = byteArrayOf(
+                0x11,
+                0x22,
+                0x33,
+                0x44
+            )
+
+            val timestampMicros =
+                1_234_567_890_123L
+
+            val sendAhead =
+                250
+
+            val plaintext =
+                createAudioFrame(
+                    serverTimestampMicros = timestampMicros,
+                    sendAhead = sendAhead,
+                    encodedData = audioPayload
+                )
+
+            client.connect()
+
+            transport.emitTextMessage(serverInit)
+            transport.emitTextMessage(noiseMessage1)
+
+            val encrypted =
+                initiatorTransport.encrypt(
+                    plaintext
+                )
+
+            transport.emitBinaryMessage(encrypted)
+
+            assertTrue(
+                session.receivedMessages.isEmpty()
+            )
+
+            assertEquals(
+                1,
+                audioSink.receivedFrames.size
+            )
+
+            val received =
+                audioSink.receivedFrames.single()
+
+            assertEquals(
+                timestampMicros,
+                received.serverTimestampMicros
+            )
+
+            assertArrayEquals(
+                audioPayload,
+                received.encodedData
+            )
+        }
+
+    @Test
     fun sendTextDelegatesToTransport() = runBlocking {
         val transport = FakeSendspinTransport()
 
@@ -355,6 +471,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -374,6 +491,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -412,6 +530,7 @@ class SendspinClientTest {
                 noiseTransport = initiatorTransport
             ),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -467,6 +586,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -486,6 +606,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -508,6 +629,7 @@ class SendspinClientTest {
             transport = transport,
             handshake = createHandshake(),
             session = createSession(),
+            audioSink = createAudioSink(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -539,6 +661,68 @@ class SendspinClientTest {
 
     private fun createSession(): SendspinProtocolSession {
         return FakeSendspinProtocolSession()
+    }
+
+    private fun createAudioSink(): FakeSendspinAudioSink {
+        return FakeSendspinAudioSink()
+    }
+
+    private fun createAudioFrame(
+        serverTimestampMicros: Long,
+        sendAhead: Int,
+        encodedData: ByteArray
+    ): ByteArray {
+        val frame =
+            ByteArray(13 + encodedData.size)
+
+        frame[0] = 0x04
+
+        writeLongBigEndian(
+            frame,
+            1,
+            serverTimestampMicros
+        )
+
+        writeIntBigEndian(
+            frame,
+            9,
+            sendAhead
+        )
+
+        encodedData.copyInto(
+            destination = frame,
+            destinationOffset = 13
+        )
+
+        return frame
+    }
+
+    private fun writeLongBigEndian(
+        data: ByteArray,
+        offset: Int,
+        value: Long
+    ) {
+        for (index in 0 until Long.SIZE_BYTES) {
+            val shift =
+                (Long.SIZE_BYTES - 1 - index) * 8
+
+            data[offset + index] =
+                (value ushr shift).toByte()
+        }
+    }
+
+    private fun writeIntBigEndian(
+        data: ByteArray,
+        offset: Int,
+        value: Int
+    ) {
+        for (index in 0 until Int.SIZE_BYTES) {
+            val shift =
+                (Int.SIZE_BYTES - 1 - index) * 8
+
+            data[offset + index] =
+                (value ushr shift).toByte()
+        }
     }
 
     private fun createTestNoiseTransports():

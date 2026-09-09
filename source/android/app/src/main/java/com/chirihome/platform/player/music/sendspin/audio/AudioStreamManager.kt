@@ -23,7 +23,7 @@ import kotlinx.coroutines.sync.withLock
 class AudioStreamManager(
     private val audioPipeline: AudioPipeline,
     private val clockSynchronizer: ClockSynchronizer
-) {
+) : SendspinAudioSink {
 
     private val mutex = Mutex()
 
@@ -151,7 +151,7 @@ class AudioStreamManager(
      * The frame is converted to the local monotonic clock using the
      * shared ClockSynchronizer.
      */
-    suspend fun processFrame(
+    override suspend fun processFrame(
         encodedData: ByteArray,
         serverTimestampMicros: Long
     ) {
