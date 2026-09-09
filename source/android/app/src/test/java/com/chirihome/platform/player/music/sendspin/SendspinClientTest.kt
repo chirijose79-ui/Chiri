@@ -1,17 +1,25 @@
 package com.chirihome.platform.player.music.sendspin
 
+import com.chirihome.platform.player.music.sendspin.crypto.HandshakeState
+import com.chirihome.platform.player.music.sendspin.crypto.JdkNoiseCrypto
+import com.chirihome.platform.player.music.sendspin.crypto.NoiseRole
 import com.chirihome.platform.player.music.sendspin.crypto.NoiseTransport
+import com.chirihome.platform.player.music.sendspin.crypto.X25519KeyPair
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
+import com.chirihome.platform.player.music.sendspin.session.SendspinProtocolSession
+import com.chirihome.platform.player.music.sendspin.session.SendspinSessionEvent
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -79,10 +87,19 @@ class SendspinClientTest {
                 InboundTransportEvent.TextMessage(message)
             )
         }
+
+        suspend fun emitBinaryMessage(data: ByteArray) {
+            _events.emit(
+                InboundTransportEvent.BinaryMessage(
+                    data.copyOf()
+                )
+            )
+        }
     }
 
     private class FakeSendspinHandshake(
-        private val clientInit: String = """{"type":"client/init"}"""
+        private val clientInit: String = """{"type":"client/init"}""",
+        override val noiseTransport: NoiseTransport? = null
     ) : SendspinHandshake {
 
         var createClientInitCalls = 0
@@ -99,9 +116,6 @@ class SendspinClientTest {
 
         var receivedNoiseMessage1: String? = null
             private set
-
-        override val noiseTransport: NoiseTransport?
-            get() = null
 
         override suspend fun createClientInit(): String {
             createClientInitCalls++
@@ -130,6 +144,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -143,6 +158,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -160,6 +176,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -183,6 +200,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = handshake,
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -207,6 +225,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = handshake,
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -236,6 +255,7 @@ class SendspinClientTest {
             val client = SendspinClient(
                 transport = transport,
                 handshake = handshake,
+                session = createSession(),
                 scope = CoroutineScope(Dispatchers.Unconfined)
             )
 
@@ -266,12 +286,62 @@ class SendspinClientTest {
         }
 
     @Test
+    fun encryptedBinaryMessageIsDeliveredToSession() =
+        runBlocking {
+            val (initiatorTransport, responderTransport) =
+                createTestNoiseTransports()
+
+            val transport = FakeSendspinTransport()
+            val handshake =
+                createHandshake(
+                    noiseTransport = responderTransport
+                )
+
+            val session =
+                FakeSendspinProtocolSession()
+
+            val client = SendspinClient(
+                transport = transport,
+                handshake = handshake,
+                session = session,
+                scope = CoroutineScope(Dispatchers.Unconfined)
+            )
+
+            val serverInit =
+                """{"type":"server/init","payload":{"server_id":"abc","version":1}}"""
+
+            val noiseMessage1 =
+                """{"type":"noise/handshake","payload":{"data":"test-noise-data"}}"""
+
+            val plaintext =
+                """{"type":"server/hello","payload":{"name":"Music Assistant"}}"""
+
+            client.connect()
+
+            transport.emitTextMessage(serverInit)
+            transport.emitTextMessage(noiseMessage1)
+
+            val encrypted =
+                initiatorTransport.encrypt(
+                    plaintext.toByteArray(Charsets.UTF_8)
+                )
+
+            transport.emitBinaryMessage(encrypted)
+
+            assertEquals(
+                listOf(plaintext),
+                session.receivedMessages
+            )
+        }
+
+    @Test
     fun sendTextDelegatesToTransport() = runBlocking {
         val transport = FakeSendspinTransport()
 
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -290,6 +360,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -322,6 +393,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -340,6 +412,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -361,6 +434,7 @@ class SendspinClientTest {
         val client = SendspinClient(
             transport = transport,
             handshake = createHandshake(),
+            session = createSession(),
             scope = CoroutineScope(Dispatchers.Unconfined)
         )
 
@@ -381,8 +455,144 @@ class SendspinClientTest {
     }
 
     private fun createHandshake(
-        clientInit: String = """{"type":"client/init"}"""
+        clientInit: String = """{"type":"client/init"}""",
+        noiseTransport: NoiseTransport? = null
     ): FakeSendspinHandshake {
-        return FakeSendspinHandshake(clientInit)
+        return FakeSendspinHandshake(
+            clientInit = clientInit,
+            noiseTransport = noiseTransport
+        )
+    }
+
+    private fun createSession(): SendspinProtocolSession {
+        return FakeSendspinProtocolSession()
+    }
+
+    private fun createTestNoiseTransports():
+            Pair<NoiseTransport, NoiseTransport> {
+
+        val crypto = JdkNoiseCrypto()
+
+        val initiatorPrivate =
+            crypto.generateX25519PrivateKey()
+
+        val initiatorStatic =
+            X25519KeyPair(
+                privateKey = initiatorPrivate,
+                publicKey =
+                    crypto.x25519PublicKey(
+                        initiatorPrivate
+                    )
+            )
+
+        val responderPrivate =
+            crypto.generateX25519PrivateKey()
+
+        val responderStatic =
+            X25519KeyPair(
+                privateKey = responderPrivate,
+                publicKey =
+                    crypto.x25519PublicKey(
+                        responderPrivate
+                    )
+            )
+
+        val psk =
+            crypto.randomBytes(32)
+
+        val prologue =
+            "sendspin-test"
+                .toByteArray(Charsets.UTF_8)
+
+        val initiatorHandshake =
+            HandshakeState.createKkPsk2(
+                crypto = crypto,
+                role = NoiseRole.INITIATOR,
+                prologue = prologue,
+                localStatic = initiatorStatic,
+                remoteStaticPublic =
+                    responderStatic.publicKey,
+                psk = psk
+            )
+
+        val responderHandshake =
+            HandshakeState.createKkPsk2(
+                crypto = crypto,
+                role = NoiseRole.RESPONDER,
+                prologue = prologue,
+                localStatic = responderStatic,
+                remoteStaticPublic =
+                    initiatorStatic.publicKey,
+                psk = psk
+            )
+
+        val message1 =
+            initiatorHandshake.writeMessage(
+                "message1"
+                    .toByteArray(Charsets.UTF_8)
+            )
+
+        responderHandshake.readMessage(
+            message1
+        )
+
+        val message2 =
+            responderHandshake.writeMessage(
+                "{}"
+                    .toByteArray(Charsets.UTF_8)
+            )
+
+        initiatorHandshake.readMessage(
+            message2
+        )
+
+        assertNotNull(
+            initiatorHandshake.result
+        )
+
+        assertNotNull(
+            responderHandshake.result
+        )
+
+        return Pair(
+            initiatorHandshake.result!!.transport,
+            responderHandshake.result!!.transport
+        )
+    }
+
+    private class FakeSendspinProtocolSession :
+        SendspinProtocolSession {
+
+        override val events:
+                Flow<SendspinSessionEvent> =
+            emptyFlow()
+
+        override val isActive: Boolean =
+            true
+
+        val receivedMessages =
+            mutableListOf<String>()
+
+        override suspend fun start() {
+        }
+
+        override suspend fun handleTransportEvent(
+            event: InboundTransportEvent
+        ) {
+        }
+
+        override suspend fun handleMessage(
+            message: String
+        ) {
+            receivedMessages += message
+        }
+
+        override suspend fun send(
+            message: String
+        ) {
+        }
+
+        override suspend fun stop() {
+        }
     }
 }

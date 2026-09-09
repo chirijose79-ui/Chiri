@@ -44,6 +44,14 @@ interface SendspinProtocolSession {
     )
 
     /**
+     * Procesa un mensaje de protocolo que ya fue
+     * recibido y, si corresponde, descifrado por el cliente.
+     */
+    suspend fun handleMessage(
+        message: String
+    )
+
+    /**
      * Envía un mensaje perteneciente al protocolo Sendspin.
      */
     suspend fun send(message: String)
@@ -58,8 +66,8 @@ interface SendspinProtocolSession {
  * Eventos de alto nivel producidos por una sesión Sendspin.
  *
  * En esta etapa solamente definimos el contrato.
- * LegacySession añadirá posteriormente los eventos específicos
- * del handshake, stream y comandos del servidor.
+ * Las implementaciones añadirán posteriormente los eventos
+ * específicos del handshake, stream y comandos del servidor.
  */
 sealed interface SendspinSessionEvent {
 

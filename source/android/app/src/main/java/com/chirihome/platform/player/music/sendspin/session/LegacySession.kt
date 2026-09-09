@@ -129,6 +129,12 @@ class LegacySession(
         )
     }
 
+    override suspend fun handleMessage(
+        message: String
+    ) {
+        handleTextMessage(message)
+    }
+
     /**
      * Envía el mensaje inicial del cliente.
      *

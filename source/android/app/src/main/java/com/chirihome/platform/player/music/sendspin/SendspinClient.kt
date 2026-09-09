@@ -2,6 +2,7 @@ package com.chirihome.platform.player.music.sendspin
 
 import com.chirihome.platform.player.music.sendspin.crypto.NoiseTransport
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
+import com.chirihome.platform.player.music.sendspin.session.SendspinProtocolSession
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import kotlinx.coroutines.CoroutineScope
@@ -21,6 +22,7 @@ import kotlinx.serialization.json.jsonPrimitive
 class SendspinClient(
     private val transport: SendspinTransport,
     private val handshake: SendspinHandshake,
+    private val session: SendspinProtocolSession,
     private val scope: CoroutineScope
 ) {
 
@@ -189,8 +191,20 @@ class SendspinClient(
     /**
      * Se invoca cuando se recibe un mensaje binario.
      */
-    private fun handleBinaryMessage(data: ByteArray) {
-        // Noise handshake handling will be added next.
+    private suspend fun handleBinaryMessage(data: ByteArray) {
+        val transport =
+            noiseTransport
+                ?: error(
+                    "Received encrypted message before Noise transport was established"
+                )
+
+        val plaintext =
+            transport.decrypt(data)
+
+        val message =
+            plaintext.toString(Charsets.UTF_8)
+
+        session.handleMessage(message)
     }
 
     /**
