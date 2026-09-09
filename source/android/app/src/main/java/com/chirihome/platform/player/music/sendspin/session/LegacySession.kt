@@ -6,6 +6,7 @@ import com.chirihome.platform.player.music.sendspin.protocol.MessageDispatcher
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
+import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -34,7 +35,8 @@ class LegacySession(
     private val config: SendspinConfig,
     private val capabilities: SendspinCapabilities,
     private val transport: SendspinTransport,
-    private val messageSender: SendspinMessageSender
+    private val messageSender: SendspinMessageSender,
+    private val clockSynchronizer: ClockSynchronizer
 ) : SendspinProtocolSession {
 
     private val _events = MutableSharedFlow<SendspinSessionEvent>(
@@ -136,6 +138,16 @@ class LegacySession(
         handleTextMessage(message)
     }
 
+    override suspend fun handleMessage(
+        message: String,
+        receivedAtLocalMicros: Long
+    ) {
+        handleTextMessage(
+            message = message,
+            receivedAtLocalMicros = receivedAtLocalMicros
+        )
+    }
+
     /**
      * Envía el mensaje inicial del cliente.
      *
@@ -199,7 +211,8 @@ class LegacySession(
      * original para no asumir un payload concreto del protocolo.
      */
     private suspend fun handleTextMessage(
-        message: String
+        message: String,
+        receivedAtLocalMicros: Long? = null
     ) {
         val type = runCatching {
             json.parseToJsonElement(message)
@@ -248,6 +261,16 @@ class LegacySession(
             }
 
             is MessageDispatcher.DispatchResult.Synchronization -> {
+                if (
+                    result.type == "server/time" &&
+                    receivedAtLocalMicros != null
+                ) {
+                    processServerTime(
+                        result.payload,
+                        receivedAtLocalMicros
+                    )
+                }
+
                 _events.emit(
                     SendspinSessionEvent.MessageReceived(
                         message
@@ -290,6 +313,47 @@ class LegacySession(
                 )
             }
         }
+    }
+
+    private fun processServerTime(
+        message: kotlinx.serialization.json.JsonObject,
+        receivedAtLocalMicros: Long
+    ) {
+        val payload = message["payload"]?.jsonObject
+            ?: throw IllegalArgumentException(
+                "server/time message does not contain a payload"
+            )
+
+        val clientTransmitted = payload["client_transmitted"]
+            ?.jsonPrimitive
+            ?.content
+            ?.toLongOrNull()
+            ?: throw IllegalArgumentException(
+                "server/time payload does not contain client_transmitted"
+            )
+
+        val serverReceived = payload["server_received"]
+            ?.jsonPrimitive
+            ?.content
+            ?.toLongOrNull()
+            ?: throw IllegalArgumentException(
+                "server/time payload does not contain server_received"
+            )
+
+        val serverTransmitted = payload["server_transmitted"]
+            ?.jsonPrimitive
+            ?.content
+            ?.toLongOrNull()
+            ?: throw IllegalArgumentException(
+                "server/time payload does not contain server_transmitted"
+            )
+
+        clockSynchronizer.update(
+            t1LocalMicros = clientTransmitted,
+            t2ServerMicros = serverReceived,
+            t3ServerMicros = serverTransmitted,
+            t4LocalMicros = receivedAtLocalMicros
+        )
     }
 
     @Serializable

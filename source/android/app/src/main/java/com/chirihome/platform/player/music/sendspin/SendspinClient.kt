@@ -26,7 +26,8 @@ class SendspinClient(
     private val handshake: SendspinHandshake,
     private val session: SendspinProtocolSession,
     private val audioSink: SendspinAudioSink,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val clockSynchronizer: ClockSynchronizer = ClockSynchronizer()
 ) : SendspinMessageSender {
 
     private var eventJob: Job? = null
@@ -116,7 +117,13 @@ class SendspinClient(
             }
 
             is InboundTransportEvent.BinaryMessage -> {
-                handleBinaryMessage(event.data)
+                val receivedAtLocalMicros =
+                    clockSynchronizer.localTimeMicros()
+
+                handleBinaryMessage(
+                    data = event.data,
+                    receivedAtLocalMicros = receivedAtLocalMicros
+                )
             }
 
             is InboundTransportEvent.Disconnected -> {
@@ -194,7 +201,10 @@ class SendspinClient(
     /**
      * Se invoca cuando se recibe un mensaje binario.
      */
-    private suspend fun handleBinaryMessage(data: ByteArray) {
+    private suspend fun handleBinaryMessage(
+        data: ByteArray,
+        receivedAtLocalMicros: Long
+    ) {
         val transport =
             noiseTransport
                 ?: error(
@@ -217,7 +227,10 @@ class SendspinClient(
                         .copyOfRange(1, plaintext.size)
                         .toString(Charsets.UTF_8)
 
-                session.handleMessage(message)
+                session.handleMessage(
+                    message = message,
+                    receivedAtLocalMicros = receivedAtLocalMicros
+                )
             }
 
             0x04 -> {

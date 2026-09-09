@@ -103,7 +103,9 @@ class MessageDispatcher {
             type.startsWith("stream/") ->
                 MessageCategory.STREAM
 
-            type.startsWith("sync/") ->
+            type.startsWith("sync/") ||
+                    type == "client/time" ||
+                    type == "server/time" ->
                 MessageCategory.SYNCHRONIZATION
 
             type.startsWith("player/") ->

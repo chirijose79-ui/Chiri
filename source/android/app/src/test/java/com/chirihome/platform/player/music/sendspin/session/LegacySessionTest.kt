@@ -5,6 +5,7 @@ import com.chirihome.platform.player.music.sendspin.SendspinConfig
 import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
+import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
@@ -81,7 +82,8 @@ class LegacySessionTest {
             config = createConfig(),
             capabilities = createCapabilities(),
             transport = transport,
-            messageSender = messageSender
+            messageSender = messageSender,
+            clockSynchronizer = ClockSynchronizer()
         )
 
     @Test
@@ -222,6 +224,69 @@ class LegacySessionTest {
         assertEquals(
             1,
             messageSender.encryptedMessages.size
+        )
+    }
+
+    @Test
+    fun serverTimeUpdatesClockSynchronizer() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val clockSynchronizer = ClockSynchronizer()
+
+        val session =
+            LegacySession(
+                config = createConfig(),
+                capabilities = createCapabilities(),
+                transport = transport,
+                messageSender = messageSender,
+                clockSynchronizer = clockSynchronizer
+            )
+
+        val serverTime1 =
+            """
+        {
+            "type":"server/time",
+            "payload":{
+                "client_transmitted":1000000,
+                "server_received":1005000,
+                "server_transmitted":1006000
+            }
+        }
+        """.trimIndent()
+
+        val serverTime2 =
+            """
+        {
+            "type":"server/time",
+            "payload":{
+                "client_transmitted":2000000,
+                "server_received":2005000,
+                "server_transmitted":2006000
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(
+            message = serverTime1,
+            receivedAtLocalMicros = 1001000
+        )
+
+        assertTrue(
+            !clockSynchronizer.isSynchronized()
+        )
+
+        session.handleMessage(
+            message = serverTime2,
+            receivedAtLocalMicros = 2001000
+        )
+
+        assertTrue(
+            clockSynchronizer.isSynchronized()
+        )
+
+        assertEquals(
+            1995000L,
+            clockSynchronizer.serverTimeToLocalMicros(2000000L)
         )
     }
 }

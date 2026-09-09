@@ -374,6 +374,15 @@ class SendspinClientTest {
                 listOf(plaintext),
                 session.receivedMessages
             )
+
+            assertEquals(
+                1,
+                session.receivedMessageTimestamps.size
+            )
+
+            assertTrue(
+                session.receivedMessageTimestamps.single() > 0L
+            )
         }
 
     @Test
@@ -830,6 +839,9 @@ class SendspinClientTest {
         val receivedMessages =
             mutableListOf<String>()
 
+        val receivedMessageTimestamps =
+            mutableListOf<Long>()
+
         override suspend fun start() {
         }
 
@@ -842,6 +854,14 @@ class SendspinClientTest {
             message: String
         ) {
             receivedMessages += message
+        }
+
+        override suspend fun handleMessage(
+            message: String,
+            receivedAtLocalMicros: Long
+        ) {
+            receivedMessages += message
+            receivedMessageTimestamps += receivedAtLocalMicros
         }
 
         override suspend fun send(

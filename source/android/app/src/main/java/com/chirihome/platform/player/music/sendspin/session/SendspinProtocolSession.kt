@@ -52,6 +52,18 @@ interface SendspinProtocolSession {
     )
 
     /**
+     * Procesa un mensaje recibido junto con el timestamp monotónico
+     * local correspondiente a su recepción.
+     *
+     * Este timestamp es necesario para mensajes sensibles al tiempo,
+     * como server/time, donde representa T4.
+     */
+    suspend fun handleMessage(
+        message: String,
+        receivedAtLocalMicros: Long
+    )
+
+    /**
      * Envía un mensaje perteneciente al protocolo Sendspin.
      */
     suspend fun send(message: String)
