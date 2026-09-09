@@ -387,6 +387,55 @@ class SendspinClientTest {
     }
 
     @Test
+    fun sendEncryptedEncryptsAndSendsBinary() = runBlocking {
+        val (initiatorTransport, responderTransport) =
+            createTestNoiseTransports()
+
+        val transport = FakeSendspinTransport()
+
+        val client = SendspinClient(
+            transport = transport,
+            handshake = createHandshake(
+                noiseTransport = initiatorTransport
+            ),
+            session = createSession(),
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        client.connect()
+
+        val serverInit =
+            """{"type":"server/init","payload":{"server_id":"abc","version":1}}"""
+
+        val noiseMessage1 =
+            """{"type":"noise/handshake","payload":{"data":"test-noise-data"}}"""
+
+        transport.emitTextMessage(serverInit)
+        transport.emitTextMessage(noiseMessage1)
+
+        val plaintext =
+            """{"type":"client/hello","payload":{"name":"Chiri Test"}}"""
+
+        client.sendEncrypted(plaintext)
+
+        assertEquals(
+            1,
+            transport.sentBinaryMessages.size
+        )
+
+        val encrypted =
+            transport.sentBinaryMessages.single()
+
+        val decrypted =
+            responderTransport.decrypt(encrypted)
+
+        assertEquals(
+            plaintext,
+            decrypted.toString(Charsets.UTF_8)
+        )
+    }
+
+    @Test
     fun disconnectDelegatesToTransport() = runBlocking {
         val transport = FakeSendspinTransport()
 

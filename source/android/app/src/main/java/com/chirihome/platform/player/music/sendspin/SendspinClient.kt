@@ -24,7 +24,7 @@ class SendspinClient(
     private val handshake: SendspinHandshake,
     private val session: SendspinProtocolSession,
     private val scope: CoroutineScope
-) {
+) : SendspinMessageSender {
 
     private var eventJob: Job? = null
 
@@ -221,5 +221,13 @@ class SendspinClient(
     private fun handleError(cause: Throwable) {
         eventJob?.cancel()
         eventJob = null
+    }
+
+    override suspend fun sendEncrypted(message: String) {
+        val noise = noiseTransport
+            ?: error("Noise transport is not established")
+
+        val encrypted = noise.encrypt(message.toByteArray(Charsets.UTF_8))
+        transport.sendBinary(encrypted)
     }
 }

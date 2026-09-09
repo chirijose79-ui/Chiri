@@ -5,12 +5,15 @@ import com.chirihome.platform.player.music.sendspin.SendspinConfig
 import com.chirihome.platform.player.music.sendspin.protocol.MessageDispatcher
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
+import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -29,7 +32,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class LegacySession(
     private val config: SendspinConfig,
     private val capabilities: SendspinCapabilities,
-    private val transport: SendspinTransport
+    private val transport: SendspinTransport,
+    private val messageSender: SendspinMessageSender
 ) : SendspinProtocolSession {
 
     private val _events = MutableSharedFlow<SendspinSessionEvent>(
@@ -61,10 +65,6 @@ class LegacySession(
         _events.emit(
             SendspinSessionEvent.Started
         )
-
-        if (transport.isConnected) {
-            sendClientHello()
-        }
     }
 
     override suspend fun handleTransportEvent(
@@ -80,8 +80,6 @@ class LegacySession(
                         SendspinSessionEvent.Started
                     )
                 }
-
-                sendClientHello()
             }
 
             is InboundTransportEvent.TextMessage -> {
@@ -152,7 +150,7 @@ class LegacySession(
             channels = capabilities.channels
         )
 
-        transport.send(
+        messageSender.sendEncrypted(
             json.encodeToString(message)
         )
     }
@@ -167,6 +165,25 @@ class LegacySession(
     private suspend fun handleTextMessage(
         message: String
     ) {
+        val type = runCatching {
+            json.parseToJsonElement(message)
+                .jsonObject["type"]
+                ?.jsonPrimitive
+                ?.content
+        }.getOrNull()
+
+        if (type == "server/hello") {
+            sendClientHello()
+
+            _events.emit(
+                SendspinSessionEvent.MessageReceived(
+                    message
+                )
+            )
+
+            return
+        }
+
         when (val result = messageDispatcher.dispatch(message)) {
 
             is MessageDispatcher.DispatchResult.Authentication -> {
