@@ -7,6 +7,7 @@ import com.chirihome.platform.domain.auth.ValidateSessionUseCase
 import com.chirihome.platform.domain.home.HomeUseCase
 import com.chirihome.platform.domain.music.MusicUseCase
 import com.chirihome.platform.network.ApiClient
+import com.chirihome.platform.player.music.sendspin.SendspinManager
 import com.chirihome.platform.repository.auth.AuthRepositoryImpl
 import com.chirihome.platform.repository.home.HomeRepositoryImpl
 import com.chirihome.platform.repository.music.MusicRepositoryImpl
@@ -31,6 +32,9 @@ class ChiriApplication : Application() {
         private set
 
     lateinit var musicUseCase: MusicUseCase
+        private set
+
+    lateinit var sendspinManager: SendspinManager
         private set
 
     override fun onCreate() {
@@ -77,5 +81,7 @@ class ChiriApplication : Application() {
         musicUseCase = MusicUseCase(
             musicRepository = musicRepository
         )
+
+        sendspinManager = SendspinManager(this)
     }
 }

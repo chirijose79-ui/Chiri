@@ -10,6 +10,9 @@ import com.chirihome.platform.player.music.sendspin.protocol.SendspinAudioFrameP
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -32,6 +35,18 @@ class SendspinClient(
 
     private var eventJob: Job? = null
 
+    enum class ConnectionState {
+        Disconnected,
+        Connecting,
+        Connected
+    }
+
+    private val _connectionState =
+        MutableStateFlow(ConnectionState.Disconnected)
+
+    val connectionState: StateFlow<ConnectionState> =
+        _connectionState.asStateFlow()
+
     private var noiseTransport: NoiseTransport? = null
 
     /**
@@ -45,8 +60,11 @@ class SendspinClient(
      */
     suspend fun connect() {
         if (transport.isConnected) {
+            _connectionState.value = ConnectionState.Connected
             return
         }
+
+        _connectionState.value = ConnectionState.Connecting
 
         startEventCollection()
         transport.connect()
@@ -62,6 +80,8 @@ class SendspinClient(
         if (transport.isConnected) {
             transport.disconnect()
         }
+
+        _connectionState.value = ConnectionState.Disconnected
     }
 
     /**
@@ -148,6 +168,8 @@ class SendspinClient(
      * client/init
      */
     private suspend fun handleConnected() {
+        _connectionState.value = ConnectionState.Connected
+
         val clientInit = handshake.createClientInit()
 
         transport.send(clientInit)
@@ -255,6 +277,8 @@ class SendspinClient(
      * Se invoca cuando la conexión se cierra.
      */
     private fun handleDisconnected(cause: Throwable?) {
+        _connectionState.value = ConnectionState.Disconnected
+
         eventJob?.cancel()
         eventJob = null
     }
@@ -263,6 +287,8 @@ class SendspinClient(
      * Se invoca cuando ocurre un error de transporte.
      */
     private fun handleError(cause: Throwable) {
+        _connectionState.value = ConnectionState.Disconnected
+
         eventJob?.cancel()
         eventJob = null
     }
