@@ -2,19 +2,18 @@ package com.chirihome.platform.player.music.sendspin
 
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.sqrt
 import kotlin.time.TimeSource
 
 /**
- * Sincroniza el reloj monotónico local del cliente con el reloj del servidor
- * Sendspin.
+ * Synchronizes the local monotonic clock with the Sendspin server clock.
  *
- * Implementa el modelo offset + drift utilizado por aiosendspin.
+ * T1 = client sends client/time
+ * T2 = server receives client/time
+ * T3 = server sends server/time
+ * T4 = client receives server/time
  *
- * T1 = cliente transmite client/time
- * T2 = servidor recibe client/time
- * T3 = servidor transmite server/time
- * T4 = cliente recibe server/time
+ * The internal filter is a Kotlin implementation of the
+ * SendspinTimeFilter used by aiosendspin.
  */
 class ClockSynchronizer {
 
@@ -35,17 +34,23 @@ class ClockSynchronizer {
 
     private var filter = SendspinTimeFilter()
 
-    fun getOffsetMicros(): Long = serverOffsetMicros
+    fun getOffsetMicros(): Long =
+        serverOffsetMicros
 
-    fun getRoundTripTimeMicros(): Long = roundTripTimeMicros
+    fun getRoundTripTimeMicros(): Long =
+        roundTripTimeMicros
 
-    fun isSynchronized(): Boolean = synchronized
+    fun isSynchronized(): Boolean =
+        synchronized
 
+    /**
+     * Returns the local monotonic clock in microseconds.
+     */
     fun localTimeMicros(): Long =
         startMark.elapsedNow().inWholeMicroseconds
 
     /**
-     * Procesa una medición completa T1/T2/T3/T4.
+     * Processes one complete Sendspin server/time measurement.
      */
     @Synchronized
     fun update(
@@ -62,6 +67,11 @@ class ClockSynchronizer {
             return
         }
 
+        /*
+         * NTP-style round-trip time:
+         *
+         * RTT = (T4 - T1) - (T3 - T2)
+         */
         val roundTripMicros =
             (t4LocalMicros - t1LocalMicros) -
                     (t3ServerMicros - t2ServerMicros)
@@ -70,31 +80,22 @@ class ClockSynchronizer {
             return
         }
 
+        /*
+         * Clock offset:
+         *
+         * offset = ((T2 - T1) + (T3 - T4)) / 2
+         */
         val measuredOffsetMicros =
             (
-                    (t2ServerMicros - t1LocalMicros) +
-                            (t3ServerMicros - t4LocalMicros)
-                    ) / 2L
+                (t2ServerMicros - t1LocalMicros) +
+                        (t3ServerMicros - t4LocalMicros)
+                ).toDouble() / 2.0
 
         /*
-         * aiosendspin utiliza la mitad del RTT efectivo como
-         * incertidumbre de la medición.
+         * aiosendspin uses RTT / 2 as max_error.
          */
         val maxErrorMicros =
-            roundTripMicros / 2L
-
-        if (sampleCount == 0) {
-            filter.reset(
-                offsetMicros = measuredOffsetMicros,
-                timestampMicros = t4LocalMicros
-            )
-
-            serverOffsetMicros = measuredOffsetMicros
-            roundTripTimeMicros = roundTripMicros
-            sampleCount = 1
-            synchronized = false
-            return
-        }
+            roundTripMicros.toDouble() / 2.0
 
         filter.update(
             measurementMicros = measuredOffsetMicros,
@@ -103,24 +104,27 @@ class ClockSynchronizer {
         )
 
         serverOffsetMicros =
-            filter.computeOffset(
-                timestampMicros = t4LocalMicros
-            )
+            filter.computeOffset(t4LocalMicros)
 
         roundTripTimeMicros =
             roundTripMicros
 
-        sampleCount++
+        sampleCount =
+            filter.measurementCount
 
         synchronized =
             filter.isSynchronized()
     }
 
+    /**
+     * Converts a Sendspin server timestamp into local monotonic time.
+     */
     fun serverTimeToLocalMicros(
         serverTimeMicros: Long
     ): Long {
         if (!synchronized) {
-            return serverTimeMicros - serverOffsetMicros
+            return serverTimeMicros -
+                    serverOffsetMicros
         }
 
         return filter.computeClientTime(
@@ -128,11 +132,15 @@ class ClockSynchronizer {
         )
     }
 
+    /**
+     * Converts local monotonic time into Sendspin server time.
+     */
     fun localTimeToServerMicros(
         localTimeMicros: Long
     ): Long {
         if (!synchronized) {
-            return localTimeMicros + serverOffsetMicros
+            return localTimeMicros +
+                    serverOffsetMicros
         }
 
         return filter.computeServerTime(
@@ -140,252 +148,468 @@ class ClockSynchronizer {
         )
     }
 
+    /**
+     * Resets synchronization state.
+     */
     @Synchronized
     fun reset() {
         serverOffsetMicros = 0L
         roundTripTimeMicros = 0L
         synchronized = false
         sampleCount = 0
-        filter = SendspinTimeFilter()
+
+        filter =
+            SendspinTimeFilter()
     }
 
     /**
-     * Filtro 2D:
+     * Kotlin implementation of aiosendspin's SendspinTimeFilter.
      *
-     * x[0] = offset
-     * x[1] = drift
+     * State vector:
      *
-     * El estado evoluciona con el tiempo:
+     *   [ offset ]
+     *   [ drift  ]
      *
-     * offset(t) = offset0 + drift * dt
+     * offset:
+     *   server_time - client_time
+     *
+     * drift:
+     *   clock-rate difference between client and server.
      */
     private class SendspinTimeFilter {
 
-        private var offsetMicros = 0.0
-        private var drift = 0.0
+        private var lastUpdateMicros: Long = 0L
 
-        private var covariance00 = INITIAL_OFFSET_VARIANCE
-        private var covariance01 = 0.0
-        private var covariance10 = 0.0
-        private var covariance11 = INITIAL_DRIFT_VARIANCE
+        var measurementCount: Int = 0
+            private set
 
-        private var lastTimestampMicros = 0L
-        private var measurementCount = 0
+        private var offset: Double = 0.0
+        private var drift: Double = 0.0
 
-        fun reset(
-            offsetMicros: Long,
-            timestampMicros: Long
-        ) {
-            this.offsetMicros = offsetMicros.toDouble()
-            this.drift = 0.0
+        private var offsetCovariance =
+            Double.POSITIVE_INFINITY
 
-            covariance00 = INITIAL_OFFSET_VARIANCE
-            covariance01 = 0.0
-            covariance10 = 0.0
-            covariance11 = INITIAL_DRIFT_VARIANCE
+        private var offsetDriftCovariance =
+            0.0
 
-            lastTimestampMicros = timestampMicros
-            measurementCount = 1
-        }
+        private var driftCovariance =
+            0.0
 
+        private var currentTimeElement =
+            TimeElement()
+
+        /**
+         * Adds one clock synchronization measurement.
+         *
+         * This follows the initialization, prediction,
+         * Kalman update, adaptive forgetting and drift
+         * significance rules of aiosendspin.
+         */
         fun update(
-            measurementMicros: Long,
-            maxErrorMicros: Long,
+            measurementMicros: Double,
+            maxErrorMicros: Double,
             timestampMicros: Long
         ) {
-            val deltaSeconds =
-                (timestampMicros - lastTimestampMicros)
-                    .coerceAtLeast(0L) / 1_000_000.0
-
             /*
-             * Prediction.
+             * Ignore non-monotonic timestamps.
              */
-            offsetMicros += drift * deltaSeconds
-
-            covariance00 +=
-                deltaSeconds *
-                        (covariance10 + covariance01) +
-                        deltaSeconds *
-                        deltaSeconds *
-                        covariance11
-
-            covariance01 +=
-                deltaSeconds * covariance11
-
-            covariance10 = covariance01
-
-            covariance11 +=
-                DRIFT_PROCESS_VARIANCE *
-                        deltaSeconds
-
-            /*
-             * Measurement uncertainty.
-             */
-            val boundedError =
-                max(
-                    MIN_MEASUREMENT_ERROR_MICROS,
-                    maxErrorMicros.toDouble()
-                )
-
-            val measurementVariance =
-                boundedError * boundedError
-
-            /*
-             * Kalman update.
-             *
-             * La medición observa directamente el offset.
-             */
-            val innovation =
-                measurementMicros.toDouble() -
-                        offsetMicros
-
-            val innovationVariance =
-                covariance00 +
-                        measurementVariance
-
-            if (innovationVariance <= 0.0) {
+            if (timestampMicros <= lastUpdateMicros) {
                 return
             }
 
-            val gain0 =
-                covariance00 /
-                        innovationVariance
+            val dt =
+                (timestampMicros -
+                        lastUpdateMicros).toDouble()
 
-            val gain1 =
-                covariance10 /
-                        innovationVariance
-
-            offsetMicros +=
-                gain0 * innovation
-
-            drift +=
-                gain1 * innovation
-
-            val oldCovariance00 = covariance00
-            val oldCovariance01 = covariance01
-
-            covariance00 =
-                (1.0 - gain0) *
-                        oldCovariance00
-
-            covariance01 =
-                (1.0 - gain0) *
-                        oldCovariance01
-
-            covariance10 =
-                covariance10 -
-                        gain1 * oldCovariance00
-
-            covariance11 =
-                covariance11 -
-                        gain1 * oldCovariance01
-
-            /*
-             * Adaptive forgetting.
-             *
-             * Una medición muy alejada de la predicción indica que
-             * la estimación anterior perdió relevancia.
-             */
-            if (
-                abs(innovation) >
-                ADAPTIVE_FORGETTING_CUTOFF *
-                boundedError
-            ) {
-                covariance00 =
-                    max(
-                        covariance00,
-                        measurementVariance
-                    )
-            }
-
-            lastTimestampMicros =
+            lastUpdateMicros =
                 timestampMicros
 
-            measurementCount++
-        }
-
-        fun computeClientTime(
-            serverTimeMicros: Long
-        ): Long {
             /*
-             * Aproximación inversa:
+             * aiosendspin:
              *
-             * server = client + offset(client)
-             *
-             * Por tanto:
-             *
-             * client ≈ server - offset.
+             * update_std_dev = max_error * 0.5
+             * measurement_variance = update_std_dev²
              */
-            val elapsedSeconds =
-                (
-                        serverTimeMicros -
-                                lastTimestampMicros
-                        ) / 1_000_000.0
+            val updateStdDev =
+                maxErrorMicros *
+                    MAX_ERROR_SCALE
+
+            val measurementVariance =
+                updateStdDev *
+                    updateStdDev
+
+            /*
+             * First measurement.
+             *
+             * The filter starts directly from the
+             * measured offset.
+             */
+            if (measurementCount <= 0) {
+                measurementCount++
+
+                offset =
+                    measurementMicros
+
+                offsetCovariance =
+                    measurementVariance
+
+                drift = 0.0
+
+                currentTimeElement =
+                    TimeElement(
+                        lastUpdateMicros =
+                            lastUpdateMicros,
+                        offset = offset,
+                        drift = drift,
+                        useDrift = false
+                    )
+
+                return
+            }
+
+            /*
+             * Second measurement.
+             *
+             * Initialize drift from the difference
+             * between the first and second offsets.
+             */
+            if (measurementCount == 1) {
+                measurementCount++
+
+                drift =
+                    (
+                            measurementMicros.toDouble() -
+                                    offset
+                            ) / dt
+
+                offset =
+                    measurementMicros
+
+                driftCovariance =
+                    (
+                            offsetCovariance +
+                                    measurementVariance
+                            ) / (dt * dt)
+
+                offsetCovariance =
+                    measurementVariance
+
+                currentTimeElement =
+                    TimeElement(
+                        lastUpdateMicros =
+                            lastUpdateMicros,
+                        offset = offset,
+                        drift = drift,
+                        useDrift = false
+                    )
+
+                return
+            }
+
+            /*
+             * ---------------------------------------
+             * Prediction
+             * ---------------------------------------
+             */
 
             val predictedOffset =
-                offsetMicros +
-                        drift * elapsedSeconds
+                offset +
+                        drift * dt
 
-            return (
-                    serverTimeMicros -
-                            predictedOffset
-                    ).toLong()
+            val dtSquared =
+                dt * dt
+
+            /*
+             * Drift process noise:
+             *
+             * drift_process_std_dev = 1e-11
+             */
+            val driftProcessVariance =
+                dt *
+                        DRIFT_PROCESS_VARIANCE
+
+            val newDriftCovariance =
+                driftCovariance +
+                        driftProcessVariance
+
+            val newOffsetDriftCovariance =
+                offsetDriftCovariance +
+                        driftCovariance * dt
+
+            /*
+             * process_std_dev = 0
+             */
+            val newOffsetCovariance =
+                offsetCovariance +
+                        2.0 *
+                        offsetDriftCovariance *
+                        dt +
+                        driftCovariance *
+                        dtSquared +
+                        dt *
+                        PROCESS_VARIANCE
+
+            /*
+             * ---------------------------------------
+             * Innovation
+             * ---------------------------------------
+             */
+
+            val residual =
+                measurementMicros.toDouble() -
+                    predictedOffset
+
+            val maxResidualCutoff =
+                maxErrorMicros *
+                    ADAPTIVE_FORGETTING_CUTOFF
+
+            /*
+             * Adaptive forgetting is only activated
+             * after the first 100 measurements.
+             */
+            var adjustedDriftCovariance =
+                newDriftCovariance
+
+            var adjustedOffsetDriftCovariance =
+                newOffsetDriftCovariance
+
+            var adjustedOffsetCovariance =
+                newOffsetCovariance
+
+            if (
+                measurementCount <
+                ADAPTIVE_FORGETTING_MIN_COUNT
+            ) {
+                measurementCount++
+            } else if (
+                abs(residual) >
+                maxResidualCutoff
+            ) {
+                adjustedDriftCovariance *=
+                    FORGET_VARIANCE_FACTOR
+
+                adjustedOffsetDriftCovariance *=
+                    FORGET_VARIANCE_FACTOR
+
+                adjustedOffsetCovariance *=
+                    FORGET_VARIANCE_FACTOR
+            }
+
+            /*
+             * ---------------------------------------
+             * Kalman update
+             * ---------------------------------------
+             */
+
+            val uncertainty =
+                1.0 /
+                        max(
+                            adjustedOffsetCovariance +
+                                    measurementVariance,
+                            MIN_DENOMINATOR
+                        )
+
+            val offsetGain =
+                adjustedOffsetCovariance *
+                        uncertainty
+
+            val driftGain =
+                adjustedOffsetDriftCovariance *
+                        uncertainty
+
+            offset =
+                predictedOffset +
+                        offsetGain *
+                        residual
+
+            drift +=
+                driftGain *
+                        residual
+
+            /*
+             * Covariance update.
+             */
+            driftCovariance =
+                adjustedDriftCovariance -
+                        driftGain *
+                        adjustedOffsetDriftCovariance
+
+            offsetDriftCovariance =
+                adjustedOffsetDriftCovariance -
+                        driftGain *
+                        adjustedOffsetCovariance
+
+            offsetCovariance =
+                adjustedOffsetCovariance -
+                        offsetGain *
+                        adjustedOffsetCovariance
+
+            /*
+             * Drift is only used when statistically
+             * significant.
+             *
+             * drift² > 4 * drift_covariance
+             */
+            val useDrift =
+                drift * drift >
+                        DRIFT_SIGNIFICANCE_THRESHOLD_SQUARED *
+                        driftCovariance
+
+            currentTimeElement =
+                TimeElement(
+                    lastUpdateMicros =
+                        lastUpdateMicros,
+                    offset = offset,
+                    drift = drift,
+                    useDrift = useDrift
+                )
         }
 
+        /**
+         * Converts local/client time to server time.
+         */
         fun computeServerTime(
             clientTimeMicros: Long
         ): Long {
-            val elapsedSeconds =
+            val element =
+                currentTimeElement
+
+            val effectiveDrift =
+                if (element.useDrift) {
+                    element.drift
+                } else {
+                    0.0
+                }
+
+            val dt =
                 (
                         clientTimeMicros -
-                                lastTimestampMicros
-                        ) / 1_000_000.0
+                                element.lastUpdateMicros
+                        ).toDouble()
 
-            val predictedOffset =
-                offsetMicros +
-                        drift * elapsedSeconds
+            val effectiveOffset =
+                roundToLong(
+                    element.offset +
+                            effectiveDrift *
+                            dt
+                )
 
-            return (
-                    clientTimeMicros +
-                            predictedOffset
-                    ).toLong()
+            return clientTimeMicros +
+                    effectiveOffset
         }
 
+        /**
+         * Converts server time to client/local time.
+         *
+         * This is the exact inverse used by aiosendspin.
+         */
+        fun computeClientTime(
+            serverTimeMicros: Long
+        ): Long {
+            val element =
+                currentTimeElement
+
+            val effectiveDrift =
+                if (element.useDrift) {
+                    element.drift
+                } else {
+                    0.0
+                }
+
+            return roundToLong(
+                (
+                        serverTimeMicros.toDouble() -
+                                element.offset +
+                                effectiveDrift *
+                                element.lastUpdateMicros
+                        ) /
+                        (1.0 + effectiveDrift)
+            )
+        }
+
+        /**
+         * Returns the current effective offset at
+         * the requested timestamp.
+         */
         fun computeOffset(
             timestampMicros: Long
         ): Long {
-            val elapsedSeconds =
+            val element =
+                currentTimeElement
+
+            val effectiveDrift =
+                if (element.useDrift) {
+                    element.drift
+                } else {
+                    0.0
+                }
+
+            val dt =
                 (
                         timestampMicros -
-                                lastTimestampMicros
-                        ) / 1_000_000.0
+                                element.lastUpdateMicros
+                        ).toDouble()
 
-            return (
-                    offsetMicros +
-                            drift * elapsedSeconds
-                    ).toLong()
+            return roundToLong(
+                element.offset +
+                        effectiveDrift *
+                        dt
+            )
         }
 
         fun isSynchronized(): Boolean =
             measurementCount >= 2 &&
-                    covariance00.isFinite() &&
-                    covariance11.isFinite()
+                    !offsetCovariance.isInfinite()
+
+        private data class TimeElement(
+            val lastUpdateMicros: Long = 0L,
+            val offset: Double = 0.0,
+            val drift: Double = 0.0,
+            val useDrift: Boolean = false
+        )
 
         companion object {
-            private const val INITIAL_OFFSET_VARIANCE =
-                1_000_000_000_000.0
 
-            private const val INITIAL_DRIFT_VARIANCE =
-                1e-12
+            /*
+             * Values matching aiosendspin.
+             */
 
-            private const val DRIFT_PROCESS_VARIANCE =
+            private const val
+                    ADAPTIVE_FORGETTING_CUTOFF =
+                3.0
+
+            private const val
+                    MAX_ERROR_SCALE =
+                0.5
+
+            private const val
+                    DRIFT_SIGNIFICANCE_THRESHOLD_SQUARED =
+                4.0
+
+            private const val
+                    PROCESS_VARIANCE =
+                0.0
+
+            private const val
+                    DRIFT_PROCESS_VARIANCE =
                 1e-22
 
-            private const val MIN_MEASUREMENT_ERROR_MICROS =
-                1.0
+            private const val
+                    FORGET_VARIANCE_FACTOR =
+                4.0
 
-            private const val ADAPTIVE_FORGETTING_CUTOFF =
-                3.0
+            private const val
+                    ADAPTIVE_FORGETTING_MIN_COUNT =
+                100
+
+            private const val
+                    MIN_DENOMINATOR =
+                1e-9
+
+            private fun roundToLong(
+                value: Double
+            ): Long =
+                kotlin.math.round(value).toLong()
         }
     }
 }
