@@ -316,6 +316,19 @@ class SendspinClientTest {
             val plaintext =
                 """{"type":"server/hello","payload":{"name":"Music Assistant"}}"""
 
+            val plaintextBytes =
+                plaintext.toByteArray(Charsets.UTF_8)
+
+            val framedPlaintext =
+                ByteArray(1 + plaintextBytes.size)
+
+            framedPlaintext[0] = 0x00
+
+            plaintextBytes.copyInto(
+                destination = framedPlaintext,
+                destinationOffset = 1
+            )
+
             client.connect()
 
             transport.emitTextMessage(serverInit)
@@ -323,7 +336,7 @@ class SendspinClientTest {
 
             val encrypted =
                 initiatorTransport.encrypt(
-                    plaintext.toByteArray(Charsets.UTF_8)
+                    framedPlaintext
                 )
 
             transport.emitBinaryMessage(encrypted)
@@ -429,9 +442,20 @@ class SendspinClientTest {
         val decrypted =
             responderTransport.decrypt(encrypted)
 
+        assertTrue(
+            decrypted.isNotEmpty()
+        )
+
+        assertEquals(
+            0x00,
+            decrypted[0].toInt()
+        )
+
         assertEquals(
             plaintext,
-            decrypted.toString(Charsets.UTF_8)
+            decrypted
+                .copyOfRange(1, decrypted.size)
+                .toString(Charsets.UTF_8)
         )
     }
 

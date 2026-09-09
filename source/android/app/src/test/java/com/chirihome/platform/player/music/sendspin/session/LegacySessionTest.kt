@@ -140,35 +140,58 @@ class LegacySessionTest {
             messageSender.encryptedMessages.size
         )
 
-        val clientHello =
-            messageSender.encryptedMessages.single()
+        val clientHello = messageSender.encryptedMessages.single()
 
         assertTrue(
             clientHello.contains("\"type\":\"client/hello\"")
         )
 
         assertTrue(
-            clientHello.contains("\"clientId\":\"test-client\"")
+            clientHello.contains("\"name\":\"Chiri Test\"")
         )
 
         assertTrue(
-            clientHello.contains("\"deviceName\":\"Chiri Test\"")
+            clientHello.contains("\"supported_roles\":[\"player@v1\"]")
         )
 
         assertTrue(
-            clientHello.contains("\"codecs\":[\"opus\"]")
+            clientHello.contains("\"player@v1_support\"")
         )
 
         assertTrue(
-            clientHello.contains("\"sampleRates\":[48000]")
+            clientHello.contains("\"supported_formats\"")
         )
 
         assertTrue(
-            clientHello.contains("\"bitDepths\":[16]")
+            clientHello.contains("\"codec\":\"opus\"")
         )
 
         assertTrue(
-            clientHello.contains("\"channels\":[1,2]")
+            clientHello.contains("\"channels\":1")
+        )
+
+        assertTrue(
+            clientHello.contains("\"channels\":2")
+        )
+
+        assertTrue(
+            clientHello.contains("\"sample_rate\":48000")
+        )
+
+        assertTrue(
+            clientHello.contains("\"bit_depth\":16")
+        )
+
+        assertTrue(
+            clientHello.contains("\"buffer_capacity\":524288")
+        )
+
+        assertTrue(
+            clientHello.contains("\"supported_commands\"")
+        )
+
+        assertTrue(
+            clientHello.contains("\"unpaired_access\":{\"enabled\":false}")
         )
 
         assertTrue(
@@ -177,6 +200,28 @@ class LegacySessionTest {
 
         assertTrue(
             transport.sentBinaryMessages.isEmpty()
+        )
+    }
+
+    @Test
+    fun duplicateServerHelloDoesNotSendClientHelloAgain() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender
+        )
+
+        val serverHello =
+            """{"type":"server/hello","payload":{"name":"Music Assistant"}}"""
+
+        session.handleMessage(serverHello)
+        session.handleMessage(serverHello)
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.size
         )
     }
 }

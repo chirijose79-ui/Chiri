@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -44,6 +45,8 @@ class LegacySession(
         _events.asSharedFlow()
 
     private val active = AtomicBoolean(false)
+
+    private var clientHelloSent = false
 
     override val isActive: Boolean
         get() = active.get()
@@ -140,14 +143,47 @@ class LegacySession(
      * las capacidades que soporta.
      */
     private suspend fun sendClientHello() {
+        val supportedFormats = capabilities.codecs.flatMap { codec ->
+            capabilities.channels.flatMap { channels ->
+                capabilities.sampleRates.map { sampleRate ->
+                    SupportedAudioFormat(
+                        codec = codec,
+                        channels = channels,
+                        sample_rate = sampleRate,
+                        bit_depth = capabilities.bitDepths.first()
+                    )
+                }
+            }
+        }
+
+        val supportedCommands = buildList {
+            if (capabilities.supportsVolume) {
+                add("volume")
+            }
+
+            if (capabilities.supportsMute) {
+                add("mute")
+            }
+        }
+
         val message = ClientHelloMessage(
-            type = "client/hello",
-            clientId = config.clientId,
-            deviceName = config.deviceName,
-            codecs = capabilities.codecs,
-            sampleRates = capabilities.sampleRates,
-            bitDepths = capabilities.bitDepths,
-            channels = capabilities.channels
+            payload = ClientHelloPayload(
+                name = config.deviceName,
+                supported_roles = listOf("player@v1"),
+                device_info = DeviceInfo(
+                    product_name = "Chiri Android",
+                    manufacturer = "Chiri",
+                    software_version = "1.0"
+                ),
+                playerSupport = PlayerSupport(
+                    supported_formats = supportedFormats,
+                    buffer_capacity = 512 * 1024,
+                    supported_commands = supportedCommands
+                ),
+                unpaired_access = UnpairedAccess(
+                    enabled = false
+                )
+            )
         )
 
         messageSender.sendEncrypted(
@@ -173,7 +209,10 @@ class LegacySession(
         }.getOrNull()
 
         if (type == "server/hello") {
-            sendClientHello()
+            if (!clientHelloSent) {
+                sendClientHello()
+                clientHelloSent = true
+            }
 
             _events.emit(
                 SendspinSessionEvent.MessageReceived(
@@ -255,12 +294,44 @@ class LegacySession(
 
     @Serializable
     private data class ClientHelloMessage(
-        val type: String,
-        val clientId: String,
-        val deviceName: String,
-        val codecs: List<String>,
-        val sampleRates: List<Int>,
-        val bitDepths: List<Int>,
-        val channels: List<Int>
+        val type: String = "client/hello",
+        val payload: ClientHelloPayload
+    )
+
+    @Serializable
+    private data class ClientHelloPayload(
+        val name: String,
+        val supported_roles: List<String>,
+        val device_info: DeviceInfo? = null,
+        @SerialName("player@v1_support")
+        val playerSupport: PlayerSupport? = null,
+        val unpaired_access: UnpairedAccess = UnpairedAccess()
+    )
+
+    @Serializable
+    private data class DeviceInfo(
+        val product_name: String? = null,
+        val manufacturer: String? = null,
+        val software_version: String? = null
+    )
+
+    @Serializable
+    private data class PlayerSupport(
+        val supported_formats: List<SupportedAudioFormat>,
+        val buffer_capacity: Int,
+        val supported_commands: List<String>
+    )
+
+    @Serializable
+    private data class SupportedAudioFormat(
+        val codec: String,
+        val channels: Int,
+        val sample_rate: Int,
+        val bit_depth: Int
+    )
+
+    @Serializable
+    private data class UnpairedAccess(
+        val enabled: Boolean = false
     )
 }

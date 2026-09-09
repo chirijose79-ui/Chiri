@@ -201,8 +201,20 @@ class SendspinClient(
         val plaintext =
             transport.decrypt(data)
 
+        check(plaintext.isNotEmpty()) {
+            "Received empty Sendspin message"
+        }
+
+        val messageType = plaintext[0].toInt() and 0xFF
+
+        check(messageType == 0x00) {
+            "Unsupported Sendspin message type: $messageType"
+        }
+
         val message =
-            plaintext.toString(Charsets.UTF_8)
+            plaintext
+                .copyOfRange(1, plaintext.size)
+                .toString(Charsets.UTF_8)
 
         session.handleMessage(message)
     }
@@ -224,10 +236,24 @@ class SendspinClient(
     }
 
     override suspend fun sendEncrypted(message: String) {
+        check(transport.isConnected) {
+            "Sendspin client is not connected"
+        }
+
         val noise = noiseTransport
             ?: error("Noise transport is not established")
 
-        val encrypted = noise.encrypt(message.toByteArray(Charsets.UTF_8))
+        val jsonBytes = message.toByteArray(Charsets.UTF_8)
+
+        val plaintext = ByteArray(1 + jsonBytes.size)
+        plaintext[0] = 0x00
+        jsonBytes.copyInto(
+            destination = plaintext,
+            destinationOffset = 1
+        )
+
+        val encrypted = noise.encrypt(plaintext)
+
         transport.sendBinary(encrypted)
     }
 }
