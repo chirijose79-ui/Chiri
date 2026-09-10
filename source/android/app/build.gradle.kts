@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.chirihome.platform"
-        minSdk = 26
+        minSdk = 33
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"

@@ -22,11 +22,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import android.util.Log
 import kotlinx.coroutines.flow.collect
 
 class SendspinManager(
     context: Context
 ) {
+    private companion object {
+        const val TAG = "SendspinManager"
+    }
 
     private val applicationContext = context.applicationContext
 
@@ -47,11 +51,14 @@ class SendspinManager(
     private var audioSink: AudioStreamManager? = null
 
     fun start() {
+        Log.d(TAG, "start() called")
         if (lifecycleJob?.isActive == true) {
+            Log.d(TAG, "start() ignored: lifecycleJob already active")
             return
         }
 
         lifecycleJob = scope.launch {
+            Log.d(TAG, "lifecycle coroutine started")
             initializeAndConnect()
         }
     }
@@ -66,6 +73,8 @@ class SendspinManager(
     }
 
     private suspend fun initializeAndConnect() {
+        Log.d(TAG, "initializeAndConnect() started")
+
         _state.value = ConnectionState.Starting
 
         try {
@@ -82,10 +91,14 @@ class SendspinManager(
 
             val identity = identityProvider.getOrCreate()
 
+            Log.d(TAG, "Sendspin identity ready")
+
             val config = SendspinConfig(
                 clientId = identity.clientId,
                 deviceName = "Chiri Android"
             )
+
+            Log.d(TAG, "Sendspin config created")
 
             require(config.isValid()) {
                 "Invalid Sendspin configuration"
@@ -143,6 +156,8 @@ class SendspinManager(
                 clockSynchronizer = clockSynchronizer
             )
 
+            Log.d(TAG, "SendspinClient created")
+
             messageSender.setDelegate(sendspinClient)
 
             client = sendspinClient
@@ -151,6 +166,8 @@ class SendspinManager(
             _state.value = ConnectionState.Connecting
 
             connectionJob?.cancel()
+
+            Log.d(TAG, "starting SendspinClient connection job")
 
             connectionJob = scope.launch {
                 try {
@@ -180,6 +197,7 @@ class SendspinManager(
             _state.value = ConnectionState.Stopped
             throw exception
         } catch (exception: Exception) {
+            Log.e(TAG, "initializeAndConnect() failed", exception)
             _state.value = ConnectionState.Error(exception)
 
             disconnectAndRelease()

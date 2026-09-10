@@ -6,7 +6,6 @@ import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.SecureRandom
-import java.security.spec.NamedParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
@@ -22,11 +21,6 @@ class JdkNoiseCrypto : NoiseCrypto {
     override fun generateX25519PrivateKey(): ByteArray {
         val keyPairGenerator =
             KeyPairGenerator.getInstance("X25519")
-
-        keyPairGenerator.initialize(
-            NamedParameterSpec("X25519"),
-            secureRandom
-        )
 
         val keyPair =
             keyPairGenerator.generateKeyPair()

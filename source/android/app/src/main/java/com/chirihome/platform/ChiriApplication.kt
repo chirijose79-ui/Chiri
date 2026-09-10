@@ -83,5 +83,6 @@ class ChiriApplication : Application() {
         )
 
         sendspinManager = SendspinManager(this)
+        sendspinManager.start()
     }
 }
