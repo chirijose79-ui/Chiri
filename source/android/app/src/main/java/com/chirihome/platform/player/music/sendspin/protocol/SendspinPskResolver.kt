@@ -5,5 +5,5 @@ interface SendspinPskResolver {
     suspend fun resolve(
         pskId: String,
         serverId: String
-    ): ByteArray?
+    ): SendspinPskResolution?
 }

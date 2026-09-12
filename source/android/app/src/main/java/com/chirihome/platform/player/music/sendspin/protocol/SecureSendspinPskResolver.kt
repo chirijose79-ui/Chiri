@@ -12,7 +12,7 @@ class SecureSendspinPskResolver(
     override suspend fun resolve(
         pskId: String,
         serverId: String
-    ): ByteArray? {
+    ): SendspinPskResolution? {
 
         require(pskId.isNotBlank()) {
             "PSK id must not be blank"
@@ -30,7 +30,8 @@ class SecureSendspinPskResolver(
          *
          * SENTINEL_PSK = SHA256("sendspin-sentinel-psk-v1")
          *
-         * psk_id_for(psk) = base64url(SHA256("sendspin-psk-id-v1" || psk))
+         * psk_id_for(psk) =
+         * base64url(SHA256("sendspin-psk-id-v1" || psk))
          */
         val sentinelPsk =
             crypto.sha256(
@@ -38,13 +39,16 @@ class SecureSendspinPskResolver(
             )
 
         if (calculatePskId(sentinelPsk) == pskId) {
-            return sentinelPsk
+            return SendspinPskResolution(
+                psk = sentinelPsk,
+                type = SendspinPskType.SENTINEL
+            )
         }
 
         /*
- * If this is not the Sentinel PSK, try the stored
- * pairing PSK.
- */
+         * If this is not the Sentinel PSK, try the stored
+         * pairing PSK.
+         */
         val pairingPsk =
             storage.getPairingPsk()
 
@@ -57,7 +61,10 @@ class SecureSendspinPskResolver(
                 calculatePskId(pairingPsk)
 
             if (pairingPskId == pskId) {
-                return pairingPsk.copyOf()
+                return SendspinPskResolution(
+                    psk = pairingPsk.copyOf(),
+                    type = SendspinPskType.PAIRING
+                )
             }
         }
 
@@ -68,12 +75,18 @@ class SecureSendspinPskResolver(
         val longTermPsk =
             storage.getLongTermPsk(serverId)
 
-        if (longTermPsk != null && longTermPsk.size == PSK_SIZE) {
+        if (
+            longTermPsk != null &&
+            longTermPsk.size == PSK_SIZE
+        ) {
             val longTermPskId =
                 calculatePskId(longTermPsk)
 
             if (longTermPskId == pskId) {
-                return longTermPsk.copyOf()
+                return SendspinPskResolution(
+                    psk = longTermPsk.copyOf(),
+                    type = SendspinPskType.LONG_TERM
+                )
             }
         }
 

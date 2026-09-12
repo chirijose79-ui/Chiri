@@ -14,7 +14,7 @@ class SendspinNoiseHandshake(
     private val identityProvider: SendspinIdentityProvider,
     private val crypto: NoiseCrypto,
     private val pskResolver: SendspinPskResolver
-) : SendspinHandshake {
+) : SendspinHandshake, SendspinPairingState {
 
     private val json = Json {
         encodeDefaults = true
@@ -31,6 +31,7 @@ class SendspinNoiseHandshake(
 
     private var resolvedPsk: ByteArray? = null
     private var resolvedPskId: String? = null
+    private var resolvedPskType: SendspinPskType? = null
 
     override suspend fun createClientInit(): String {
         val currentIdentity = identityProvider.getOrCreate()
@@ -109,6 +110,7 @@ class SendspinNoiseHandshake(
 
         resolvedPsk = null
         resolvedPskId = null
+        resolvedPskType = null
     }
 
     override suspend fun receiveNoiseMessage1(
@@ -171,7 +173,7 @@ class SendspinNoiseHandshake(
                 currentServerStaticPublicKey
             )
 
-        val psk =
+        val resolution =
             pskResolver.resolve(
                 pskId = pskPayload.psk_id,
                 serverId = currentServerId
@@ -181,6 +183,9 @@ class SendspinNoiseHandshake(
                             "id=${pskPayload.psk_id}"
                 )
 
+        val psk =
+            resolution.psk
+
         require(psk.size == PSK_SIZE) {
             "Resolved Sendspin PSK must be 32 bytes"
         }
@@ -189,6 +194,7 @@ class SendspinNoiseHandshake(
 
         resolvedPsk = psk.copyOf()
         resolvedPskId = pskPayload.psk_id
+        resolvedPskType = resolution.type
 
         return pskPayload
     }
@@ -252,6 +258,9 @@ class SendspinNoiseHandshake(
 
     val pskId: String?
         get() = resolvedPskId
+
+    override val pskType: SendspinPskType?
+        get() = resolvedPskType
 
     companion object {
         private const val PROTOCOL_VERSION = 1

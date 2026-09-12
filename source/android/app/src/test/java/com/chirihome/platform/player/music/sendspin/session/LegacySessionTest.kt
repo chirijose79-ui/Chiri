@@ -6,6 +6,8 @@ import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingState
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinPskType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
@@ -67,6 +69,10 @@ class LegacySessionTest {
         }
     }
 
+    private class FakeSendspinPairingState(
+        override val pskType: SendspinPskType? = null
+    ) : SendspinPairingState
+
     private fun createConfig(): SendspinConfig =
         SendspinConfig(
             clientId = "test-client",
@@ -84,7 +90,8 @@ class LegacySessionTest {
     private fun createSession(
         transport: FakeSendspinTransport,
         messageSender: FakeSendspinMessageSender,
-        scope: CoroutineScope
+        scope: CoroutineScope,
+        pairingState: SendspinPairingState = FakeSendspinPairingState()
     ): LegacySession =
         LegacySession(
             config = createConfig(),
@@ -92,7 +99,8 @@ class LegacySessionTest {
             transport = transport,
             messageSender = messageSender,
             clockSynchronizer = ClockSynchronizer(),
-            scope = scope
+            scope = scope,
+            pairingState = pairingState
         )
 
     @Test
@@ -216,6 +224,12 @@ class LegacySessionTest {
         )
 
         assertTrue(
+            clientHello.contains(
+                "\"supported_pair_methods\":[\"pairing_psk\"]"
+            )
+        )
+
+        assertTrue(
             transport.sentMessages.isEmpty()
         )
 
@@ -240,7 +254,8 @@ class LegacySessionTest {
                 transport = transport,
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
-                scope = scope
+                scope = scope,
+                pairingState = FakeSendspinPairingState()
             )
 
         val before =
@@ -295,7 +310,8 @@ class LegacySessionTest {
                 transport = transport,
                 messageSender = messageSender,
                 clockSynchronizer = ClockSynchronizer(),
-                scope = scope
+                scope = scope,
+                pairingState = FakeSendspinPairingState()
             )
 
         val serverHello =
@@ -415,7 +431,8 @@ class LegacySessionTest {
                 transport = transport,
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
-                scope = scope
+                scope = scope,
+                pairingState = FakeSendspinPairingState()
             )
 
         val serverTime1 =
@@ -590,7 +607,8 @@ class LegacySessionTest {
                 transport = transport,
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
-                scope = scope
+                scope = scope,
+                pairingState = FakeSendspinPairingState()
             )
 
         val serverActivate =
@@ -701,7 +719,8 @@ class LegacySessionTest {
                 transport = transport,
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
-                scope = scope
+                scope = scope,
+                pairingState = FakeSendspinPairingState()
             )
 
         session.handleMessage(

@@ -3,6 +3,7 @@ package com.chirihome.platform.player.music.sendspin.session
 import com.chirihome.platform.player.music.sendspin.SendspinCapabilities
 import com.chirihome.platform.player.music.sendspin.SendspinConfig
 import com.chirihome.platform.player.music.sendspin.protocol.MessageDispatcher
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingState
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
@@ -44,7 +45,8 @@ class LegacySession(
     private val transport: SendspinTransport,
     private val messageSender: SendspinMessageSender,
     private val clockSynchronizer: ClockSynchronizer,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val pairingState: SendspinPairingState
 ) : SendspinProtocolSession {
 
     private val _events = MutableSharedFlow<SendspinSessionEvent>(
@@ -522,7 +524,8 @@ class LegacySession(
         val device_info: DeviceInfo? = null,
         @SerialName("player@v1_support")
         val playerSupport: PlayerSupport? = null,
-        val unpaired_access: UnpairedAccess = UnpairedAccess()
+        val unpaired_access: UnpairedAccess = UnpairedAccess(),
+        val supported_pair_methods: List<String> = listOf("pairing_psk")
     )
 
     @Serializable

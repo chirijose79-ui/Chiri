@@ -147,14 +147,14 @@ class SendspinManager(
             val messageSender =
                 DelegatingSendspinMessageSender()
 
-            val session =
-                LegacySession(
+            val session = LegacySession(
                     config = config,
                     capabilities = SendspinCapabilities(),
                     transport = transport,
                     messageSender = messageSender,
                     clockSynchronizer = clockSynchronizer,
-                    scope = scope
+                    scope = scope,
+                    pairingState = handshake
                 )
 
             android.util.Log.d(TAG, "[9] session ready")
