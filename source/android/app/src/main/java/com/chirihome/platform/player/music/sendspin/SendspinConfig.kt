@@ -4,19 +4,19 @@ package com.chirihome.platform.player.music.sendspin
  * Configuración del reproductor Sendspin de Chiri.
  *
  * Fase 1:
- * - Conexión directa por WebSocket a Music Assistant.
- * - Red LAN.
+ * - Conexión WebSocket pública mediante Cloudflare Tunnel.
+ * - Transporte WSS.
  * - Sin WebRTC.
- * - Sin cifrado Noise.
+ * - Sin cifrado Noise a nivel de transporte público.
  * - Sin proxy HTTP de Chiri.
  */
 data class SendspinConfig(
     val clientId: String,
     val deviceName: String,
-    val serverHost: String = "192.168.1.88",
-    val serverPort: Int = 8927,
+    val serverHost: String = "sendspin.chirihome.com",
+    val serverPort: Int = 443,
     val serverPath: String = "/sendspin",
-    val useTls: Boolean = false,
+    val useTls: Boolean = true,
     val enabled: Boolean = true,
     val codecPreference: String = "opus",
     val bufferCapacityBytes: Int = 512 * 1024,
@@ -25,13 +25,15 @@ data class SendspinConfig(
     /**
      * URL WebSocket utilizada por el cliente Sendspin.
      *
-     * Fase 1:
-     * ws://192.168.1.88:8927/sendspin
+     * Producción:
+     * wss://sendspin.chirihome.com/sendspin
      */
     val webSocketUrl: String
         get() {
             val scheme = if (useTls) "wss" else "ws"
-            return "$scheme://$serverHost:$serverPort$serverPath"
+            val defaultPort = if (useTls) 443 else 80
+            val portSuffix = if (serverPort == defaultPort) "" else ":$serverPort"
+            return "$scheme://$serverHost$portSuffix$serverPath"
         }
 
     /**

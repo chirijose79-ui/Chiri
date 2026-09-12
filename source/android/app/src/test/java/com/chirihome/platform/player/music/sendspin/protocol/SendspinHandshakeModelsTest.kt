@@ -60,14 +60,13 @@ class SendspinHandshakeModelsTest {
     @Test
     fun noiseMsg1_serializesCorrectly() {
         val message = SendspinNoiseMsg1Payload(
-            psk_id = "test-psk-id",
-            psk_category = "pr"
+            psk_id = "test-psk-id"
         )
 
         val encoded = json.encodeToString(message)
 
         assertEquals(
-            """{"psk_id":"test-psk-id","psk_category":"pr"}""",
+            """{"psk_id":"test-psk-id"}""",
             encoded
         )
     }

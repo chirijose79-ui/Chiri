@@ -10,36 +10,57 @@ class SecureSendspinPskResolver(
 ) : SendspinPskResolver {
 
     override suspend fun resolve(
-        pskId: String,
-        pskCategory: String
+        pskId: String
     ): ByteArray? {
 
         require(pskId.isNotBlank()) {
             "PSK id must not be blank"
         }
 
-        require(pskCategory.isNotBlank()) {
-            "PSK category must not be blank"
+        /*
+         * Sendspin uses a well-known Sentinel PSK for clients
+         * that are not yet paired.
+         *
+         * aiosendspin:
+         *
+         * SENTINEL_PSK = SHA256("sendspin-sentinel-psk-v1")
+         *
+         * psk_id_for(psk) = base64url(SHA256("sendspin-psk-id-v1" || psk))
+         */
+        val sentinelPsk =
+            crypto.sha256(
+                SENTINEL_PSK_SEED.toByteArray(Charsets.UTF_8)
+            )
+
+        if (calculatePskId(sentinelPsk) == pskId) {
+            return sentinelPsk
         }
 
-        val psk = when (pskCategory) {
-            CATEGORY_PAIRING -> storage.getPairingPsk()
-            CATEGORY_LONG_TERM -> null
-            CATEGORY_SENTINEL -> null
-            else -> null
-        } ?: return null
+        /*
+         * If this is not the Sentinel PSK, try the stored
+         * pairing PSK.
+         */
+        val pairingPsk =
+            storage.getPairingPsk()
+                ?: return null
+
+        require(pairingPsk.size == PSK_SIZE) {
+            "Stored Sendspin PSK must be 32 bytes"
+        }
 
         val calculatedPskId =
-            calculatePskId(psk)
+            calculatePskId(pairingPsk)
 
         if (calculatedPskId != pskId) {
             return null
         }
 
-        return psk.copyOf()
+        return pairingPsk.copyOf()
     }
 
-    private fun calculatePskId(psk: ByteArray): String {
+    private fun calculatePskId(
+        psk: ByteArray
+    ): String {
         require(psk.size == PSK_SIZE) {
             "PSK must be 32 bytes"
         }
@@ -54,11 +75,12 @@ class SecureSendspinPskResolver(
     }
 
     companion object {
-        private const val CATEGORY_LONG_TERM = "lt"
-        private const val CATEGORY_PAIRING = "pr"
-        private const val CATEGORY_SENTINEL = "sn"
+        private const val PSK_ID_LABEL =
+            "sendspin-psk-id-v1"
 
-        private const val PSK_ID_LABEL = "sendspin-psk-id-v1"
+        private const val SENTINEL_PSK_SEED =
+            "sendspin-sentinel-psk-v1"
+
         private const val PSK_SIZE = 32
     }
 }

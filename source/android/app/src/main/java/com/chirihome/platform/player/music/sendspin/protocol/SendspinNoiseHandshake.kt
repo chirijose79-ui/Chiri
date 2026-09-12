@@ -31,7 +31,6 @@ class SendspinNoiseHandshake(
 
     private var resolvedPsk: ByteArray? = null
     private var resolvedPskId: String? = null
-    private var resolvedPskCategory: String? = null
 
     override suspend fun createClientInit(): String {
         val currentIdentity = identityProvider.getOrCreate()
@@ -110,7 +109,6 @@ class SendspinNoiseHandshake(
 
         resolvedPsk = null
         resolvedPskId = null
-        resolvedPskCategory = null
     }
 
     override suspend fun receiveNoiseMessage1(
@@ -120,7 +118,9 @@ class SendspinNoiseHandshake(
         return createNoiseMessage2()
     }
 
-    suspend fun readNoiseMessage1(rawMessage: String): SendspinNoiseMsg1Payload {
+    suspend fun readNoiseMessage1(
+        rawMessage: String
+    ): SendspinNoiseMsg1Payload {
         require(rawMessage.isNotBlank()) {
             "Empty noise/handshake message"
         }
@@ -162,19 +162,13 @@ class SendspinNoiseHandshake(
             "Empty psk_id in Noise message 1"
         }
 
-        require(pskPayload.psk_category in SUPPORTED_PSK_CATEGORIES) {
-            "Unsupported PSK category: ${pskPayload.psk_category}"
-        }
-
         val psk =
             pskResolver.resolve(
-                pskId = pskPayload.psk_id,
-                pskCategory = pskPayload.psk_category
+                pskId = pskPayload.psk_id
             )
                 ?: error(
                     "Unable to resolve Sendspin PSK: " +
-                            "id=${pskPayload.psk_id}, " +
-                            "category=${pskPayload.psk_category}"
+                            "id=${pskPayload.psk_id}"
                 )
 
         require(psk.size == PSK_SIZE) {
@@ -185,7 +179,6 @@ class SendspinNoiseHandshake(
 
         resolvedPsk = psk.copyOf()
         resolvedPskId = pskPayload.psk_id
-        resolvedPskCategory = pskPayload.psk_category
 
         return pskPayload
     }
@@ -250,9 +243,6 @@ class SendspinNoiseHandshake(
     val pskId: String?
         get() = resolvedPskId
 
-    val pskCategory: String?
-        get() = resolvedPskCategory
-
     companion object {
         private const val PROTOCOL_VERSION = 1
         private const val NOISE_SUITE = "25519_ChaChaPoly_SHA256"
@@ -262,12 +252,5 @@ class SendspinNoiseHandshake(
 
         private const val X25519_KEY_SIZE = 32
         private const val PSK_SIZE = 32
-
-        private val SUPPORTED_PSK_CATEGORIES =
-            setOf(
-                "lt",
-                "pr",
-                "sn"
-            )
     }
 }

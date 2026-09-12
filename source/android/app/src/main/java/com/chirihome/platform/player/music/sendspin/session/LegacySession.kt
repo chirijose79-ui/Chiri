@@ -239,8 +239,19 @@ class LegacySession(
             if (!clientHelloSent) {
                 sendClientHello()
                 clientHelloSent = true
-                startClockSync()
             }
+
+            _events.emit(
+                SendspinSessionEvent.MessageReceived(
+                    message
+                )
+            )
+
+            return
+        }
+
+        if (type == "server/activate") {
+            startClockSync()
 
             _events.emit(
                 SendspinSessionEvent.MessageReceived(

@@ -1,4 +1,4 @@
-﻿package com.chirihome.platform.player.music.sendspin
+package com.chirihome.platform.player.music.sendspin
 
 import android.content.Context
 import com.chirihome.platform.player.music.sendspin.audio.AudioPipeline
@@ -22,16 +22,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import android.util.Log
 import kotlinx.coroutines.flow.collect
 
 class SendspinManager(
     context: Context
 ) {
-    private companion object {
-        const val TAG = "SendspinManager"
-    }
-
     private val applicationContext = context.applicationContext
 
     private val scope = CoroutineScope(
@@ -51,14 +46,11 @@ class SendspinManager(
     private var audioSink: AudioStreamManager? = null
 
     fun start() {
-        Log.d(TAG, "start() called")
         if (lifecycleJob?.isActive == true) {
-            Log.d(TAG, "start() ignored: lifecycleJob already active")
             return
         }
 
         lifecycleJob = scope.launch {
-            Log.d(TAG, "lifecycle coroutine started")
             initializeAndConnect()
         }
     }
@@ -73,133 +65,186 @@ class SendspinManager(
     }
 
     private suspend fun initializeAndConnect() {
-        Log.d(TAG, "initializeAndConnect() started")
-
         _state.value = ConnectionState.Starting
 
+        android.util.Log.d(TAG, "[1] initializeAndConnect START")
+
         try {
-            val storage = SecureSendspinCredentialStorage(
-                applicationContext
-            )
+            val storage = SecureSendspinCredentialStorage(applicationContext)
+            android.util.Log.d(TAG, "[2] credential storage ready")
 
             val crypto = JdkNoiseCrypto()
+            android.util.Log.d(TAG, "[3] crypto ready")
 
-            val identityProvider = SendspinIdentityProvider(
-                storage = storage,
-                crypto = crypto
-            )
+            val identityProvider =
+                SendspinIdentityProvider(
+                    storage = storage,
+                    crypto = crypto
+                )
 
             val identity = identityProvider.getOrCreate()
-
-            Log.d(TAG, "Sendspin identity ready")
-
-            val config = SendspinConfig(
-                clientId = identity.clientId,
-                deviceName = "Chiri Android"
+            android.util.Log.d(
+                TAG,
+                "[4] identity ready clientId=${identity.clientId}"
             )
 
-            Log.d(TAG, "Sendspin config created")
+            val config =
+                SendspinConfig(
+                    clientId = identity.clientId,
+                    deviceName = "Chiri Android"
+                )
 
             require(config.isValid()) {
                 "Invalid Sendspin configuration"
             }
 
+            android.util.Log.d(
+                TAG,
+                "[5] config ready url=${config.webSocketUrl}"
+            )
+
             val clockSynchronizer = ClockSynchronizer()
 
-            val pskResolver = SecureSendspinPskResolver(
-                storage = storage,
-                crypto = crypto
-            )
+            val pskResolver =
+                SecureSendspinPskResolver(
+                    storage = storage,
+                    crypto = crypto
+                )
 
-            val handshake = SendspinNoiseHandshake(
-                identityProvider = identityProvider,
-                crypto = crypto,
-                pskResolver = pskResolver
-            )
+            val handshake =
+                SendspinNoiseHandshake(
+                    identityProvider = identityProvider,
+                    crypto = crypto,
+                    pskResolver = pskResolver
+                )
 
-            val transport = WebSocketSendspinTransport(
-                config = config
-            )
+            android.util.Log.d(TAG, "[6] handshake ready")
+
+            val transport =
+                WebSocketSendspinTransport(
+                    config = config
+                )
+
+            android.util.Log.d(TAG, "[7] transport ready")
 
             val audioDecoder = OpusDecoderAndroid()
-
             val mediaPlayer = MediaPlayerControllerAndroid()
 
-            val audioPipeline = AudioPipeline(
-                decoder = audioDecoder,
-                player = mediaPlayer
-            )
+            val audioPipeline =
+                AudioPipeline(
+                    decoder = audioDecoder,
+                    player = mediaPlayer
+                )
 
-            val streamManager = AudioStreamManager(
-                audioPipeline = audioPipeline,
-                clockSynchronizer = clockSynchronizer
-            )
+            val streamManager =
+                AudioStreamManager(
+                    audioPipeline = audioPipeline,
+                    clockSynchronizer = clockSynchronizer
+                )
+
+            android.util.Log.d(TAG, "[8] audio ready")
 
             val messageSender =
                 DelegatingSendspinMessageSender()
 
-            val session = LegacySession(
-                config = config,
-                capabilities = SendspinCapabilities(),
-                transport = transport,
-                messageSender = messageSender,
-                clockSynchronizer = clockSynchronizer,
-                scope = scope
-            )
+            val session =
+                LegacySession(
+                    config = config,
+                    capabilities = SendspinCapabilities(),
+                    transport = transport,
+                    messageSender = messageSender,
+                    clockSynchronizer = clockSynchronizer,
+                    scope = scope
+                )
 
-            val sendspinClient = SendspinClient(
-                transport = transport,
-                handshake = handshake,
-                session = session,
-                audioSink = streamManager,
-                scope = scope,
-                clockSynchronizer = clockSynchronizer
-            )
+            android.util.Log.d(TAG, "[9] session ready")
 
-            Log.d(TAG, "SendspinClient created")
+            val sendspinClient =
+                SendspinClient(
+                    transport = transport,
+                    handshake = handshake,
+                    session = session,
+                    audioSink = streamManager,
+                    scope = scope,
+                    clockSynchronizer = clockSynchronizer
+                )
 
             messageSender.setDelegate(sendspinClient)
 
             client = sendspinClient
             audioSink = streamManager
 
+            android.util.Log.d(TAG, "[10] client ready")
+
             _state.value = ConnectionState.Connecting
 
             connectionJob?.cancel()
 
-            Log.d(TAG, "starting SendspinClient connection job")
-
             connectionJob = scope.launch {
                 try {
+                    android.util.Log.d(TAG, "[11] SendspinClient.connect START")
+
                     sendspinClient.connect()
+
+                    android.util.Log.d(TAG, "[12] SendspinClient.connect RETURNED")
                 } catch (exception: CancellationException) {
+                    android.util.Log.d(
+                        TAG,
+                        "[13] connect CANCELLED"
+                    )
                     throw exception
                 } catch (exception: Exception) {
-                    _state.value = ConnectionState.Error(exception)
+                    android.util.Log.e(
+                        TAG,
+                        "[13] connect FAILED",
+                        exception
+                    )
+
+                    _state.value =
+                        ConnectionState.Error(exception)
                 }
             }
+
+            android.util.Log.d(TAG, "[14] connectionJob launched")
 
             scope.launch {
                 sendspinClient.connectionState.collect { clientState ->
-                    _state.value = when (clientState) {
-                        SendspinClient.ConnectionState.Disconnected ->
-                            ConnectionState.Disconnected
+                    android.util.Log.d(
+                        TAG,
+                        "[STATE] SendspinClient=$clientState"
+                    )
 
-                        SendspinClient.ConnectionState.Connecting ->
-                            ConnectionState.Connecting
+                    _state.value =
+                        when (clientState) {
+                            SendspinClient.ConnectionState.Disconnected ->
+                                ConnectionState.Disconnected
 
-                        SendspinClient.ConnectionState.Connected ->
-                            ConnectionState.Connected
-                    }
+                            SendspinClient.ConnectionState.Connecting ->
+                                ConnectionState.Connecting
+
+                            SendspinClient.ConnectionState.Connected ->
+                                ConnectionState.Connected
+                        }
                 }
             }
+
+            android.util.Log.d(TAG, "[15] initializeAndConnect COMPLETE")
         } catch (exception: CancellationException) {
+            android.util.Log.d(
+                TAG,
+                "[CANCELLED] initializeAndConnect"
+            )
+
             _state.value = ConnectionState.Stopped
             throw exception
         } catch (exception: Exception) {
-            Log.e(TAG, "initializeAndConnect() failed", exception)
-            _state.value = ConnectionState.Error(exception)
+            android.util.Log.e(
+                TAG,
+                "[FATAL] initializeAndConnect FAILED",
+                exception
+            )
 
+            _state.value = ConnectionState.Error(exception)
             disconnectAndRelease()
         }
     }
@@ -251,5 +296,9 @@ class SendspinManager(
         data class Error(
             val cause: Throwable
         ) : ConnectionState
+    }
+
+    companion object {
+        private const val TAG = "SendspinManager"
     }
 }

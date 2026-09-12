@@ -1,6 +1,7 @@
 package com.chirihome.platform.player.music.sendspin.transport
 
 import com.chirihome.platform.player.music.sendspin.SendspinConfig
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
@@ -25,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class WebSocketSendspinTransport(
     private val config: SendspinConfig,
-    private val httpClient: HttpClient = HttpClient {
+    private val httpClient: HttpClient = HttpClient(OkHttp) {
         install(WebSockets)
     }
 ) : SendspinTransport {
@@ -67,26 +68,36 @@ class WebSocketSendspinTransport(
                         for (frame in incoming) {
                             when (frame) {
                                 is Frame.Text -> {
+                                    val message = frame.readText()
+
+                                    println("[SendspinTransport] [RECV] WebSocket text: $message")
+
                                     _events.emit(
                                         InboundTransportEvent.TextMessage(
-                                            frame.readText()
+                                            message
                                         )
                                     )
                                 }
 
                                 is Frame.Binary -> {
+                                    val data = frame.readBytes()
+
                                     _events.emit(
                                         InboundTransportEvent.BinaryMessage(
-                                            frame.readBytes()
+                                            data
                                         )
                                     )
                                 }
 
                                 is Frame.Close -> {
+                                    println(
+                                        "[SendspinTransport] [RECV] WebSocket CLOSE frame: $frame"
+                                    )
                                     break
                                 }
 
-                                else -> Unit
+                                is Frame.Ping -> Unit
+                                is Frame.Pong -> Unit
                             }
                         }
                     } finally {
@@ -102,7 +113,6 @@ class WebSocketSendspinTransport(
             } catch (throwable: Throwable) {
                 session = null
                 connected.set(false)
-
                 _events.emit(
                     InboundTransportEvent.Error(
                         throwable
@@ -115,6 +125,8 @@ class WebSocketSendspinTransport(
     override suspend fun send(message: String) {
         val currentSession = session
             ?: error("Sendspin WebSocket is not connected")
+
+        println("[SendspinTransport] [SEND] WebSocket text: $message")
 
         currentSession.send(
             Frame.Text(message)
@@ -135,12 +147,15 @@ class WebSocketSendspinTransport(
 
     override suspend fun disconnect() {
         connectionMutex.withLock {
+
             val currentSession = session
 
             session = null
             connected.set(false)
 
-            currentSession?.close()
+            if (currentSession != null) {
+                currentSession.close()
+            }
         }
     }
 }

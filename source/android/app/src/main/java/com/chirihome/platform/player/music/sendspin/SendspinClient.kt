@@ -124,35 +124,43 @@ class SendspinClient(
     /**
      * Procesa los eventos recibidos desde el transporte.
      */
-    private suspend fun handleTransportEvent(
-        event: InboundTransportEvent
-    ) {
-        when (event) {
-            is InboundTransportEvent.Connected -> {
-                handleConnected()
-            }
+    private suspend fun handleTransportEvent(event: InboundTransportEvent) {
+        println(
+            "[SendspinClient] [EVENT] transport event: " +
+                    event::class.simpleName
+        )
 
-            is InboundTransportEvent.TextMessage -> {
-                handleTextMessage(event.message)
-            }
+        try {
+            when (event) {
+                is InboundTransportEvent.Connected -> handleConnected()
 
-            is InboundTransportEvent.BinaryMessage -> {
-                val receivedAtLocalMicros =
-                    clockSynchronizer.localTimeMicros()
+                is InboundTransportEvent.TextMessage ->
+                    handleTextMessage(event.message)
 
-                handleBinaryMessage(
-                    data = event.data,
-                    receivedAtLocalMicros = receivedAtLocalMicros
-                )
-            }
+                is InboundTransportEvent.BinaryMessage -> {
+                    val receivedAtLocalMicros =
+                        clockSynchronizer.localTimeMicros()
 
-            is InboundTransportEvent.Disconnected -> {
-                handleDisconnected(event.cause)
-            }
+                    handleBinaryMessage(
+                        data = event.data,
+                        receivedAtLocalMicros = receivedAtLocalMicros
+                    )
+                }
 
-            is InboundTransportEvent.Error -> {
-                handleError(event.cause)
+                is InboundTransportEvent.Disconnected ->
+                    handleDisconnected(event.cause)
+
+                is InboundTransportEvent.Error ->
+                    handleError(event.cause)
             }
+        } catch (throwable: Throwable) {
+            println(
+                "[SendspinClient] [ERROR] event processing failed: " +
+                        "${throwable::class.qualifiedName}: " +
+                        "${throwable.message}"
+            )
+
+            throwable.printStackTrace()
         }
     }
 
@@ -168,11 +176,14 @@ class SendspinClient(
      * client/init
      */
     private suspend fun handleConnected() {
-        _connectionState.value = ConnectionState.Connected
+        println("[SendspinClient] [SEND] handleConnected START")
 
         val clientInit = handshake.createClientInit()
 
+        println("[SendspinClient] [SEND] client/init created")
         transport.send(clientInit)
+
+        println("[SendspinClient] [SEND] client/init sent")
     }
 
     /**
@@ -192,6 +203,8 @@ class SendspinClient(
      * noise/handshake Message 2
      */
     private suspend fun handleTextMessage(message: String) {
+        println("[SendspinClient] [RECV] text message: $message")
+
         val type = Json
             .parseToJsonElement(message)
             .jsonObject["type"]
@@ -200,14 +213,19 @@ class SendspinClient(
 
         when (type) {
             "server/init" -> {
+                println("[SendspinClient] [RECV] server/init")
                 handshake.receiveServerInit(message)
             }
 
             "noise/handshake" -> {
+                println("[SendspinClient] [RECV] noise/handshake")
+
                 val noiseMessage2 =
                     handshake.receiveNoiseMessage1(message)
 
                 transport.send(noiseMessage2)
+
+                println("[SendspinClient] [SEND] noise/handshake Message 2")
 
                 noiseTransport =
                     handshake.noiseTransport
@@ -233,8 +251,17 @@ class SendspinClient(
                     "Received encrypted message before Noise transport was established"
                 )
 
-        val plaintext =
-            transport.decrypt(data)
+        val plaintext = transport.decrypt(data)
+
+        println(
+            "[SendspinClient] [RECV] encrypted binary: " +
+                    "size=${data.size}"
+        )
+
+        println(
+            "[SendspinClient] [RECV] decrypted binary: " +
+                    "size=${plaintext.size}"
+        )
 
         check(plaintext.isNotEmpty()) {
             "Received empty Sendspin message"
@@ -242,12 +269,21 @@ class SendspinClient(
 
         val messageType = plaintext[0].toInt() and 0xFF
 
+        println(
+            "[SendspinClient] [RECV] decrypted message type: " +
+                    "0x${messageType.toString(16).padStart(2, '0')}"
+        )
+
         when (messageType) {
             0x00 -> {
                 val message =
                     plaintext
                         .copyOfRange(1, plaintext.size)
                         .toString(Charsets.UTF_8)
+
+                println(
+                    "[SendspinClient] [RECV] decrypted control message: $message"
+                )
 
                 session.handleMessage(
                     message = message,
@@ -277,6 +313,11 @@ class SendspinClient(
      * Se invoca cuando la conexión se cierra.
      */
     private fun handleDisconnected(cause: Throwable?) {
+        println(
+            "[SendspinClient] [EVENT] disconnected cause: " +
+                    "${cause?.javaClass?.name}: ${cause?.message}"
+        )
+
         _connectionState.value = ConnectionState.Disconnected
 
         eventJob?.cancel()
@@ -287,6 +328,11 @@ class SendspinClient(
      * Se invoca cuando ocurre un error de transporte.
      */
     private fun handleError(cause: Throwable) {
+        println(
+            "[SendspinClient] [EVENT] transport error: " +
+                    "${cause.javaClass.name}: ${cause.message}"
+        )
+
         _connectionState.value = ConnectionState.Disconnected
 
         eventJob?.cancel()

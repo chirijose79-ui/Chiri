@@ -29,6 +29,7 @@ class SendspinNoiseHandshakeTest {
     @Test
     fun handshake_resolvesPskAndCreatesMessage2() = runBlocking {
         val clientStaticPrivateKey = ByteArray(32) { (it + 1).toByte() }
+
         val clientIdentity =
             SendspinIdentity.fromPrivateKey(
                 clientStaticPrivateKey,
@@ -36,6 +37,7 @@ class SendspinNoiseHandshakeTest {
             )
 
         val serverStaticPrivateKey = ByteArray(32) { (it + 33).toByte() }
+
         val serverStaticPublicKey =
             crypto.x25519PublicKey(serverStaticPrivateKey)
 
@@ -110,8 +112,7 @@ class SendspinNoiseHandshakeTest {
 
         val message1Payload =
             SendspinNoiseMsg1Payload(
-                psk_id = expectedPskId,
-                psk_category = "pr"
+                psk_id = expectedPskId
             )
 
         val message1PayloadJson =
@@ -143,11 +144,6 @@ class SendspinNoiseHandshakeTest {
             receivedPayload.psk_id
         )
 
-        assertEquals(
-            "pr",
-            receivedPayload.psk_category
-        )
-
         val message2 =
             responder.createNoiseMessage2()
 
@@ -165,11 +161,6 @@ class SendspinNoiseHandshakeTest {
         assertEquals(
             expectedPskId,
             responder.pskId
-        )
-
-        assertEquals(
-            "pr",
-            responder.pskCategory
         )
     }
 
