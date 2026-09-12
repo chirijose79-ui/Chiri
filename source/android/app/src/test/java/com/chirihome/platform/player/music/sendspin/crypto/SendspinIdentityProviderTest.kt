@@ -16,6 +16,9 @@ class SendspinIdentityProviderTest {
         private var pairingPsk: ByteArray? = null
         private var serverStaticPublicKey: ByteArray? = null
 
+        private val longTermPsks =
+            mutableMapOf<String, ByteArray>()
+
         override suspend fun saveStaticPrivateKey(
             key: ByteArray
         ) {
@@ -36,6 +39,19 @@ class SendspinIdentityProviderTest {
             return pairingPsk?.copyOf()
         }
 
+        override suspend fun saveLongTermPsk(
+            serverId: String,
+            psk: ByteArray
+        ) {
+            longTermPsks[serverId] = psk.copyOf()
+        }
+
+        override suspend fun getLongTermPsk(
+            serverId: String
+        ): ByteArray? {
+            return longTermPsks[serverId]?.copyOf()
+        }
+
         override suspend fun saveServerStaticPublicKey(
             key: ByteArray
         ) {
@@ -50,6 +66,7 @@ class SendspinIdentityProviderTest {
             staticPrivateKey = null
             pairingPsk = null
             serverStaticPublicKey = null
+            longTermPsks.clear()
         }
     }
 

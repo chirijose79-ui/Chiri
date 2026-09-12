@@ -283,7 +283,7 @@ class LegacySessionTest {
     }
 
     @Test
-    fun serverHelloStartsPeriodicClientTime() = runBlocking {
+    fun serverActivateStartsPeriodicClientTime() = runBlocking {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -311,6 +311,28 @@ class LegacySessionTest {
                 it.contains("\"type\":\"client/hello\"")
             }
         )
+
+        assertEquals(
+            0,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/time\"")
+            }
+        )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":[],
+                "active_roles":[]
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
 
         assertTrue(
             messageSender.encryptedMessages.any {
@@ -441,6 +463,325 @@ class LegacySessionTest {
         assertEquals(
             1995000L,
             clockSynchronizer.serverTimeToLocalMicros(2000000L)
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun playerRoleActivationSendsInitialClientStateUnavailable() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope
+        )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":[],
+                "active_roles":["player@v1"]
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        val clientStates =
+            messageSender.encryptedMessages.filter {
+                it.contains("\"type\":\"client/state\"")
+            }
+
+        assertEquals(1, clientStates.size)
+
+        val clientState = clientStates.single()
+
+        assertTrue(
+            clientState.contains("\"available\":false")
+        )
+
+        assertTrue(
+            clientState.contains("\"player@v1\"")
+        )
+
+        assertTrue(
+            clientState.contains("\"output_delay_ms\":0")
+        )
+
+        assertTrue(
+            clientState.contains("\"required_lead_time_ms\":250")
+        )
+
+        assertTrue(
+            clientState.contains("\"min_buffer_ms\":250")
+        )
+
+        assertTrue(
+            clientState.contains("\"supported_commands\"")
+        )
+
+        assertTrue(
+            clientState.contains("\"volume\"")
+        )
+
+        assertTrue(
+            clientState.contains("\"mute\"")
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun inactivePlayerRoleDoesNotSendClientState() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope
+        )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":[],
+                "active_roles":[]
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertEquals(
+            0,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/state\"")
+            }
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun synchronizedClockMakesPlayerAvailable() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val clockSynchronizer = ClockSynchronizer()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session =
+            LegacySession(
+                config = createConfig(),
+                capabilities = createCapabilities(),
+                transport = transport,
+                messageSender = messageSender,
+                clockSynchronizer = clockSynchronizer,
+                scope = scope
+            )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":[],
+                "active_roles":["player@v1"]
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/state\"")
+            }
+        )
+
+        assertTrue(
+            messageSender.encryptedMessages.any {
+                it.contains("\"available\":false")
+            }
+        )
+
+        val serverTime1 =
+            """
+        {
+            "type":"server/time",
+            "payload":{
+                "client_transmitted":1000000,
+                "server_received":1005000,
+                "server_transmitted":1006000
+            }
+        }
+        """.trimIndent()
+
+        val serverTime2 =
+            """
+        {
+            "type":"server/time",
+            "payload":{
+                "client_transmitted":2000000,
+                "server_received":2005000,
+                "server_transmitted":2006000
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(
+            message = serverTime1,
+            receivedAtLocalMicros = 1001000
+        )
+
+        delay(100)
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/state\"")
+            }
+        )
+
+        session.handleMessage(
+            message = serverTime2,
+            receivedAtLocalMicros = 2001000
+        )
+
+        delay(100)
+
+        val clientStates =
+            messageSender.encryptedMessages.filter {
+                it.contains("\"type\":\"client/state\"")
+            }
+
+        assertEquals(
+            2,
+            clientStates.size
+        )
+
+        assertTrue(
+            clientStates[0].contains("\"available\":false")
+        )
+
+        assertTrue(
+            clientStates[1].contains("\"available\":true")
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun synchronizedClockDoesNotSendAvailableStateAgain() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val clockSynchronizer = ClockSynchronizer()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session =
+            LegacySession(
+                config = createConfig(),
+                capabilities = createCapabilities(),
+                transport = transport,
+                messageSender = messageSender,
+                clockSynchronizer = clockSynchronizer,
+                scope = scope
+            )
+
+        session.handleMessage(
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":[],
+                "active_roles":["player@v1"]
+            }
+        }
+        """.trimIndent()
+        )
+
+        delay(100)
+
+        val serverTime1 =
+            """
+        {
+            "type":"server/time",
+            "payload":{
+                "client_transmitted":1000000,
+                "server_received":1005000,
+                "server_transmitted":1006000
+            }
+        }
+        """.trimIndent()
+
+        val serverTime2 =
+            """
+        {
+            "type":"server/time",
+            "payload":{
+                "client_transmitted":2000000,
+                "server_received":2005000,
+                "server_transmitted":2006000
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(
+            message = serverTime1,
+            receivedAtLocalMicros = 1001000
+        )
+
+        session.handleMessage(
+            message = serverTime2,
+            receivedAtLocalMicros = 2001000
+        )
+
+        delay(100)
+
+        val availableStateCount =
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/state\"") &&
+                        it.contains("\"available\":true")
+            }
+
+        assertEquals(
+            1,
+            availableStateCount
+        )
+
+        // Una tercera muestra no debe producir otro client/state.
+        session.handleMessage(
+            message = serverTime2,
+            receivedAtLocalMicros = 2001000
+        )
+
+        delay(100)
+
+        val availableStateCountAfterExtraSample =
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/state\"") &&
+                        it.contains("\"available\":true")
+            }
+
+        assertEquals(
+            1,
+            availableStateCountAfterExtraSample
         )
 
         scope.cancel()

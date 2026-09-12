@@ -10,6 +10,15 @@ interface SendspinCredentialStorage {
 
     suspend fun getPairingPsk(): ByteArray?
 
+    suspend fun saveLongTermPsk(
+        serverId: String,
+        psk: ByteArray
+    )
+
+    suspend fun getLongTermPsk(
+        serverId: String
+    ): ByteArray?
+
     suspend fun saveServerStaticPublicKey(key: ByteArray)
 
     suspend fun getServerStaticPublicKey(): ByteArray?

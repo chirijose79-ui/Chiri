@@ -164,6 +164,163 @@ class SendspinNoiseHandshakeTest {
         )
     }
 
+    @Test
+    fun handshake_resolvesLongTermPskForCurrentServer() = runBlocking {
+        val clientStaticPrivateKey =
+            ByteArray(32) { (it + 1).toByte() }
+
+        val clientIdentity =
+            SendspinIdentity.fromPrivateKey(
+                clientStaticPrivateKey,
+                crypto
+            )
+
+        val serverStaticPrivateKey =
+            ByteArray(32) { (it + 33).toByte() }
+
+        val serverStaticPublicKey =
+            crypto.x25519PublicKey(
+                serverStaticPrivateKey
+            )
+
+        val serverId =
+            SendspinBase64.encodeUrlSafe(
+                serverStaticPublicKey
+            )
+
+        val longTermPsk =
+            ByteArray(32) { (it + 65).toByte() }
+
+        val storage =
+            FakeSendspinCredentialStorage(
+                staticPrivateKey = clientStaticPrivateKey,
+                pairingPsk = null,
+                serverStaticPublicKey = serverStaticPublicKey
+            )
+
+        storage.saveLongTermPsk(
+            serverId = serverId,
+            psk = longTermPsk
+        )
+
+        val identityProvider =
+            SendspinIdentityProvider(
+                storage = storage,
+                crypto = crypto
+            )
+
+        val resolver =
+            SecureSendspinPskResolver(
+                storage = storage,
+                crypto = crypto
+            )
+
+        val responder =
+            SendspinNoiseHandshake(
+                identityProvider = identityProvider,
+                crypto = crypto,
+                pskResolver = resolver
+            )
+
+        val clientInit =
+            responder.createClientInit()
+
+        val serverInit =
+            createServerInit(serverStaticPublicKey)
+
+        responder.receiveServerInit(serverInit)
+
+        val clientEphemeralPrivateKey =
+            ByteArray(32) { (it + 97).toByte() }
+
+        val prologue =
+            clientInit.toByteArray(Charsets.UTF_8) +
+                    serverInit.toByteArray(Charsets.UTF_8)
+
+        val initiator =
+            HandshakeState.createKkPsk2(
+                crypto = crypto,
+                role = NoiseRole.INITIATOR,
+                prologue = prologue,
+                localStatic =
+                    X25519KeyPair(
+                        privateKey = serverStaticPrivateKey,
+                        publicKey = serverStaticPublicKey
+                    ),
+                remoteStaticPublic =
+                    clientIdentity.staticPublicKey,
+                psk = longTermPsk,
+                localEphemeral =
+                    X25519KeyPair(
+                        privateKey = clientEphemeralPrivateKey,
+                        publicKey =
+                            crypto.x25519PublicKey(
+                                clientEphemeralPrivateKey
+                            )
+                    )
+            )
+
+        val expectedPskId =
+            calculatePskId(longTermPsk)
+
+        val message1Payload =
+            SendspinNoiseMsg1Payload(
+                psk_id = expectedPskId
+            )
+
+        val message1PayloadJson =
+            json.encodeToString(message1Payload)
+
+        val noiseMessage1 =
+            initiator.writeMessage(
+                message1PayloadJson.toByteArray(
+                    Charsets.UTF_8
+                )
+            )
+
+        val wrappedMessage1 =
+            json.encodeToString(
+                SendspinNoiseHandshakeMessage(
+                    payload =
+                        SendspinNoiseHandshakePayload(
+                            data =
+                                SendspinBase64.encodeUrlSafe(
+                                    noiseMessage1
+                                )
+                        )
+                )
+            )
+
+        val receivedPayload =
+            responder.readNoiseMessage1(
+                wrappedMessage1
+            )
+
+        assertEquals(
+            expectedPskId,
+            receivedPayload.psk_id
+        )
+
+        val message2 =
+            responder.createNoiseMessage2()
+
+        assertTrue(message2.isNotBlank())
+        assertTrue(responder.isComplete)
+
+        assertNotNull(responder.handshakeHash)
+        assertNotNull(responder.noiseTransport)
+
+        assertArrayEquals(
+            serverStaticPublicKey,
+            responder.getServerStaticPublicKey()
+        )
+
+        assertEquals(
+            expectedPskId,
+            responder.pskId
+        )
+    }
+
     private fun createServerInit(
         serverStaticPublicKey: ByteArray
     ): String {
@@ -200,6 +357,9 @@ class SendspinNoiseHandshakeTest {
         private var serverStaticPublicKey: ByteArray? = null
     ) : SendspinCredentialStorage {
 
+        private val longTermPsks =
+            mutableMapOf<String, ByteArray>()
+
         override suspend fun saveStaticPrivateKey(
             key: ByteArray
         ) {
@@ -220,6 +380,19 @@ class SendspinNoiseHandshakeTest {
             return pairingPsk?.copyOf()
         }
 
+        override suspend fun saveLongTermPsk(
+            serverId: String,
+            psk: ByteArray
+        ) {
+            longTermPsks[serverId] = psk.copyOf()
+        }
+
+        override suspend fun getLongTermPsk(
+            serverId: String
+        ): ByteArray? {
+            return longTermPsks[serverId]?.copyOf()
+        }
+
         override suspend fun saveServerStaticPublicKey(
             key: ByteArray
         ) {
@@ -234,6 +407,7 @@ class SendspinNoiseHandshakeTest {
             staticPrivateKey = null
             pairingPsk = null
             serverStaticPublicKey = null
+            longTermPsks.clear()
         }
     }
 }

@@ -69,6 +69,36 @@ class SecureSendspinCredentialStorage(
         return getDecrypted(KEY_PAIRING_PSK)
     }
 
+    override suspend fun saveLongTermPsk(
+        serverId: String,
+        psk: ByteArray
+    ) {
+        require(serverId.isNotBlank()) {
+            "serverId must not be blank"
+        }
+
+        require(psk.size == 32) {
+            "Long-Term PSK must be exactly 32 bytes"
+        }
+
+        saveEncrypted(
+            "${KEY_LONG_TERM_PSK_PREFIX}${serverId}",
+            psk
+        )
+    }
+
+    override suspend fun getLongTermPsk(
+        serverId: String
+    ): ByteArray? {
+        if (serverId.isBlank()) {
+            return null
+        }
+
+        return getDecrypted(
+            "${KEY_LONG_TERM_PSK_PREFIX}${serverId}"
+        )
+    }
+
     override suspend fun saveServerStaticPublicKey(key: ByteArray) {
         saveEncrypted(KEY_SERVER_STATIC_PUBLIC_KEY, key)
     }
@@ -164,6 +194,9 @@ class SecureSendspinCredentialStorage(
 
         private const val KEY_PAIRING_PSK =
             "pairing_psk"
+
+        private const val KEY_LONG_TERM_PSK_PREFIX =
+            "long_term_psk_"
 
         private const val KEY_SERVER_STATIC_PUBLIC_KEY =
             "server_static_public_key"

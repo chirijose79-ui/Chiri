@@ -162,9 +162,19 @@ class SendspinNoiseHandshake(
             "Empty psk_id in Noise message 1"
         }
 
+        val currentServerStaticPublicKey =
+            serverStaticPublicKey
+                ?: error("Server static public key has not been initialized")
+
+        val currentServerId =
+            SendspinBase64.encodeUrlSafe(
+                currentServerStaticPublicKey
+            )
+
         val psk =
             pskResolver.resolve(
-                pskId = pskPayload.psk_id
+                pskId = pskPayload.psk_id,
+                serverId = currentServerId
             )
                 ?: error(
                     "Unable to resolve Sendspin PSK: " +

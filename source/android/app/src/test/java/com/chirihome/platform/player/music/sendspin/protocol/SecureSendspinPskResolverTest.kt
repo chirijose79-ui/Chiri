@@ -34,7 +34,8 @@ class SecureSendspinPskResolverTest {
 
         val resolved =
             resolver.resolve(
-                pskId = pskId
+                pskId = pskId,
+                serverId = TEST_SERVER_ID
             )
 
         assertArrayEquals(
@@ -67,7 +68,8 @@ class SecureSendspinPskResolverTest {
 
         val resolved =
             resolver.resolve(
-                pskId = sentinelPskId
+                pskId = sentinelPskId,
+                serverId = TEST_SERVER_ID
             )
 
         assertEquals(
@@ -102,8 +104,8 @@ class SecureSendspinPskResolverTest {
 
         val resolved =
             resolver.resolve(
-                pskId =
-                    "GFsV9tLaSQm9HcFWpKsgYQOr7wFTvNUtkmFwuVz3zoo"
+                pskId = "GFsV9tLaSQm9HcFWpKsgYQOr7wFTvNUtkmFwuVz3zoo",
+                serverId = TEST_SERVER_ID
             )
 
         assertArrayEquals(
@@ -129,7 +131,8 @@ class SecureSendspinPskResolverTest {
 
         val resolved =
             resolver.resolve(
-                pskId = "invalid-psk-id"
+                pskId = "invalid-psk-id",
+                serverId = TEST_SERVER_ID
             )
 
         assertNull(resolved)
@@ -155,7 +158,8 @@ class SecureSendspinPskResolverTest {
 
         val resolved =
             resolver.resolve(
-                pskId = pskId
+                pskId = pskId,
+                serverId = TEST_SERVER_ID
             )
 
         assertEquals(
@@ -184,10 +188,111 @@ class SecureSendspinPskResolverTest {
 
         val resolved =
             resolver.resolve(
-                pskId = "any-psk-id"
+                pskId = "any-psk-id",
+                serverId = TEST_SERVER_ID
             )
 
         assertNull(resolved)
+    }
+
+    @Test
+    fun correctPskId_returnsStoredLongTermPskForServer() = runBlocking {
+        val psk =
+            ByteArray(32) { (it + 2).toByte() }
+
+        val storage =
+            FakeSendspinCredentialStorage()
+
+        storage.saveLongTermPsk(
+            serverId = TEST_SERVER_ID,
+            psk = psk
+        )
+
+        val resolver =
+            SecureSendspinPskResolver(
+                storage = storage,
+                crypto = crypto
+            )
+
+        val pskId =
+            calculatePskId(psk)
+
+        val resolved =
+            resolver.resolve(
+                pskId = pskId,
+                serverId = TEST_SERVER_ID
+            )
+
+        assertArrayEquals(
+            psk,
+            resolved
+        )
+    }
+
+    @Test
+    fun longTermPskForDifferentServer_returnsNull() = runBlocking {
+        val psk =
+            ByteArray(32) { (it + 3).toByte() }
+
+        val storage =
+            FakeSendspinCredentialStorage()
+
+        storage.saveLongTermPsk(
+            serverId = TEST_SERVER_ID,
+            psk = psk
+        )
+
+        val resolver =
+            SecureSendspinPskResolver(
+                storage = storage,
+                crypto = crypto
+            )
+
+        val pskId =
+            calculatePskId(psk)
+
+        val resolved =
+            resolver.resolve(
+                pskId = pskId,
+                serverId = "different-server"
+            )
+
+        assertNull(resolved)
+    }
+
+    @Test
+    fun storedLongTermPskWithInvalidLength_returnsNull() = runBlocking {
+        val invalidPsk =
+            ByteArray(31) { it.toByte() }
+
+        val storage =
+            FakeSendspinCredentialStorage()
+
+        storage.saveLongTermPsk(
+            serverId = TEST_SERVER_ID,
+            psk = invalidPsk
+        )
+
+        val resolver =
+            SecureSendspinPskResolver(
+                storage = storage,
+                crypto = crypto
+            )
+
+        val pskId =
+            calculatePskId(invalidPsk)
+
+        val resolved =
+            resolver.resolve(
+                pskId = pskId,
+                serverId = TEST_SERVER_ID
+            )
+
+        assertNull(resolved)
+    }
+
+    private companion object {
+        const val TEST_SERVER_ID = "test-server"
     }
 
     private fun calculatePskId(
@@ -210,6 +315,9 @@ class SecureSendspinPskResolverTest {
         private var staticPrivateKey: ByteArray? = null
         private var serverStaticPublicKey: ByteArray? = null
 
+        private val longTermPsks =
+            mutableMapOf<String, ByteArray>()
+
         override suspend fun saveStaticPrivateKey(
             key: ByteArray
         ) {
@@ -230,6 +338,19 @@ class SecureSendspinPskResolverTest {
             return pairingPsk?.copyOf()
         }
 
+        override suspend fun saveLongTermPsk(
+            serverId: String,
+            psk: ByteArray
+        ) {
+            longTermPsks[serverId] = psk.copyOf()
+        }
+
+        override suspend fun getLongTermPsk(
+            serverId: String
+        ): ByteArray? {
+            return longTermPsks[serverId]?.copyOf()
+        }
+
         override suspend fun saveServerStaticPublicKey(
             key: ByteArray
         ) {
@@ -244,6 +365,7 @@ class SecureSendspinPskResolverTest {
             staticPrivateKey = null
             pairingPsk = null
             serverStaticPublicKey = null
+            longTermPsks.clear()
         }
     }
 }

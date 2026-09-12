@@ -105,6 +105,85 @@ class SecureSendspinCredentialStorageTest {
         }
     }
 
+    @Test
+    fun longTermPskCanBeSavedAndReadBackForServer() {
+        val serverId = "server-a"
+        val longTermPsk = ByteArray(32) { (it + 80).toByte() }
+
+        kotlinx.coroutines.runBlocking {
+            storage.saveLongTermPsk(
+                serverId,
+                longTermPsk
+            )
+
+            assertArrayEquals(
+                longTermPsk,
+                storage.getLongTermPsk(serverId)
+            )
+        }
+    }
+
+    @Test
+    fun longTermPsksAreIsolatedByServerId() {
+        val serverA = "server-a"
+        val serverB = "server-b"
+
+        val pskA = ByteArray(32) { (it + 80).toByte() }
+        val pskB = ByteArray(32) { (it + 112).toByte() }
+
+        kotlinx.coroutines.runBlocking {
+            storage.saveLongTermPsk(
+                serverA,
+                pskA
+            )
+
+            storage.saveLongTermPsk(
+                serverB,
+                pskB
+            )
+
+            assertArrayEquals(
+                pskA,
+                storage.getLongTermPsk(serverA)
+            )
+
+            assertArrayEquals(
+                pskB,
+                storage.getLongTermPsk(serverB)
+            )
+        }
+    }
+
+    @Test
+    fun missingLongTermPskReturnsNull() {
+        kotlinx.coroutines.runBlocking {
+            assertNull(
+                storage.getLongTermPsk("unknown-server")
+            )
+        }
+    }
+
+    @Test
+    fun longTermPskMustBeExactly32Bytes() {
+        val serverId = "server-a"
+        val invalidPsk = ByteArray(31)
+
+        kotlinx.coroutines.runBlocking {
+            try {
+                storage.saveLongTermPsk(
+                    serverId,
+                    invalidPsk
+                )
+
+                throw AssertionError(
+                    "Expected IllegalArgumentException"
+                )
+            } catch (exception: IllegalArgumentException) {
+                // Expected.
+            }
+        }
+    }
+
     private fun runBlockingClear() {
         kotlinx.coroutines.runBlocking {
             storage.clearCredentials()

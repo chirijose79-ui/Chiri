@@ -21,6 +21,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -57,6 +59,10 @@ class LegacySession(
     private var clockSyncJob: Job? = null
 
     private var clientHelloSent = false
+
+    private var playerRoleActive = false
+
+    private var clientStateAvailable: Boolean? = null
 
     override val isActive: Boolean
         get() = active.get()
@@ -251,6 +257,8 @@ class LegacySession(
         }
 
         if (type == "server/activate") {
+            processServerActivate(message)
+
             startClockSync()
 
             _events.emit(
@@ -341,6 +349,76 @@ class LegacySession(
         }
     }
 
+    private suspend fun processServerActivate(
+        message: String
+    ) {
+        val payload = json.parseToJsonElement(message)
+            .jsonObject["payload"]
+            ?.jsonObject
+            ?: throw IllegalArgumentException(
+                "server/activate message does not contain a payload"
+            )
+
+        val activeRoles = payload["active_roles"]
+            ?.jsonArray
+            ?.mapNotNull { element ->
+                element.jsonPrimitive.contentOrNull
+            }
+            ?: emptyList()
+
+        val playerActive = "player@v1" in activeRoles
+
+        if (playerActive != playerRoleActive) {
+            playerRoleActive = playerActive
+
+            if (playerRoleActive) {
+                sendClientState(
+                    available = false
+                )
+            } else {
+                clientStateAvailable = null
+            }
+        }
+    }
+
+    private suspend fun sendClientState(
+        available: Boolean
+    ) {
+        val supportedCommands = buildList {
+            if (capabilities.supportsVolume) {
+                add("volume")
+            }
+
+            if (capabilities.supportsMute) {
+                add("mute")
+            }
+        }
+
+        val message = ClientStateMessage(
+            payload = ClientStatePayload(
+                available = available,
+                player = PlayerState(
+                    volume = if (capabilities.supportsVolume) 100 else null,
+                    muted = if (capabilities.supportsMute) false else null,
+                    output_delay_ms = 0,
+                    required_lead_time_ms = 250,
+                    min_buffer_ms = 250,
+                    supported_commands = supportedCommands
+                )
+            )
+        )
+
+        if (clientStateAvailable == available) {
+            return
+        }
+
+        messageSender.sendEncrypted(
+            json.encodeToString(message)
+        )
+
+        clientStateAvailable = available
+    }
+
     private fun processServerTime(
         message: kotlinx.serialization.json.JsonObject,
         receivedAtLocalMicros: Long
@@ -380,6 +458,18 @@ class LegacySession(
             t3ServerMicros = serverTransmitted,
             t4LocalMicros = receivedAtLocalMicros
         )
+
+        if (
+            playerRoleActive &&
+            clockSynchronizer.isSynchronized() &&
+            clientStateAvailable != true
+        ) {
+            scope.launch {
+                sendClientState(
+                    available = true
+                )
+            }
+        }
     }
 
     /**
@@ -472,5 +562,28 @@ class LegacySession(
     private data class ClientTimePayload(
         @SerialName("client_transmitted")
         val clientTransmitted: Long
+    )
+
+    @Serializable
+    private data class ClientStateMessage(
+        val type: String = "client/state",
+        val payload: ClientStatePayload
+    )
+
+    @Serializable
+    private data class ClientStatePayload(
+        val available: Boolean,
+        @SerialName("player@v1")
+        val player: PlayerState? = null
+    )
+
+    @Serializable
+    private data class PlayerState(
+        val volume: Int? = null,
+        val muted: Boolean? = null,
+        val output_delay_ms: Int,
+        val required_lead_time_ms: Int,
+        val min_buffer_ms: Int,
+        val supported_commands: List<String>
     )
 }

@@ -10,11 +10,16 @@ class SecureSendspinPskResolver(
 ) : SendspinPskResolver {
 
     override suspend fun resolve(
-        pskId: String
+        pskId: String,
+        serverId: String
     ): ByteArray? {
 
         require(pskId.isNotBlank()) {
             "PSK id must not be blank"
+        }
+
+        require(serverId.isNotBlank()) {
+            "Server id must not be blank"
         }
 
         /*
@@ -37,25 +42,42 @@ class SecureSendspinPskResolver(
         }
 
         /*
-         * If this is not the Sentinel PSK, try the stored
-         * pairing PSK.
-         */
+ * If this is not the Sentinel PSK, try the stored
+ * pairing PSK.
+ */
         val pairingPsk =
             storage.getPairingPsk()
-                ?: return null
 
-        require(pairingPsk.size == PSK_SIZE) {
-            "Stored Sendspin PSK must be 32 bytes"
+        if (pairingPsk != null) {
+            require(pairingPsk.size == PSK_SIZE) {
+                "Stored Sendspin PSK must be 32 bytes"
+            }
+
+            val pairingPskId =
+                calculatePskId(pairingPsk)
+
+            if (pairingPskId == pskId) {
+                return pairingPsk.copyOf()
+            }
         }
 
-        val calculatedPskId =
-            calculatePskId(pairingPsk)
+        /*
+         * If this is not the Pairing PSK, try the Long-Term PSK
+         * associated with the current server.
+         */
+        val longTermPsk =
+            storage.getLongTermPsk(serverId)
 
-        if (calculatedPskId != pskId) {
-            return null
+        if (longTermPsk != null && longTermPsk.size == PSK_SIZE) {
+            val longTermPskId =
+                calculatePskId(longTermPsk)
+
+            if (longTermPskId == pskId) {
+                return longTermPsk.copyOf()
+            }
         }
 
-        return pairingPsk.copyOf()
+        return null
     }
 
     private fun calculatePskId(
