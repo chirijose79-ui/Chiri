@@ -2,6 +2,7 @@ package com.chirihome.platform.player.music.sendspin
 
 import com.chirihome.platform.player.music.sendspin.crypto.NoiseTransport
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinReHandshake
 import com.chirihome.platform.player.music.sendspin.session.SendspinProtocolSession
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
@@ -27,6 +28,7 @@ import kotlinx.serialization.json.jsonPrimitive
 class SendspinClient(
     private val transport: SendspinTransport,
     private val handshake: SendspinHandshake,
+    private val reHandshake: SendspinReHandshake? = null,
     private val session: SendspinProtocolSession,
     private val audioSink: SendspinAudioSink,
     private val scope: CoroutineScope,
@@ -284,6 +286,62 @@ class SendspinClient(
                 println(
                     "[SendspinClient] [RECV] decrypted control message: $message"
                 )
+
+                val type = Json
+                    .parseToJsonElement(message)
+                    .jsonObject["type"]
+                    ?.jsonPrimitive
+                    ?.content
+
+                if (type == "noise/handshake") {
+                    val reHandshakeHandler =
+                        reHandshake
+                            ?: error(
+                                "Received encrypted re-handshake without handler"
+                            )
+
+                    /*
+                     * Message 1 fue descifrado utilizando el transporte
+                     * anterior. Message 2 también debe cifrarse con ese
+                     * mismo transporte.
+                     */
+                    val oldTransport = transport
+
+                    val result =
+                        reHandshakeHandler.receiveReHandshakeMessage1(
+                            rawMessage = message
+                        )
+
+                    val message2Bytes =
+                        result.message2.toByteArray(Charsets.UTF_8)
+
+                    val message2Plaintext =
+                        ByteArray(1 + message2Bytes.size)
+
+                    message2Plaintext[0] = 0x00
+
+                    message2Bytes.copyInto(
+                        destination = message2Plaintext,
+                        destinationOffset = 1
+                    )
+
+                    val encryptedMessage2 =
+                        oldTransport.encrypt(message2Plaintext)
+
+                    this@SendspinClient.transport.sendBinary(encryptedMessage2)
+
+                    println(
+                        "[SendspinClient] [SEND] encrypted re-handshake Message 2"
+                    )
+
+                    /*
+                     * El nuevo transporte solamente entra en vigor después
+                     * de haber enviado Message 2 con el transporte anterior.
+                     */
+                    noiseTransport = result.noiseTransport
+
+                    return
+                }
 
                 session.handleMessage(
                     message = message,

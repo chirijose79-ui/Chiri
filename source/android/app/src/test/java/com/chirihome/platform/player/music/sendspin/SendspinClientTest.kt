@@ -7,6 +7,8 @@ import com.chirihome.platform.player.music.sendspin.crypto.NoiseRole
 import com.chirihome.platform.player.music.sendspin.crypto.NoiseTransport
 import com.chirihome.platform.player.music.sendspin.crypto.X25519KeyPair
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinHandshake
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinReHandshake
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinReHandshakeResult
 import com.chirihome.platform.player.music.sendspin.session.SendspinProtocolSession
 import com.chirihome.platform.player.music.sendspin.session.SendspinSessionEvent
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
@@ -135,6 +137,28 @@ class SendspinClientTest {
             receivedNoiseMessage1 = rawMessage
 
             return "noise-message-2"
+        }
+    }
+
+    private class FakeSendspinReHandshake(
+        private val result: SendspinReHandshakeResult
+    ) : SendspinReHandshake {
+
+        var receiveReHandshakeMessage1Calls = 0
+            private set
+
+        var receivedReHandshakeMessage1: String? = null
+            private set
+
+        override suspend fun receiveReHandshakeMessage1(
+            rawMessage: String
+        ): SendspinReHandshakeResult {
+            receiveReHandshakeMessage1Calls++
+
+            receivedReHandshakeMessage1 =
+                rawMessage
+
+            return result
         }
     }
 
@@ -382,6 +406,182 @@ class SendspinClientTest {
 
             assertTrue(
                 session.receivedMessageTimestamps.single() > 0L
+            )
+        }
+
+    @Test
+    fun encryptedReHandshakeMessageUsesOldTransportForMessage2AndInstallsNewTransport() =
+        runBlocking {
+            val (serverOldTransport, clientOldTransport) =
+                createTestNoiseTransports()
+
+            val (serverNewTransport, clientNewTransport) =
+                createTestNoiseTransports()
+
+            val transport = FakeSendspinTransport()
+
+            val handshake =
+                createHandshake(
+                    noiseTransport = clientOldTransport
+                )
+
+            val reHandshakeMessage1 =
+                """{"type":"noise/handshake","payload":{"data":"re-handshake-message-1"}}"""
+
+            val message2 =
+                """{"type":"noise/handshake","payload":{"data":"re-handshake-message-2"}}"""
+
+            val reHandshake =
+                FakeSendspinReHandshake(
+                    result =
+                        SendspinReHandshakeResult(
+                            message2 = message2,
+                            noiseTransport = clientNewTransport
+                        )
+                )
+
+            val session = FakeSendspinProtocolSession()
+
+            val client = SendspinClient(
+                transport = transport,
+                handshake = handshake,
+                reHandshake = reHandshake,
+                session = session,
+                audioSink = createAudioSink(),
+                scope = CoroutineScope(Dispatchers.Unconfined)
+            )
+
+            client.connect()
+
+            transport.emitTextMessage(
+                """{"type":"noise/handshake","payload":{"data":"initial-message-1"}}"""
+            )
+
+            assertEquals(
+                1,
+                handshake.receiveNoiseMessage1Calls
+            )
+
+            assertEquals(
+                "noise-message-2",
+                transport.sentMessages.last()
+            )
+
+            /*
+             * El servidor cifra Message 1 utilizando las claves
+             * del transporte anterior.
+             */
+            val plaintext =
+                ByteArray(
+                    1 +
+                            reHandshakeMessage1
+                                .toByteArray(Charsets.UTF_8)
+                                .size
+                )
+
+            plaintext[0] = 0x00
+
+            reHandshakeMessage1
+                .toByteArray(Charsets.UTF_8)
+                .copyInto(
+                    destination = plaintext,
+                    destinationOffset = 1
+                )
+
+            val encryptedMessage1 =
+                serverOldTransport.encrypt(plaintext)
+
+            transport.emitBinaryMessage(
+                encryptedMessage1
+            )
+
+            assertEquals(
+                1,
+                reHandshake.receiveReHandshakeMessage1Calls
+            )
+
+            assertEquals(
+                reHandshakeMessage1,
+                reHandshake.receivedReHandshakeMessage1
+            )
+
+            /*
+             * Message 2 debe haber sido cifrado con el transporte
+             * anterior, NO con el nuevo.
+             */
+            assertEquals(
+                1,
+                transport.sentBinaryMessages.size
+            )
+
+            val encryptedMessage2 =
+                transport.sentBinaryMessages.single()
+
+            val decryptedWithOldTransport =
+                serverOldTransport.decrypt(
+                    encryptedMessage2
+                )
+
+            assertEquals(
+                0x00,
+                decryptedWithOldTransport[0].toInt()
+            )
+
+            assertEquals(
+                message2,
+                decryptedWithOldTransport
+                    .copyOfRange(
+                        1,
+                        decryptedWithOldTransport.size
+                    )
+                    .toString(Charsets.UTF_8)
+            )
+
+            /*
+             * El transporte nuevo no debe poder descifrar Message 2.
+             *
+             * Esto demuestra que el cambio de transporte ocurrió
+             * DESPUÉS de enviar Message 2.
+             */
+            var newTransportRejectedOldMessage = false
+
+            try {
+                serverNewTransport.decrypt(
+                    encryptedMessage2
+                )
+            } catch (exception: Throwable) {
+                newTransportRejectedOldMessage = true
+            }
+
+            assertTrue(newTransportRejectedOldMessage)
+
+            // A subsequent application message must use the NEW transport.
+            val newTransportPlaintext =
+                """{"type":"server/activate","payload":{}}"""
+
+            val newTransportFramed =
+                ByteArray(
+                    1 + newTransportPlaintext.toByteArray(Charsets.UTF_8).size
+                )
+
+            newTransportFramed[0] = 0x00
+
+            newTransportPlaintext
+                .toByteArray(Charsets.UTF_8)
+                .copyInto(
+                    destination = newTransportFramed,
+                    destinationOffset = 1
+                )
+
+            val encryptedWithNewTransport =
+                serverNewTransport.encrypt(newTransportFramed)
+
+            transport.emitBinaryMessage(encryptedWithNewTransport)
+
+            assertEquals(1, session.receivedMessages.size)
+            assertEquals(
+                newTransportPlaintext,
+                session.receivedMessages.single()
             )
         }
 

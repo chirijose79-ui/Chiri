@@ -14,7 +14,9 @@ class SendspinNoiseHandshake(
     private val identityProvider: SendspinIdentityProvider,
     private val crypto: NoiseCrypto,
     private val pskResolver: SendspinPskResolver
-) : SendspinHandshake, SendspinPairingState {
+) : SendspinHandshake,
+    SendspinPairingState,
+    SendspinReHandshake {
 
     private val json = Json {
         encodeDefaults = true
@@ -23,7 +25,6 @@ class SendspinNoiseHandshake(
 
     private var identity: SendspinIdentity? = null
     private var handshakeState: HandshakeState? = null
-    private var reHandshakeState: HandshakeState? = null
 
     private var clientInitRaw: String? = null
     private var serverInitRaw: String? = null
@@ -116,51 +117,9 @@ class SendspinNoiseHandshake(
         resolvedPskType = null
     }
 
-    fun beginReHandshake(
-        longTermPsk: ByteArray
-    ) {
-        require(longTermPsk.size == PSK_SIZE) {
-            "Long-Term PSK must be 32 bytes"
-        }
-
-        val currentServerStaticPublicKey =
-            serverStaticPublicKey
-                ?: error(
-                    "Server static public key has not been initialized"
-                )
-
-        val currentIdentity =
-            identity
-                ?: error(
-                    "Sendspin identity is not initialized"
-                )
-
-        val previousHandshakeHash =
-            handshakeHash
-                ?: error(
-                    "Previous Noise handshake must be complete"
-                )
-
-        val localStatic = X25519KeyPair(
-            privateKey = currentIdentity.staticPrivateKey,
-            publicKey = currentIdentity.staticPublicKey
-        )
-
-        reHandshakeState =
-            HandshakeState.createKkPsk2(
-                crypto = crypto,
-                role = NoiseRole.RESPONDER,
-                prologue = previousHandshakeHash.copyOf(),
-                localStatic = localStatic,
-                remoteStaticPublic =
-                    currentServerStaticPublicKey.copyOf(),
-                psk = longTermPsk.copyOf()
-            )
-    }
-
-    suspend fun receiveReHandshakeMessage1(
+    override suspend fun receiveReHandshakeMessage1(
         rawMessage: String
-    ): String {
+    ): SendspinReHandshakeResult {
         require(rawMessage.isNotBlank()) {
             "Empty re-handshake message"
         }
@@ -183,22 +142,55 @@ class SendspinNoiseHandshake(
         val handshakeMessage =
             SendspinBase64.decodeUrlSafe(encodedData)
 
-        val state =
-            reHandshakeState
-                ?: error(
-                    "Re-handshake state has not been initialized"
-                )
+        val state = createReHandshakeState()
 
-        require(!state.isComplete) {
-            "Noise re-handshake is already complete"
+        val decryptedPayload =
+            state.readMessage(handshakeMessage)
+
+        val payloadJson =
+            decryptedPayload.toString(Charsets.UTF_8)
+
+        val pskPayload =
+            json.decodeFromString<SendspinNoiseMsg1Payload>(
+                payloadJson
+            )
+
+        require(pskPayload.psk_id.isNotBlank()) {
+            "Empty psk_id in Noise re-handshake Message 1"
         }
 
-        state.readMessage(handshakeMessage)
+        val serverId =
+            currentServerId
+                ?: error(
+                    "Server id has not been initialized"
+                )
+
+        val resolution =
+            pskResolver.resolve(
+                pskId = pskPayload.psk_id,
+                serverId = serverId
+            )
+                ?: error(
+                    "Unable to resolve Sendspin re-handshake PSK: " +
+                            "id=${pskPayload.psk_id}"
+                )
+
+        val psk = resolution.psk
+
+        require(psk.size == PSK_SIZE) {
+            "Resolved Sendspin PSK must be 32 bytes"
+        }
+
+        state.providePsk(psk)
 
         val handshakeMessage2 =
             state.writeMessage(
                 "{}".toByteArray(Charsets.UTF_8)
             )
+
+        check(state.isComplete) {
+            "Noise re-handshake did not complete"
+        }
 
         val response =
             SendspinNoiseHandshakeMessage(
@@ -210,7 +202,16 @@ class SendspinNoiseHandshake(
                 )
             )
 
-        return json.encodeToString(response)
+        val newTransport =
+            state.result?.transport
+                ?: error(
+                    "Noise re-handshake did not produce a transport"
+                )
+
+        return SendspinReHandshakeResult(
+            message2 = json.encodeToString(response),
+            noiseTransport = newTransport
+        )
     }
 
     override suspend fun receiveNoiseMessage1(
@@ -298,6 +299,41 @@ class SendspinNoiseHandshake(
         return pskPayload
     }
 
+    private fun createReHandshakeState(): HandshakeState {
+        val currentServerStaticPublicKey =
+            serverStaticPublicKey
+                ?: error(
+                    "Server static public key has not been initialized"
+                )
+
+        val currentIdentity =
+            identity
+                ?: error(
+                    "Sendspin identity is not initialized"
+                )
+
+        val previousHandshakeHash =
+            handshakeHash
+                ?: error(
+                    "Previous Noise handshake must be complete"
+                )
+
+        val localStatic = X25519KeyPair(
+            privateKey = currentIdentity.staticPrivateKey,
+            publicKey = currentIdentity.staticPublicKey
+        )
+
+        return HandshakeState.createKkPsk2(
+            crypto = crypto,
+            role = NoiseRole.RESPONDER,
+            prologue = previousHandshakeHash.copyOf(),
+            localStatic = localStatic,
+            remoteStaticPublic =
+                currentServerStaticPublicKey.copyOf(),
+            psk = null
+        )
+    }
+
     fun createNoiseMessage2(): String {
         val state =
             handshakeState
@@ -338,9 +374,6 @@ class SendspinNoiseHandshake(
 
     val isComplete: Boolean
         get() = handshakeState?.isComplete == true
-
-    val isReHandshakeReady: Boolean
-        get() = reHandshakeState != null
 
     val handshakeHash: ByteArray?
         get() =
