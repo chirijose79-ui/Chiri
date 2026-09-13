@@ -7,6 +7,7 @@ import com.chirihome.platform.player.music.sendspin.audio.MediaPlayerControllerA
 import com.chirihome.platform.player.music.sendspin.audio.OpusDecoderAndroid
 import com.chirihome.platform.player.music.sendspin.crypto.JdkNoiseCrypto
 import com.chirihome.platform.player.music.sendspin.crypto.SendspinIdentityProvider
+import com.chirihome.platform.player.music.sendspin.crypto.SendspinPairingProvisioner
 import com.chirihome.platform.player.music.sendspin.protocol.SecureSendspinPskResolver
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinNoiseHandshake
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingHandler
@@ -279,6 +280,34 @@ class SendspinManager(
         audioSink = null
 
         _state.value = ConnectionState.Stopped
+    }
+
+    suspend fun provisionPairingToken(
+        token: String
+    ) {
+        val storage =
+            SecureSendspinCredentialStorage(
+                applicationContext
+            )
+
+        val crypto =
+            JdkNoiseCrypto()
+
+        val identityProvider =
+            SendspinIdentityProvider(
+                storage = storage,
+                crypto = crypto
+            )
+
+        val identity =
+            identityProvider.getOrCreate()
+
+        SendspinPairingProvisioner(
+            storage = storage
+        ).provision(
+            token = token,
+            identity = identity
+        )
     }
 
     fun close() {
