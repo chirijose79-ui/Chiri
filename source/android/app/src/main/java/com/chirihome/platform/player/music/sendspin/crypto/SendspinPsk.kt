@@ -99,11 +99,14 @@ object SendspinPsk {
         }
     }
 
-    fun generateClientKey(
-        crypto: NoiseCrypto
-    ): ByteArray {
-        return crypto.randomBytes(
-            CLIENT_KEY_LENGTH
+    fun createToken(
+        identity: SendspinIdentity,
+        pairingPsk: ByteArray
+    ): String {
+
+        return createToken(
+            clientKey = identity.staticPublicKey,
+            pairingPsk = pairingPsk
         )
     }
 

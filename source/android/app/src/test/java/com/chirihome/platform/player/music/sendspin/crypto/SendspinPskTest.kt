@@ -195,15 +195,36 @@ class SendspinPskTest {
     }
 
     @Test
-    fun generateClientKey_returns32Bytes() {
-        val clientKey =
-            SendspinPsk.generateClientKey(
+    fun createToken_fromIdentity_bindsClientKeyToIdentity() {
+        val identity =
+            SendspinIdentity.generate(
                 crypto
             )
 
+        val pairingPsk =
+            SendspinPsk.generatePairingPsk(
+                crypto
+            )
+
+        val token =
+            SendspinPsk.createToken(
+                identity,
+                pairingPsk
+            )
+
+        val decoded =
+            SendspinPsk.decodeToken(
+                token
+            )
+
+        assertArrayEquals(
+            identity.staticPublicKey,
+            decoded.first
+        )
+
         assertEquals(
-            32,
-            clientKey.size
+            identity.clientId,
+            SendspinBase64.encodeUrlSafe(decoded.first)
         )
     }
 
