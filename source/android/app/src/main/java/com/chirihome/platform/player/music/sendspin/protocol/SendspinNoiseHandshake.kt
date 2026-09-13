@@ -34,6 +34,7 @@ class SendspinNoiseHandshake(
     private var resolvedPsk: ByteArray? = null
     private var resolvedPskId: String? = null
     private var resolvedPskType: SendspinPskType? = null
+    private var requestedPskType: SendspinPskType? = null
     private var currentServerId: String? = null
 
     override suspend fun createClientInit(): String {
@@ -159,6 +160,9 @@ class SendspinNoiseHandshake(
             "Empty psk_id in Noise re-handshake Message 1"
         }
 
+        requestedPskType =
+            parseSendspinPskCategory(pskPayload.psk_category)
+
         val serverId =
             currentServerId
                 ?: error(
@@ -168,7 +172,9 @@ class SendspinNoiseHandshake(
         val resolution =
             pskResolver.resolve(
                 pskId = pskPayload.psk_id,
-                serverId = serverId
+                serverId = serverId,
+                requestedPskType = requestedPskType
+                    ?: error("Requested Sendspin PSK type has not been initialized")
             )
                 ?: error(
                     "Unable to resolve Sendspin re-handshake PSK: " +
@@ -265,6 +271,9 @@ class SendspinNoiseHandshake(
             "Empty psk_id in Noise message 1"
         }
 
+        requestedPskType =
+            parseSendspinPskCategory(pskPayload.psk_category)
+
         val currentServerStaticPublicKey =
             serverStaticPublicKey
                 ?: error("Server static public key has not been initialized")
@@ -276,7 +285,9 @@ class SendspinNoiseHandshake(
         val resolution =
             pskResolver.resolve(
                 pskId = pskPayload.psk_id,
-                serverId = serverId
+                serverId = serverId,
+                requestedPskType = requestedPskType
+                    ?: error("Requested Sendspin PSK type has not been initialized")
             )
                 ?: error(
                     "Unable to resolve Sendspin PSK: " +

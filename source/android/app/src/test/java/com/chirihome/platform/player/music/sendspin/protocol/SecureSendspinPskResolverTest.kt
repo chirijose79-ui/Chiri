@@ -36,7 +36,8 @@ class SecureSendspinPskResolverTest {
         val resolved =
             resolver.resolve(
                 pskId = pskId,
-                serverId = TEST_SERVER_ID
+                serverId = TEST_SERVER_ID,
+                requestedPskType = SendspinPskType.PAIRING
             )
 
         assertEquals(
@@ -48,6 +49,35 @@ class SecureSendspinPskResolverTest {
             psk,
             resolved?.psk
         )
+    }
+
+    @Test
+    fun pairingPskRequestedAsLongTerm_returnsNull() = runBlocking {
+        val psk =
+            ByteArray(32) { it.toByte() }
+
+        val storage =
+            FakeSendspinCredentialStorage(
+                pairingPsk = psk
+            )
+
+        val resolver =
+            SecureSendspinPskResolver(
+                storage = storage,
+                crypto = crypto
+            )
+
+        val pskId =
+            calculatePskId(psk)
+
+        val resolved =
+            resolver.resolve(
+                pskId = pskId,
+                serverId = TEST_SERVER_ID,
+                requestedPskType = SendspinPskType.LONG_TERM
+            )
+
+        assertNull(resolved)
     }
 
     @Test
@@ -75,7 +105,8 @@ class SecureSendspinPskResolverTest {
         val resolved =
             resolver.resolve(
                 pskId = sentinelPskId,
-                serverId = TEST_SERVER_ID
+                serverId = TEST_SERVER_ID,
+                requestedPskType = SendspinPskType.SENTINEL
             )
 
         assertEquals(
@@ -117,7 +148,8 @@ class SecureSendspinPskResolverTest {
             resolver.resolve(
                 pskId =
                     "GFsV9tLaSQm9HcFWpKsgYQOr7wFTvNUtkmFwuVz3zoo",
-                serverId = TEST_SERVER_ID
+                serverId = TEST_SERVER_ID,
+                requestedPskType = SendspinPskType.SENTINEL
             )
 
         assertEquals(
@@ -150,7 +182,8 @@ class SecureSendspinPskResolverTest {
         val resolved =
             resolver.resolve(
                 pskId = "invalid-psk-id",
-                serverId = TEST_SERVER_ID
+                serverId = TEST_SERVER_ID,
+                requestedPskType = SendspinPskType.LONG_TERM
             )
 
         assertNull(resolved)
@@ -178,7 +211,8 @@ class SecureSendspinPskResolverTest {
         val resolved =
             resolver.resolve(
                 pskId = pskId,
-                serverId = TEST_SERVER_ID
+                serverId = TEST_SERVER_ID,
+                requestedPskType = SendspinPskType.PAIRING
             )
 
         assertEquals(
@@ -213,7 +247,8 @@ class SecureSendspinPskResolverTest {
         val resolved =
             resolver.resolve(
                 pskId = "any-psk-id",
-                serverId = TEST_SERVER_ID
+                serverId = TEST_SERVER_ID,
+                requestedPskType = SendspinPskType.PAIRING
             )
 
         assertNull(resolved)
@@ -246,7 +281,8 @@ class SecureSendspinPskResolverTest {
             val resolved =
                 resolver.resolve(
                     pskId = pskId,
-                    serverId = TEST_SERVER_ID
+                    serverId = TEST_SERVER_ID,
+                    requestedPskType = SendspinPskType.LONG_TERM
                 )
 
             assertEquals(
@@ -287,7 +323,8 @@ class SecureSendspinPskResolverTest {
             val resolved =
                 resolver.resolve(
                     pskId = pskId,
-                    serverId = "different-server"
+                    serverId = "different-server",
+                    requestedPskType = SendspinPskType.LONG_TERM
                 )
 
             assertNull(resolved)
@@ -320,7 +357,8 @@ class SecureSendspinPskResolverTest {
             val resolved =
                 resolver.resolve(
                     pskId = pskId,
-                    serverId = TEST_SERVER_ID
+                    serverId = TEST_SERVER_ID,
+                    requestedPskType = SendspinPskType.LONG_TERM
                 )
 
             assertNull(resolved)

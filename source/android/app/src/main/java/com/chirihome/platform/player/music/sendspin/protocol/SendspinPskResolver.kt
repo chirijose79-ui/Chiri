@@ -4,6 +4,7 @@ interface SendspinPskResolver {
 
     suspend fun resolve(
         pskId: String,
-        serverId: String
+        serverId: String,
+        requestedPskType: SendspinPskType
     ): SendspinPskResolution?
 }

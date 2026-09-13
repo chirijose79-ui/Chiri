@@ -112,7 +112,8 @@ class SendspinNoiseHandshakeTest {
 
         val message1Payload =
             SendspinNoiseMsg1Payload(
-                psk_id = expectedPskId
+                psk_id = expectedPskId,
+                psk_category = "pr"
             )
 
         val message1PayloadJson =
@@ -275,7 +276,8 @@ class SendspinNoiseHandshakeTest {
 
         val message1Payload =
             SendspinNoiseMsg1Payload(
-                psk_id = expectedPskId
+                psk_id = expectedPskId,
+                psk_category = "lt"
             )
 
         val message1PayloadJson =

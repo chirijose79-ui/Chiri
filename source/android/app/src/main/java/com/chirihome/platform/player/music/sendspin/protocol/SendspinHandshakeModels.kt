@@ -40,7 +40,8 @@ data class SendspinNoiseHandshakeMessage(
 
 @Serializable
 data class SendspinNoiseMsg1Payload(
-    val psk_id: String
+    val psk_id: String,
+    val psk_category: String
 )
 
 @Serializable
