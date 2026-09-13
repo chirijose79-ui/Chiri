@@ -79,6 +79,8 @@ class LegacySessionTest {
 
         val receivedServerIds = mutableListOf<String>()
 
+        val confirmedServerIds = mutableListOf<String>()
+
         override suspend fun createPairFinalize(serverId: String): String {
             receivedServerIds += serverId
 
@@ -90,6 +92,12 @@ class LegacySessionTest {
             }
         }
         """.trimIndent()
+        }
+
+        override suspend fun confirmPairFinalize(
+            serverId: String
+        ) {
+            confirmedServerIds += serverId
         }
     }
 
@@ -636,6 +644,121 @@ class LegacySessionTest {
             pairFinalizeMessages.single().contains(
                 "\"long_term_psk\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
             )
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun serverPairFinalizeConfirmsPairingForActiveServer() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pairingFinalizer = FakeSendspinPairingFinalizer()
+
+        val session =
+            createSession(
+                transport = transport,
+                messageSender = messageSender,
+                scope = scope,
+                pairingState =
+                    FakeSendspinPairingState(
+                        pskType = SendspinPskType.PAIRING,
+                        serverId = "test-server-id"
+                    ),
+                pairingFinalizer = pairingFinalizer
+            )
+
+        val serverActivate =
+            """
+    {
+        "type":"server/activate",
+        "payload":{
+            "activities":["pairing"],
+            "active_roles":[],
+            "pairing":{
+                "method":"pairing_psk"
+            }
+        }
+    }
+    """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertEquals(
+            listOf("test-server-id"),
+            pairingFinalizer.receivedServerIds
+        )
+
+        assertEquals(
+            emptyList<String>(),
+            pairingFinalizer.confirmedServerIds
+        )
+
+        val serverPairFinalize =
+            """
+    {
+        "type":"server/pair-finalize",
+        "payload":{}
+    }
+    """.trimIndent()
+
+        session.handleMessage(serverPairFinalize)
+
+        assertEquals(
+            listOf("test-server-id"),
+            pairingFinalizer.confirmedServerIds
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun serverPairFinalizeWithoutPendingFinalizeDoesNotConfirm() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pairingFinalizer = FakeSendspinPairingFinalizer()
+
+        val session =
+            createSession(
+                transport = transport,
+                messageSender = messageSender,
+                scope = scope,
+                pairingState =
+                    FakeSendspinPairingState(
+                        pskType = SendspinPskType.PAIRING,
+                        serverId = "test-server-id"
+                    ),
+                pairingFinalizer = pairingFinalizer
+            )
+
+        val serverPairFinalize =
+            """
+        {
+            "type":"server/pair-finalize",
+            "payload":{}
+        }
+        """.trimIndent()
+
+        var exception: IllegalArgumentException? = null
+
+        try {
+            session.handleMessage(serverPairFinalize)
+        } catch (error: IllegalArgumentException) {
+            exception = error
+        }
+
+        assertEquals(
+            "Received server/pair-finalize without pending client/pair-finalize",
+            exception?.message
+        )
+
+        assertEquals(
+            emptyList<String>(),
+            pairingFinalizer.confirmedServerIds
         )
 
         scope.cancel()

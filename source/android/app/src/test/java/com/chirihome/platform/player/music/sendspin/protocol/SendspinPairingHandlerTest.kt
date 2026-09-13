@@ -12,7 +12,7 @@ import org.junit.Test
 class SendspinPairingHandlerTest {
 
     @Test
-    fun createPairFinalizeGeneratesAndStoresLongTermPsk() =
+    fun createPairFinalizeGeneratesLongTermPskWithoutPersisting() =
         runBlocking {
             val storage =
                 FakeSendspinCredentialStorage()
@@ -33,13 +33,9 @@ class SendspinPairingHandlerTest {
                     serverId = serverId
                 )
 
-            val storedPsk =
-                storage.getLongTermPsk(serverId)
-
-            assertNotNull(storedPsk)
             assertEquals(
-                32,
-                storedPsk!!.size
+                null,
+                storage.getLongTermPsk(serverId)
             )
 
             assertTrue(
@@ -54,25 +50,106 @@ class SendspinPairingHandlerTest {
                 )
             )
 
+            val payloadStart =
+                message.indexOf(
+                    "\"long_term_psk\":\""
+                )
+
+            assertTrue(
+                payloadStart >= 0
+            )
+
+            val encodedPskStart =
+                payloadStart +
+                        "\"long_term_psk\":\"".length
+
+            val encodedPskEnd =
+                message.indexOf(
+                    "\"",
+                    encodedPskStart
+                )
+
             val encodedPsk =
-                SendspinBase64.encodeUrlSafe(
-                    storedPsk
+                message.substring(
+                    encodedPskStart,
+                    encodedPskEnd
                 )
 
             assertEquals(
                 43,
                 encodedPsk.length
             )
+        }
 
-            assertTrue(
-                message.contains(
-                    "\"long_term_psk\":\"$encodedPsk\""
+    @Test
+    fun confirmPairFinalizePersistsGeneratedLongTermPsk() =
+        runBlocking {
+            val storage =
+                FakeSendspinCredentialStorage()
+
+            val crypto =
+                JdkNoiseCrypto()
+
+            val handler =
+                SendspinPairingHandler(
+                    storage = storage,
+                    crypto = crypto
+                )
+
+            val serverId = "server-001"
+
+            val message =
+                handler.createPairFinalize(
+                    serverId = serverId
+                )
+
+            val marker =
+                "\"long_term_psk\":\""
+
+            val start =
+                message.indexOf(marker)
+
+            assertTrue(start >= 0)
+
+            val encodedPskStart =
+                start + marker.length
+
+            val encodedPskEnd =
+                message.indexOf(
+                    "\"",
+                    encodedPskStart
+                )
+
+            val encodedPsk =
+                message.substring(
+                    encodedPskStart,
+                    encodedPskEnd
+                )
+
+            handler.confirmPairFinalize(
+                serverId = serverId
+            )
+
+            val storedPsk =
+                storage.getLongTermPsk(serverId)
+
+            assertNotNull(storedPsk)
+
+            assertEquals(
+                32,
+                storedPsk!!.size
+            )
+
+            assertEquals(
+                encodedPsk,
+                SendspinBase64.encodeUrlSafe(
+                    storedPsk
                 )
             )
         }
 
     @Test
-    fun createPairFinalizeStoresPskOnlyForRequestedServer() =
+    fun confirmPairFinalizeRejectsDifferentServerId() =
         runBlocking {
             val storage =
                 FakeSendspinCredentialStorage()
@@ -90,7 +167,20 @@ class SendspinPairingHandlerTest {
                 serverId = "server-a"
             )
 
-            assertNotNull(
+            var failed = false
+
+            try {
+                handler.confirmPairFinalize(
+                    serverId = "server-b"
+                )
+            } catch (exception: IllegalArgumentException) {
+                failed = true
+            }
+
+            assertTrue(failed)
+
+            assertEquals(
+                null,
                 storage.getLongTermPsk("server-a")
             )
 

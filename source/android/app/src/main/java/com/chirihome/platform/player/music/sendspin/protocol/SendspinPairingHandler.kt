@@ -16,6 +16,9 @@ class SendspinPairingHandler(
         encodeDefaults = true
     }
 
+    private var pendingServerId: String? = null
+    private var pendingLongTermPsk: ByteArray? = null
+
     override suspend fun createPairFinalize(
         serverId: String
     ): String {
@@ -31,10 +34,8 @@ class SendspinPairingHandler(
             "Generated Long-Term PSK must be 32 bytes"
         }
 
-        storage.saveLongTermPsk(
-            serverId = serverId,
-            psk = longTermPsk
-        )
+        pendingServerId = serverId
+        pendingLongTermPsk = longTermPsk.copyOf()
 
         val message =
             ClientPairFinalizeMessage(
@@ -48,6 +49,32 @@ class SendspinPairingHandler(
             )
 
         return json.encodeToString(message)
+    }
+
+    override suspend fun confirmPairFinalize(
+        serverId: String
+    ) {
+        require(serverId.isNotBlank()) {
+            "Server id must not be blank"
+        }
+
+        require(pendingServerId == serverId) {
+            "No pending pairing finalize for server"
+        }
+
+        val longTermPsk =
+            pendingLongTermPsk
+                ?: throw IllegalStateException(
+                    "No pending Long-Term PSK"
+                )
+
+        storage.saveLongTermPsk(
+            serverId = serverId,
+            psk = longTermPsk.copyOf()
+        )
+
+        pendingServerId = null
+        pendingLongTermPsk = null
     }
 
     @Serializable

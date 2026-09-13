@@ -287,6 +287,18 @@ class LegacySession(
             return
         }
 
+        if (type == "server/pair-finalize") {
+            processServerPairFinalize()
+
+            _events.emit(
+                SendspinSessionEvent.MessageReceived(
+                    message
+                )
+            )
+
+            return
+        }
+
         when (val result = messageDispatcher.dispatch(message)) {
 
             is MessageDispatcher.DispatchResult.Authentication -> {
@@ -364,6 +376,26 @@ class LegacySession(
                 )
             }
         }
+    }
+
+    private suspend fun processServerPairFinalize() {
+        require(pairFinalizeSent) {
+            "Received server/pair-finalize without pending client/pair-finalize"
+        }
+
+        val serverId =
+            pairingState.serverId
+                ?: throw IllegalStateException(
+                    "server/pair-finalize received without server id"
+                )
+
+        require(serverId.isNotBlank()) {
+            "server/pair-finalize received with blank server id"
+        }
+
+        pairingFinalizer.confirmPairFinalize(
+            serverId
+        )
     }
 
     private suspend fun processServerActivate(
