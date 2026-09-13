@@ -171,6 +171,7 @@ class SendspinManager(
                 SendspinClient(
                     transport = transport,
                     handshake = handshake,
+                    reHandshake = handshake,
                     session = session,
                     audioSink = streamManager,
                     scope = scope,
