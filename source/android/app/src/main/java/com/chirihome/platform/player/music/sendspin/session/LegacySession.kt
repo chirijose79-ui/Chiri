@@ -577,7 +577,13 @@ class LegacySession(
         @SerialName("player@v1_support")
         val playerSupport: PlayerSupport? = null,
         val unpaired_access: UnpairedAccess = UnpairedAccess(),
-        val supported_pair_methods: List<String> = listOf("pairing_psk")
+        val supported_pair_methods: List<PairMethodDescriptor> =
+            listOf(PairMethodDescriptor(method = "pairing_psk"))
+    )
+
+    @Serializable
+    private data class PairMethodDescriptor(
+        val method: String
     )
 
     @Serializable

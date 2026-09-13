@@ -248,7 +248,7 @@ class LegacySessionTest {
 
         assertTrue(
             clientHello.contains(
-                "\"supported_pair_methods\":[\"pairing_psk\"]"
+                "\"supported_pair_methods\":[{\"method\":\"pairing_psk\"}]"
             )
         )
 
