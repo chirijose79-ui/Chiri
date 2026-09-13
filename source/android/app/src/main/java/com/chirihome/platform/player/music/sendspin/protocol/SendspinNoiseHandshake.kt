@@ -23,6 +23,7 @@ class SendspinNoiseHandshake(
 
     private var identity: SendspinIdentity? = null
     private var handshakeState: HandshakeState? = null
+    private var reHandshakeState: HandshakeState? = null
 
     private var clientInitRaw: String? = null
     private var serverInitRaw: String? = null
@@ -113,6 +114,103 @@ class SendspinNoiseHandshake(
         resolvedPsk = null
         resolvedPskId = null
         resolvedPskType = null
+    }
+
+    fun beginReHandshake(
+        longTermPsk: ByteArray
+    ) {
+        require(longTermPsk.size == PSK_SIZE) {
+            "Long-Term PSK must be 32 bytes"
+        }
+
+        val currentServerStaticPublicKey =
+            serverStaticPublicKey
+                ?: error(
+                    "Server static public key has not been initialized"
+                )
+
+        val currentIdentity =
+            identity
+                ?: error(
+                    "Sendspin identity is not initialized"
+                )
+
+        val previousHandshakeHash =
+            handshakeHash
+                ?: error(
+                    "Previous Noise handshake must be complete"
+                )
+
+        val localStatic = X25519KeyPair(
+            privateKey = currentIdentity.staticPrivateKey,
+            publicKey = currentIdentity.staticPublicKey
+        )
+
+        reHandshakeState =
+            HandshakeState.createKkPsk2(
+                crypto = crypto,
+                role = NoiseRole.RESPONDER,
+                prologue = previousHandshakeHash.copyOf(),
+                localStatic = localStatic,
+                remoteStaticPublic =
+                    currentServerStaticPublicKey.copyOf(),
+                psk = longTermPsk.copyOf()
+            )
+    }
+
+    suspend fun receiveReHandshakeMessage1(
+        rawMessage: String
+    ): String {
+        require(rawMessage.isNotBlank()) {
+            "Empty re-handshake message"
+        }
+
+        val message =
+            json.decodeFromString<SendspinNoiseHandshakeMessage>(
+                rawMessage
+            )
+
+        require(message.type == NOISE_HANDSHAKE_TYPE) {
+            "Unexpected Noise message type: ${message.type}"
+        }
+
+        val encodedData = message.payload.data
+
+        require(encodedData.isNotBlank()) {
+            "Empty Noise re-handshake data"
+        }
+
+        val handshakeMessage =
+            SendspinBase64.decodeUrlSafe(encodedData)
+
+        val state =
+            reHandshakeState
+                ?: error(
+                    "Re-handshake state has not been initialized"
+                )
+
+        require(!state.isComplete) {
+            "Noise re-handshake is already complete"
+        }
+
+        state.readMessage(handshakeMessage)
+
+        val handshakeMessage2 =
+            state.writeMessage(
+                "{}".toByteArray(Charsets.UTF_8)
+            )
+
+        val response =
+            SendspinNoiseHandshakeMessage(
+                payload = SendspinNoiseHandshakePayload(
+                    data =
+                        SendspinBase64.encodeUrlSafe(
+                            handshakeMessage2
+                        )
+                )
+            )
+
+        return json.encodeToString(response)
     }
 
     override suspend fun receiveNoiseMessage1(
@@ -240,6 +338,9 @@ class SendspinNoiseHandshake(
 
     val isComplete: Boolean
         get() = handshakeState?.isComplete == true
+
+    val isReHandshakeReady: Boolean
+        get() = reHandshakeState != null
 
     val handshakeHash: ByteArray?
         get() =
