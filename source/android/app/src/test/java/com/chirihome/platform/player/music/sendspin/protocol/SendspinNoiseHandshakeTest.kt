@@ -162,6 +162,16 @@ class SendspinNoiseHandshakeTest {
             expectedPskId,
             responder.pskId
         )
+
+        assertEquals(
+            SendspinBase64.encodeUrlSafe(serverStaticPublicKey),
+            responder.serverId
+        )
+
+        assertEquals(
+            SendspinPskType.PAIRING,
+            responder.pskType
+        )
     }
 
     @Test
@@ -318,6 +328,16 @@ class SendspinNoiseHandshakeTest {
         assertEquals(
             expectedPskId,
             responder.pskId
+        )
+
+        assertEquals(
+            serverId,
+            responder.serverId
+        )
+
+        assertEquals(
+            SendspinPskType.LONG_TERM,
+            responder.pskType
         )
     }
 

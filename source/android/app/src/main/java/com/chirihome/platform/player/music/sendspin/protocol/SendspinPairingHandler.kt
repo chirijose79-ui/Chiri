@@ -10,13 +10,13 @@ import kotlinx.serialization.json.Json
 class SendspinPairingHandler(
     private val storage: SendspinCredentialStorage,
     private val crypto: NoiseCrypto
-) {
+) : SendspinPairingFinalizer {
 
     private val json = Json {
         encodeDefaults = true
     }
 
-    suspend fun createPairFinalize(
+    override suspend fun createPairFinalize(
         serverId: String
     ): String {
 

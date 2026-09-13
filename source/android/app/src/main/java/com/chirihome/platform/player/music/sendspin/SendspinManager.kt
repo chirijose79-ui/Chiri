@@ -9,6 +9,7 @@ import com.chirihome.platform.player.music.sendspin.crypto.JdkNoiseCrypto
 import com.chirihome.platform.player.music.sendspin.crypto.SendspinIdentityProvider
 import com.chirihome.platform.player.music.sendspin.protocol.SecureSendspinPskResolver
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinNoiseHandshake
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingHandler
 import com.chirihome.platform.player.music.sendspin.session.LegacySession
 import com.chirihome.platform.player.music.sendspin.transport.WebSocketSendspinTransport
 import com.chirihome.platform.storage.SecureSendspinCredentialStorage
@@ -118,6 +119,12 @@ class SendspinManager(
                     pskResolver = pskResolver
                 )
 
+            val pairingFinalizer =
+                SendspinPairingHandler(
+                    storage = storage,
+                    crypto = crypto
+                )
+
             android.util.Log.d(TAG, "[6] handshake ready")
 
             val transport =
@@ -148,14 +155,15 @@ class SendspinManager(
                 DelegatingSendspinMessageSender()
 
             val session = LegacySession(
-                    config = config,
-                    capabilities = SendspinCapabilities(),
-                    transport = transport,
-                    messageSender = messageSender,
-                    clockSynchronizer = clockSynchronizer,
-                    scope = scope,
-                    pairingState = handshake
-                )
+                config = config,
+                capabilities = SendspinCapabilities(),
+                transport = transport,
+                messageSender = messageSender,
+                clockSynchronizer = clockSynchronizer,
+                scope = scope,
+                pairingState = handshake,
+                pairingFinalizer = pairingFinalizer
+            )
 
             android.util.Log.d(TAG, "[9] session ready")
 

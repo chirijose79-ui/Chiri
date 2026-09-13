@@ -4,6 +4,8 @@ import com.chirihome.platform.player.music.sendspin.SendspinCapabilities
 import com.chirihome.platform.player.music.sendspin.SendspinConfig
 import com.chirihome.platform.player.music.sendspin.protocol.MessageDispatcher
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingState
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinPskType
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingFinalizer
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
@@ -46,7 +48,8 @@ class LegacySession(
     private val messageSender: SendspinMessageSender,
     private val clockSynchronizer: ClockSynchronizer,
     private val scope: CoroutineScope,
-    private val pairingState: SendspinPairingState
+    private val pairingState: SendspinPairingState,
+    private val pairingFinalizer: SendspinPairingFinalizer
 ) : SendspinProtocolSession {
 
     private val _events = MutableSharedFlow<SendspinSessionEvent>(
@@ -66,8 +69,20 @@ class LegacySession(
 
     private var clientStateAvailable: Boolean? = null
 
+    private var pairingActivityActive = false
+
+    private var pairingMethod: String? = null
+
+    private var pairFinalizeSent = false
+
     override val isActive: Boolean
         get() = active.get()
+
+    internal val isPairingActivityActive: Boolean
+        get() = pairingActivityActive
+
+    internal val activePairingMethod: String?
+        get() = pairingMethod
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -360,6 +375,43 @@ class LegacySession(
             ?: throw IllegalArgumentException(
                 "server/activate message does not contain a payload"
             )
+
+        val activities = payload["activities"]
+            ?.jsonArray
+            ?.mapNotNull { element ->
+                element.jsonPrimitive.contentOrNull
+            }
+            ?: emptyList()
+
+        pairingActivityActive = "pairing" in activities
+
+        pairingMethod =
+            if (pairingActivityActive) {
+                payload["pairing"]
+                    ?.jsonObject
+                    ?.get("method")
+                    ?.jsonPrimitive
+                    ?.contentOrNull
+            } else {
+                null
+            }
+
+        val shouldFinalizePairing =
+            !pairFinalizeSent &&
+                    pairingActivityActive &&
+                    pairingMethod == "pairing_psk" &&
+                    pairingState.pskType == SendspinPskType.PAIRING &&
+                    !pairingState.serverId.isNullOrBlank()
+
+        if (shouldFinalizePairing) {
+            val serverId = pairingState.serverId!!
+
+            val message = pairingFinalizer.createPairFinalize(serverId)
+
+            messageSender.sendEncrypted(message)
+
+            pairFinalizeSent = true
+        }
 
         val activeRoles = payload["active_roles"]
             ?.jsonArray

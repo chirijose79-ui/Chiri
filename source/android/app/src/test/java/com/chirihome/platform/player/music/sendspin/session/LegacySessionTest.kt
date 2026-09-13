@@ -8,6 +8,7 @@ import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingState
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinPskType
+import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingFinalizer
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
@@ -70,8 +71,27 @@ class LegacySessionTest {
     }
 
     private class FakeSendspinPairingState(
-        override val pskType: SendspinPskType? = null
+        override val pskType: SendspinPskType? = null,
+        override val serverId: String? = null
     ) : SendspinPairingState
+
+    private class FakeSendspinPairingFinalizer : SendspinPairingFinalizer {
+
+        val receivedServerIds = mutableListOf<String>()
+
+        override suspend fun createPairFinalize(serverId: String): String {
+            receivedServerIds += serverId
+
+            return """
+        {
+            "type":"client/pair-finalize",
+            "payload":{
+                "long_term_psk":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
+        }
+        """.trimIndent()
+        }
+    }
 
     private fun createConfig(): SendspinConfig =
         SendspinConfig(
@@ -91,17 +111,20 @@ class LegacySessionTest {
         transport: FakeSendspinTransport,
         messageSender: FakeSendspinMessageSender,
         scope: CoroutineScope,
-        pairingState: SendspinPairingState = FakeSendspinPairingState()
-    ): LegacySession =
-        LegacySession(
+        pairingState: SendspinPairingState = FakeSendspinPairingState(),
+        pairingFinalizer: SendspinPairingFinalizer = FakeSendspinPairingFinalizer()
+    ): LegacySession {
+        return LegacySession(
             config = createConfig(),
             capabilities = createCapabilities(),
             transport = transport,
             messageSender = messageSender,
             clockSynchronizer = ClockSynchronizer(),
             scope = scope,
-            pairingState = pairingState
+            pairingState = pairingState,
+            pairingFinalizer = pairingFinalizer
         )
+    }
 
     @Test
     fun startDoesNotSendClientHello() = runBlocking {
@@ -255,7 +278,8 @@ class LegacySessionTest {
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
-                pairingState = FakeSendspinPairingState()
+                pairingState = FakeSendspinPairingState(),
+                pairingFinalizer = FakeSendspinPairingFinalizer()
             )
 
         val before =
@@ -311,7 +335,8 @@ class LegacySessionTest {
                 messageSender = messageSender,
                 clockSynchronizer = ClockSynchronizer(),
                 scope = scope,
-                pairingState = FakeSendspinPairingState()
+                pairingState = FakeSendspinPairingState(),
+                pairingFinalizer = FakeSendspinPairingFinalizer()
             )
 
         val serverHello =
@@ -432,7 +457,8 @@ class LegacySessionTest {
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
-                pairingState = FakeSendspinPairingState()
+                pairingState = FakeSendspinPairingState(),
+                pairingFinalizer = FakeSendspinPairingFinalizer()
             )
 
         val serverTime1 =
@@ -557,6 +583,266 @@ class LegacySessionTest {
     }
 
     @Test
+    fun pairingActivationWithPairingPskSendsClientPairFinalize() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pairingFinalizer = FakeSendspinPairingFinalizer()
+
+        val session =
+            createSession(
+                transport = transport,
+                messageSender = messageSender,
+                scope = scope,
+                pairingState =
+                    FakeSendspinPairingState(
+                        pskType = SendspinPskType.PAIRING,
+                        serverId = "test-server-id"
+                    ),
+                pairingFinalizer = pairingFinalizer
+            )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[],
+                "pairing":{
+                    "method":"pairing_psk"
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertEquals(
+            listOf("test-server-id"),
+            pairingFinalizer.receivedServerIds
+        )
+
+        val pairFinalizeMessages =
+            messageSender.encryptedMessages.filter {
+                it.contains("\"type\":\"client/pair-finalize\"")
+            }
+
+        assertEquals(1, pairFinalizeMessages.size)
+
+        assertTrue(
+            pairFinalizeMessages.single().contains(
+                "\"long_term_psk\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+            )
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun pairingActivationWithLongTermPskDoesNotSendClientPairFinalize() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pairingFinalizer = FakeSendspinPairingFinalizer()
+
+        val session =
+            createSession(
+                transport = transport,
+                messageSender = messageSender,
+                scope = scope,
+                pairingState =
+                    FakeSendspinPairingState(
+                        pskType = SendspinPskType.LONG_TERM,
+                        serverId = "test-server-id"
+                    ),
+                pairingFinalizer = pairingFinalizer
+            )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[],
+                "pairing":{
+                    "method":"pairing_psk"
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertTrue(pairingFinalizer.receivedServerIds.isEmpty())
+
+        assertTrue(
+            messageSender.encryptedMessages.none {
+                it.contains("\"type\":\"client/pair-finalize\"")
+            }
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun pairingActivationWithUnsupportedPairingMethodDoesNotSendClientPairFinalize() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pairingFinalizer = FakeSendspinPairingFinalizer()
+
+        val session =
+            createSession(
+                transport = transport,
+                messageSender = messageSender,
+                scope = scope,
+                pairingState =
+                    FakeSendspinPairingState(
+                        pskType = SendspinPskType.PAIRING,
+                        serverId = "test-server-id"
+                    ),
+                pairingFinalizer = pairingFinalizer
+            )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[],
+                "pairing":{
+                    "method":"unsupported_method"
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertTrue(pairingFinalizer.receivedServerIds.isEmpty())
+
+        assertTrue(
+            messageSender.encryptedMessages.none {
+                it.contains("\"type\":\"client/pair-finalize\"")
+            }
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun pairingActivationWithoutServerIdDoesNotSendClientPairFinalize() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pairingFinalizer = FakeSendspinPairingFinalizer()
+
+        val session =
+            createSession(
+                transport = transport,
+                messageSender = messageSender,
+                scope = scope,
+                pairingState =
+                    FakeSendspinPairingState(
+                        pskType = SendspinPskType.PAIRING,
+                        serverId = null
+                    ),
+                pairingFinalizer = pairingFinalizer
+            )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[],
+                "pairing":{
+                    "method":"pairing_psk"
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertTrue(pairingFinalizer.receivedServerIds.isEmpty())
+
+        assertTrue(
+            messageSender.encryptedMessages.none {
+                it.contains("\"type\":\"client/pair-finalize\"")
+            }
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun repeatedPairingActivationSendsClientPairFinalizeOnlyOnce() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val pairingFinalizer = FakeSendspinPairingFinalizer()
+
+        val session =
+            createSession(
+                transport = transport,
+                messageSender = messageSender,
+                scope = scope,
+                pairingState =
+                    FakeSendspinPairingState(
+                        pskType = SendspinPskType.PAIRING,
+                        serverId = "test-server-id"
+                    ),
+                pairingFinalizer = pairingFinalizer
+            )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[],
+                "pairing":{
+                    "method":"pairing_psk"
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+        session.handleMessage(serverActivate)
+
+        delay(100)
+
+        assertEquals(
+            listOf("test-server-id"),
+            pairingFinalizer.receivedServerIds
+        )
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/pair-finalize\"")
+            }
+        )
+
+        scope.cancel()
+    }
+
+    @Test
     fun inactivePlayerRoleDoesNotSendClientState() = runBlocking {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()
@@ -608,7 +894,8 @@ class LegacySessionTest {
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
-                pairingState = FakeSendspinPairingState()
+                pairingState = FakeSendspinPairingState(),
+                pairingFinalizer = FakeSendspinPairingFinalizer()
             )
 
         val serverActivate =
@@ -720,7 +1007,8 @@ class LegacySessionTest {
                 messageSender = messageSender,
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
-                pairingState = FakeSendspinPairingState()
+                pairingState = FakeSendspinPairingState(),
+                pairingFinalizer = FakeSendspinPairingFinalizer()
             )
 
         session.handleMessage(
@@ -801,6 +1089,151 @@ class LegacySessionTest {
         assertEquals(
             1,
             availableStateCountAfterExtraSample
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun serverActivateDetectsPairingPskActivity() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope,
+            pairingState = FakeSendspinPairingState(
+                pskType = SendspinPskType.PAIRING
+            )
+        )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[],
+                "pairing":{
+                    "method":"pairing_psk"
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        assertTrue(session.isPairingActivityActive)
+        assertEquals(
+            "pairing_psk",
+            session.activePairingMethod
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun serverActivateWithoutPairingActivityIsNotPairing() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope
+        )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["playback"],
+                "active_roles":["player@v1"]
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        assertTrue(!session.isPairingActivityActive)
+        assertEquals(
+            null,
+            session.activePairingMethod
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun serverActivatePairingWithoutMethodKeepsMethodNull() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope
+        )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[]
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        assertTrue(session.isPairingActivityActive)
+        assertEquals(
+            null,
+            session.activePairingMethod
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun serverActivatePreservesUnsupportedPairingMethod() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope
+        )
+
+        val serverActivate =
+            """
+        {
+            "type":"server/activate",
+            "payload":{
+                "activities":["pairing"],
+                "active_roles":[],
+                "pairing":{
+                    "method":"some_other_method"
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(serverActivate)
+
+        assertTrue(session.isPairingActivityActive)
+        assertEquals(
+            "some_other_method",
+            session.activePairingMethod
         )
 
         scope.cancel()
