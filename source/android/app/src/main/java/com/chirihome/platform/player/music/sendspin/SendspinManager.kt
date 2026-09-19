@@ -163,7 +163,8 @@ class SendspinManager(
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
                 pairingState = handshake,
-                pairingFinalizer = pairingFinalizer
+                pairingFinalizer = pairingFinalizer,
+                audioLifecycle = streamManager
             )
 
             android.util.Log.d(TAG, "[9] session ready")

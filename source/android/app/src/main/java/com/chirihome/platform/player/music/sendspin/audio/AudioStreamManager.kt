@@ -23,7 +23,7 @@ import kotlinx.coroutines.sync.withLock
 class AudioStreamManager(
     private val audioPipeline: AudioPipeline,
     private val clockSynchronizer: ClockSynchronizer
-) : SendspinAudioSink {
+) : SendspinAudioSink, SendspinAudioLifecycle {
 
     private val mutex = Mutex()
 
@@ -39,7 +39,7 @@ class AudioStreamManager(
     private var droppedLateFrames = 0L
     private var processedFrames = 0L
 
-    suspend fun configure(
+    override suspend fun configure(
         sampleRate: Int,
         channels: Int,
         bitDepth: Int,
@@ -85,7 +85,7 @@ class AudioStreamManager(
     /**
      * Starts audio output.
      */
-    suspend fun start() {
+    override suspend fun start() {
         mutex.withLock {
             check(configured) {
                 "AudioStreamManager is not configured"

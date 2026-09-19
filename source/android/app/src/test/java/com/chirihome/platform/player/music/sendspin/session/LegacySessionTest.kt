@@ -3,6 +3,7 @@ package com.chirihome.platform.player.music.sendspin.session
 import com.chirihome.platform.player.music.sendspin.SendspinCapabilities
 import com.chirihome.platform.player.music.sendspin.SendspinConfig
 import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
+import com.chirihome.platform.player.music.sendspin.audio.SendspinAudioLifecycle
 import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEvent
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
@@ -101,6 +102,38 @@ class LegacySessionTest {
         }
     }
 
+    private class FakeSendspinAudioLifecycle :
+        SendspinAudioLifecycle {
+
+        val configurations = mutableListOf<AudioConfiguration>()
+
+        var startCount = 0
+
+        override suspend fun configure(
+            sampleRate: Int,
+            channels: Int,
+            bitDepth: Int,
+            codec: String
+        ) {
+            configurations += AudioConfiguration(
+                sampleRate = sampleRate,
+                channels = channels,
+                bitDepth = bitDepth,
+                codec = codec
+            )
+        }
+
+        override suspend fun start() {
+            startCount++
+        }
+
+        data class AudioConfiguration(
+            val sampleRate: Int,
+            val channels: Int,
+            val bitDepth: Int,
+            val codec: String
+        )
+    }
     private fun createConfig(): SendspinConfig =
         SendspinConfig(
             clientId = "test-client",
@@ -130,7 +163,8 @@ class LegacySessionTest {
             clockSynchronizer = ClockSynchronizer(),
             scope = scope,
             pairingState = pairingState,
-            pairingFinalizer = pairingFinalizer
+            pairingFinalizer = pairingFinalizer,
+            audioLifecycle = FakeSendspinAudioLifecycle()
         )
     }
 
@@ -287,7 +321,8 @@ class LegacySessionTest {
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
-                pairingFinalizer = FakeSendspinPairingFinalizer()
+                pairingFinalizer = FakeSendspinPairingFinalizer(),
+                audioLifecycle = FakeSendspinAudioLifecycle()
             )
 
         val before =
@@ -344,7 +379,8 @@ class LegacySessionTest {
                 clockSynchronizer = ClockSynchronizer(),
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
-                pairingFinalizer = FakeSendspinPairingFinalizer()
+                pairingFinalizer = FakeSendspinPairingFinalizer(),
+                audioLifecycle = FakeSendspinAudioLifecycle()
             )
 
         val serverHello =
@@ -466,7 +502,8 @@ class LegacySessionTest {
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
-                pairingFinalizer = FakeSendspinPairingFinalizer()
+                pairingFinalizer = FakeSendspinPairingFinalizer(),
+                audioLifecycle = FakeSendspinAudioLifecycle()
             )
 
         val serverTime1 =
@@ -1018,7 +1055,8 @@ class LegacySessionTest {
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
-                pairingFinalizer = FakeSendspinPairingFinalizer()
+                pairingFinalizer = FakeSendspinPairingFinalizer(),
+                audioLifecycle = FakeSendspinAudioLifecycle()
             )
 
         val serverActivate =
@@ -1131,7 +1169,8 @@ class LegacySessionTest {
                 clockSynchronizer = clockSynchronizer,
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
-                pairingFinalizer = FakeSendspinPairingFinalizer()
+                pairingFinalizer = FakeSendspinPairingFinalizer(),
+                audioLifecycle = FakeSendspinAudioLifecycle()
             )
 
         session.handleMessage(
@@ -1357,6 +1396,63 @@ class LegacySessionTest {
         assertEquals(
             "some_other_method",
             session.activePairingMethod
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun streamStartConfiguresAndStartsAudio() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val audioLifecycle = FakeSendspinAudioLifecycle()
+
+        val session =
+            LegacySession(
+                config = createConfig(),
+                capabilities = createCapabilities(),
+                transport = transport,
+                messageSender = messageSender,
+                clockSynchronizer = ClockSynchronizer(),
+                scope = scope,
+                pairingState = FakeSendspinPairingState(),
+                pairingFinalizer = FakeSendspinPairingFinalizer(),
+                audioLifecycle = audioLifecycle
+            )
+
+        val streamStart =
+            """
+        {
+            "type":"stream/start",
+            "payload":{
+                "player":{
+                    "codec":"opus",
+                    "sample_rate":48000,
+                    "channels":2,
+                    "bit_depth":16
+                }
+            }
+        }
+        """.trimIndent()
+
+        session.handleMessage(streamStart)
+
+        assertEquals(
+            listOf(
+                FakeSendspinAudioLifecycle.AudioConfiguration(
+                    sampleRate = 48000,
+                    channels = 2,
+                    bitDepth = 16,
+                    codec = "opus"
+                )
+            ),
+            audioLifecycle.configurations
+        )
+
+        assertEquals(
+            1,
+            audioLifecycle.startCount
         )
 
         scope.cancel()

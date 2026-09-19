@@ -10,6 +10,7 @@ import com.chirihome.platform.player.music.sendspin.transport.InboundTransportEv
 import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
 import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
+import com.chirihome.platform.player.music.sendspin.audio.SendspinAudioLifecycle
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -49,7 +50,8 @@ class LegacySession(
     private val clockSynchronizer: ClockSynchronizer,
     private val scope: CoroutineScope,
     private val pairingState: SendspinPairingState,
-    private val pairingFinalizer: SendspinPairingFinalizer
+    private val pairingFinalizer: SendspinPairingFinalizer,
+    private val audioLifecycle: SendspinAudioLifecycle
 ) : SendspinProtocolSession {
 
     private val _events = MutableSharedFlow<SendspinSessionEvent>(
@@ -316,6 +318,12 @@ class LegacySession(
             }
 
             is MessageDispatcher.DispatchResult.Stream -> {
+                when (result.type) {
+                    "stream/start" -> {
+                        processStreamStart(result.payload)
+                    }
+                }
+
                 _events.emit(
                     SendspinSessionEvent.MessageReceived(
                         message
@@ -593,6 +601,66 @@ class LegacySession(
                 }
             }
         }
+    }
+
+    private suspend fun processStreamStart(
+        message: kotlinx.serialization.json.JsonObject
+    ) {
+        val payload =
+            message["payload"]?.jsonObject
+                ?: throw IllegalArgumentException(
+                    "stream/start message does not contain a payload"
+                )
+
+        val player =
+            payload["player"]?.jsonObject
+                ?: throw IllegalArgumentException(
+                    "stream/start payload does not contain player"
+                )
+
+        val codec =
+            player["codec"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?: throw IllegalArgumentException(
+                    "stream/start player does not contain codec"
+                )
+
+        val sampleRate =
+            player["sample_rate"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.toIntOrNull()
+                ?: throw IllegalArgumentException(
+                    "stream/start player does not contain sample_rate"
+                )
+
+        val channels =
+            player["channels"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.toIntOrNull()
+                ?: throw IllegalArgumentException(
+                    "stream/start player does not contain channels"
+                )
+
+        val bitDepth =
+            player["bit_depth"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.toIntOrNull()
+                ?: throw IllegalArgumentException(
+                    "stream/start player does not contain bit_depth"
+                )
+
+        audioLifecycle.configure(
+            sampleRate = sampleRate,
+            channels = channels,
+            bitDepth = bitDepth,
+            codec = codec
+        )
+
+        audioLifecycle.start()
     }
 
     @Serializable
