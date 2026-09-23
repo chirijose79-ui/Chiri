@@ -69,30 +69,17 @@ class WebSocketSendspinTransport(
                             when (frame) {
                                 is Frame.Text -> {
                                     val message = frame.readText()
-
                                     println("[SendspinTransport] [RECV] WebSocket text: $message")
-
-                                    _events.emit(
-                                        InboundTransportEvent.TextMessage(
-                                            message
-                                        )
-                                    )
+                                    _events.emit(InboundTransportEvent.TextMessage(message))
                                 }
 
                                 is Frame.Binary -> {
                                     val data = frame.readBytes()
-
-                                    _events.emit(
-                                        InboundTransportEvent.BinaryMessage(
-                                            data
-                                        )
-                                    )
+                                    _events.emit(InboundTransportEvent.BinaryMessage(data))
                                 }
 
                                 is Frame.Close -> {
-                                    println(
-                                        "[SendspinTransport] [RECV] WebSocket CLOSE frame: $frame"
-                                    )
+                                    println("[SendspinTransport] [RECV] WebSocket CLOSE frame: $frame")
                                     break
                                 }
 
@@ -100,13 +87,28 @@ class WebSocketSendspinTransport(
                                 is Frame.Pong -> Unit
                             }
                         }
+
+                        println("[SendspinTransport] [TRACE] incoming loop ENDED")
+
+                    } catch (throwable: Throwable) {
+
+                        println(
+                            "[SendspinTransport] [ERROR] incoming loop exception: " +
+                                    "${throwable::class.qualifiedName}: ${throwable.message}"
+                        )
+
+                        throwable.printStackTrace()
+
+                        throw throwable
+
                     } finally {
+
+                        println("[SendspinTransport] [TRACE] incoming loop FINALLY")
+
                         session = null
 
                         if (connected.compareAndSet(true, false)) {
-                            _events.emit(
-                                InboundTransportEvent.Disconnected()
-                            )
+                            _events.emit(InboundTransportEvent.Disconnected())
                         }
                     }
                 }

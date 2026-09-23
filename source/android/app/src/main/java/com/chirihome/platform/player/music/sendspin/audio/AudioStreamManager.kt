@@ -4,6 +4,8 @@ import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+import android.util.Log
+
 /**
  * Coordinates incoming Sendspin audio frames with the audio pipeline.
  *
@@ -173,12 +175,28 @@ class AudioStreamManager(
 
             val latenessMicros = nowMicros - localTimestampMicros
 
+            Log.d(
+                "SendspinAudio",
+                "frame received: bytes=${encodedData.size}, latenessUs=$latenessMicros"
+            )
+
             if (latenessMicros > MAX_LATE_FRAME_MICROS) {
                 droppedLateFrames++
+
+                Log.d(
+                    "SendspinAudio",
+                    "frame DROPPED late: latenessUs=$latenessMicros"
+                )
+
                 return
             }
 
             acceptedFrames++
+
+            Log.d(
+                "SendspinAudio",
+                "frame ACCEPTED: bytes=${encodedData.size}"
+            )
 
             audioPipeline.processAudioPacket(encodedData)
 
