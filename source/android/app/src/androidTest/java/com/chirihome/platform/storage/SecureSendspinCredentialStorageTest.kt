@@ -184,6 +184,57 @@ class SecureSendspinCredentialStorageTest {
         }
     }
 
+    @Test
+    fun removeLongTermPskRemovesOnlySelectedServer() {
+        val serverA = "server-a"
+        val serverB = "server-b"
+
+        val pskA = ByteArray(32) { (it + 80).toByte() }
+        val pskB = ByteArray(32) { (it + 112).toByte() }
+
+        kotlinx.coroutines.runBlocking {
+            storage.saveLongTermPsk(serverA, pskA)
+            storage.saveLongTermPsk(serverB, pskB)
+
+            storage.removeLongTermPsk(serverA)
+
+            assertNull(
+                storage.getLongTermPsk(serverA)
+            )
+
+            assertArrayEquals(
+                pskB,
+                storage.getLongTermPsk(serverB)
+            )
+        }
+    }
+
+    @Test
+    fun removeLongTermPskDoesNotRemovePairingPsk() {
+        val serverId = "server-a"
+        val pairingPsk = ByteArray(32) { (it + 32).toByte() }
+        val longTermPsk = ByteArray(32) { (it + 80).toByte() }
+
+        kotlinx.coroutines.runBlocking {
+            storage.savePairingPsk(pairingPsk)
+            storage.saveLongTermPsk(
+                serverId,
+                longTermPsk
+            )
+
+            storage.removeLongTermPsk(serverId)
+
+            assertNull(
+                storage.getLongTermPsk(serverId)
+            )
+
+            assertArrayEquals(
+                pairingPsk,
+                storage.getPairingPsk()
+            )
+        }
+    }
+
     private fun runBlockingClear() {
         kotlinx.coroutines.runBlocking {
             storage.clearCredentials()

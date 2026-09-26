@@ -11,6 +11,7 @@ import com.chirihome.platform.player.music.sendspin.transport.SendspinTransport
 import com.chirihome.platform.player.music.sendspin.SendspinMessageSender
 import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import com.chirihome.platform.player.music.sendspin.audio.SendspinAudioLifecycle
+import com.chirihome.platform.storage.SendspinCredentialStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -51,7 +52,8 @@ class LegacySession(
     private val scope: CoroutineScope,
     private val pairingState: SendspinPairingState,
     private val pairingFinalizer: SendspinPairingFinalizer,
-    private val audioLifecycle: SendspinAudioLifecycle
+    private val audioLifecycle: SendspinAudioLifecycle,
+    private val credentialStorage: SendspinCredentialStorage
 ) : SendspinProtocolSession {
 
     private val _events = MutableSharedFlow<SendspinSessionEvent>(
@@ -365,6 +367,18 @@ class LegacySession(
                 )
             }
 
+            is MessageDispatcher.DispatchResult.SessionControl -> {
+                if (result.type == "server/unpair") {
+                    processServerUnpair()
+                }
+
+                _events.emit(
+                    SendspinSessionEvent.MessageReceived(
+                        message
+                    )
+                )
+            }
+
             is MessageDispatcher.DispatchResult.Unknown -> {
                 _events.emit(
                     SendspinSessionEvent.MessageReceived(
@@ -404,6 +418,33 @@ class LegacySession(
         pairingFinalizer.confirmPairFinalize(
             serverId
         )
+    }
+
+    private suspend fun processServerUnpair() {
+        val serverId =
+            pairingState.serverId
+                ?: throw IllegalStateException(
+                    "server/unpair received without server id"
+                )
+
+        require(serverId.isNotBlank()) {
+            "server/unpair received with blank server id"
+        }
+
+        credentialStorage.removeLongTermPsk(serverId)
+
+        val goodbyeMessage = """
+            {
+                "type":"client/goodbye",
+                "payload":{
+                    "reason":"unpaired"
+                }
+            }
+        """.trimIndent()
+
+        messageSender.sendEncrypted(goodbyeMessage)
+
+        stop()
     }
 
     private suspend fun processServerActivate(

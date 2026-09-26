@@ -89,6 +89,10 @@ class SendspinPairingProvisionerTest {
             serverId: String
         ): ByteArray? = null
 
+        override suspend fun removeLongTermPsk(
+            serverId: String
+        ) {}
+
         override suspend fun saveServerStaticPublicKey(key: ByteArray) {}
 
         override suspend fun getServerStaticPublicKey(): ByteArray? = null

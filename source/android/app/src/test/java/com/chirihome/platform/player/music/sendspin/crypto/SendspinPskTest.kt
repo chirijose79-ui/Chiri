@@ -257,4 +257,56 @@ class SendspinPskTest {
             first.contentEquals(second)
         )
     }
+
+    @Test
+    fun createToken_matchesOfficialSendspinVector() {
+        val clientKey =
+            ByteArray(32) { it.toByte() }
+
+        val pairingPsk =
+            ByteArray(32) {
+                (0xE0 + it).toByte()
+            }
+
+        val expectedToken =
+            "SP:0AAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYP6BYPC4PSOLZXH5DU6V97M5XXO74HR6LZ7J5PW674PT6X37T6757Y"
+
+        val token =
+            SendspinPsk.createToken(
+                clientKey,
+                pairingPsk
+            )
+
+        assertEquals(
+            expectedToken,
+            token
+        )
+    }
+
+    @Test
+    fun decodeToken_acceptsOfficialSendspinVector() {
+        val token =
+            "SP:0AAAQEAYEAUDAOCAJBIFQYDIOB4IBCEQTCQKRMFYYDENBWHA5DYP6BYPC4PSOLZXH5DU6V97M5XXO74HR6LZ7J5PW674PT6X37T6757Y"
+
+        val expectedClientKey =
+            ByteArray(32) { it.toByte() }
+
+        val expectedPairingPsk =
+            ByteArray(32) {
+                (0xE0 + it).toByte()
+            }
+
+        val decoded =
+            SendspinPsk.decodeToken(token)
+
+        assertArrayEquals(
+            expectedClientKey,
+            decoded.first
+        )
+
+        assertArrayEquals(
+            expectedPairingPsk,
+            decoded.second
+        )
+    }
 }

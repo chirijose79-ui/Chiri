@@ -87,6 +87,12 @@ class MessageDispatcher {
                     payload = payload
                 )
 
+            MessageCategory.SESSION_CONTROL ->
+                DispatchResult.SessionControl(
+                    type = type,
+                    payload = payload
+                )
+
             MessageCategory.UNKNOWN ->
                 DispatchResult.Unknown(
                     type = type,
@@ -114,6 +120,9 @@ class MessageDispatcher {
             type.startsWith("metadata/") ->
                 MessageCategory.METADATA
 
+            type == "server/unpair" ->
+                MessageCategory.SESSION_CONTROL
+
             else ->
                 MessageCategory.UNKNOWN
         }
@@ -125,6 +134,7 @@ class MessageDispatcher {
         SYNCHRONIZATION,
         PLAYER,
         METADATA,
+        SESSION_CONTROL,
         UNKNOWN
     }
 
@@ -151,6 +161,11 @@ class MessageDispatcher {
         ) : DispatchResult
 
         data class Metadata(
+            val type: String,
+            val payload: JsonObject
+        ) : DispatchResult
+
+        data class SessionControl(
             val type: String,
             val payload: JsonObject
         ) : DispatchResult

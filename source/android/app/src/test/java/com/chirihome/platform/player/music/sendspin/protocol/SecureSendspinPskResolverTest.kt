@@ -465,6 +465,12 @@ class SecureSendspinPskResolverTest {
             return longTermPsks[serverId]?.copyOf()
         }
 
+        override suspend fun removeLongTermPsk(
+            serverId: String
+        ) {
+            longTermPsks.remove(serverId)
+        }
+
         override suspend fun saveServerStaticPublicKey(
             key: ByteArray
         ) {

@@ -32,6 +32,7 @@ object SendspinPsk {
 
         return TOKEN_PREFIX +
                 SendspinBase32.encode(payload)
+                    .replace('2', '9')
     }
 
     fun decodeToken(
@@ -57,7 +58,7 @@ object SendspinPsk {
 
         val payload =
             SendspinBase32.decode(
-                encoded
+                encoded.replace('9', '2')
             )
 
         require(

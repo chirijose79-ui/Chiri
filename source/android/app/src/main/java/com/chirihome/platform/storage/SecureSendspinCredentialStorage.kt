@@ -99,6 +99,22 @@ class SecureSendspinCredentialStorage(
         )
     }
 
+    override suspend fun removeLongTermPsk(
+        serverId: String
+    ) {
+        if (serverId.isBlank()) {
+            return
+        }
+
+        val key =
+            "${KEY_LONG_TERM_PSK_PREFIX}${serverId}"
+
+        preferences.edit()
+            .remove(key)
+            .remove("${key}_iv")
+            .apply()
+    }
+
     override suspend fun saveServerStaticPublicKey(key: ByteArray) {
         saveEncrypted(KEY_SERVER_STATIC_PUBLIC_KEY, key)
     }

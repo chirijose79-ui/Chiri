@@ -10,6 +10,7 @@ import com.chirihome.platform.player.music.sendspin.ClockSynchronizer
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingState
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinPskType
 import com.chirihome.platform.player.music.sendspin.protocol.SendspinPairingFinalizer
+import com.chirihome.platform.storage.SendspinCredentialStorage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
@@ -102,6 +103,61 @@ class LegacySessionTest {
         }
     }
 
+    private class FakeSendspinCredentialStorage :
+        SendspinCredentialStorage {
+
+        private val longTermPsks =
+            mutableMapOf<String, ByteArray>()
+
+        val removedServerIds =
+            mutableListOf<String>()
+
+        override suspend fun saveStaticPrivateKey(
+            key: ByteArray
+        ) {}
+
+        override suspend fun getStaticPrivateKey(): ByteArray? =
+            null
+
+        override suspend fun savePairingPsk(
+            psk: ByteArray
+        ) {}
+
+        override suspend fun getPairingPsk(): ByteArray? =
+            null
+
+        override suspend fun saveLongTermPsk(
+            serverId: String,
+            psk: ByteArray
+        ) {
+            longTermPsks[serverId] = psk.copyOf()
+        }
+
+        override suspend fun getLongTermPsk(
+            serverId: String
+        ): ByteArray? {
+            return longTermPsks[serverId]?.copyOf()
+        }
+
+        override suspend fun removeLongTermPsk(
+            serverId: String
+        ) {
+            removedServerIds += serverId
+            longTermPsks.remove(serverId)
+        }
+
+        override suspend fun saveServerStaticPublicKey(
+            key: ByteArray
+        ) {}
+
+        override suspend fun getServerStaticPublicKey(): ByteArray? =
+            null
+
+        override suspend fun clearCredentials() {
+            longTermPsks.clear()
+        }
+    }
+
     private class FakeSendspinAudioLifecycle :
         SendspinAudioLifecycle {
 
@@ -153,7 +209,9 @@ class LegacySessionTest {
         messageSender: FakeSendspinMessageSender,
         scope: CoroutineScope,
         pairingState: SendspinPairingState = FakeSendspinPairingState(),
-        pairingFinalizer: SendspinPairingFinalizer = FakeSendspinPairingFinalizer()
+        pairingFinalizer: SendspinPairingFinalizer = FakeSendspinPairingFinalizer(),
+        credentialStorage: SendspinCredentialStorage =
+            FakeSendspinCredentialStorage()
     ): LegacySession {
         return LegacySession(
             config = createConfig(),
@@ -164,7 +222,8 @@ class LegacySessionTest {
             scope = scope,
             pairingState = pairingState,
             pairingFinalizer = pairingFinalizer,
-            audioLifecycle = FakeSendspinAudioLifecycle()
+            audioLifecycle = FakeSendspinAudioLifecycle(),
+            credentialStorage = credentialStorage
         )
     }
 
@@ -322,7 +381,8 @@ class LegacySessionTest {
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
                 pairingFinalizer = FakeSendspinPairingFinalizer(),
-                audioLifecycle = FakeSendspinAudioLifecycle()
+                audioLifecycle = FakeSendspinAudioLifecycle(),
+                credentialStorage = FakeSendspinCredentialStorage()
             )
 
         val before =
@@ -380,7 +440,8 @@ class LegacySessionTest {
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
                 pairingFinalizer = FakeSendspinPairingFinalizer(),
-                audioLifecycle = FakeSendspinAudioLifecycle()
+                audioLifecycle = FakeSendspinAudioLifecycle(),
+                credentialStorage = FakeSendspinCredentialStorage()
             )
 
         val serverHello =
@@ -503,7 +564,8 @@ class LegacySessionTest {
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
                 pairingFinalizer = FakeSendspinPairingFinalizer(),
-                audioLifecycle = FakeSendspinAudioLifecycle()
+                audioLifecycle = FakeSendspinAudioLifecycle(),
+                credentialStorage = FakeSendspinCredentialStorage()
             )
 
         val serverTime1 =
@@ -1056,7 +1118,8 @@ class LegacySessionTest {
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
                 pairingFinalizer = FakeSendspinPairingFinalizer(),
-                audioLifecycle = FakeSendspinAudioLifecycle()
+                audioLifecycle = FakeSendspinAudioLifecycle(),
+                credentialStorage = FakeSendspinCredentialStorage()
             )
 
         val serverActivate =
@@ -1170,7 +1233,8 @@ class LegacySessionTest {
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
                 pairingFinalizer = FakeSendspinPairingFinalizer(),
-                audioLifecycle = FakeSendspinAudioLifecycle()
+                audioLifecycle = FakeSendspinAudioLifecycle(),
+                credentialStorage = FakeSendspinCredentialStorage()
             )
 
         session.handleMessage(
@@ -1418,7 +1482,8 @@ class LegacySessionTest {
                 scope = scope,
                 pairingState = FakeSendspinPairingState(),
                 pairingFinalizer = FakeSendspinPairingFinalizer(),
-                audioLifecycle = audioLifecycle
+                audioLifecycle = audioLifecycle,
+                credentialStorage = FakeSendspinCredentialStorage()
             )
 
         val streamStart =
@@ -1453,6 +1518,57 @@ class LegacySessionTest {
         assertEquals(
             1,
             audioLifecycle.startCount
+        )
+
+        scope.cancel()
+    }
+
+    @Test
+    fun serverUnpairRemovesLongTermPskSendsGoodbyeAndStopsSession() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val credentialStorage = FakeSendspinCredentialStorage()
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope,
+            pairingState = FakeSendspinPairingState(
+                serverId = "test-server-id"
+            ),
+            credentialStorage = credentialStorage
+        )
+
+        session.handleMessage(
+            """
+            {
+                "type":"server/unpair",
+                "payload":{}
+            }
+            """.trimIndent()
+        )
+
+        assertEquals(
+            listOf("test-server-id"),
+            credentialStorage.removedServerIds
+        )
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/goodbye\"")
+            }
+        )
+
+        assertTrue(
+            messageSender.encryptedMessages.any {
+                it.contains("\"reason\":\"unpaired\"")
+            }
+        )
+
+        assertTrue(
+            !session.isActive
         )
 
         scope.cancel()
