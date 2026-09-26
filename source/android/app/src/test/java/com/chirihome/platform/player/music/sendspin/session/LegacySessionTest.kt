@@ -548,6 +548,46 @@ class LegacySessionTest {
     }
 
     @Test
+    fun disconnectedResetsConnectionStateForNextConnection() = runBlocking {
+        val transport = FakeSendspinTransport()
+        val messageSender = FakeSendspinMessageSender()
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        val session = createSession(
+            transport = transport,
+            messageSender = messageSender,
+            scope = scope
+        )
+
+        val serverHello =
+            """{"type":"server/hello","payload":{"name":"Music Assistant"}}"""
+
+        session.handleMessage(serverHello)
+
+        assertEquals(
+            1,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/hello\"")
+            }
+        )
+
+        session.handleTransportEvent(
+            InboundTransportEvent.Disconnected()
+        )
+
+        session.handleMessage(serverHello)
+
+        assertEquals(
+            2,
+            messageSender.encryptedMessages.count {
+                it.contains("\"type\":\"client/hello\"")
+            }
+        )
+
+        scope.cancel()
+    }
+
+    @Test
     fun serverTimeUpdatesClockSynchronizer() = runBlocking {
         val transport = FakeSendspinTransport()
         val messageSender = FakeSendspinMessageSender()

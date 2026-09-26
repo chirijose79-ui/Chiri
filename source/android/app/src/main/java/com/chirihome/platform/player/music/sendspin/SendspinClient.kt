@@ -377,9 +377,9 @@ class SendspinClient(
         )
 
         _connectionState.value = ConnectionState.Disconnected
-
         eventJob?.cancel()
         eventJob = null
+        noiseTransport = null
     }
 
     /**
@@ -392,9 +392,9 @@ class SendspinClient(
         )
 
         _connectionState.value = ConnectionState.Disconnected
-
         eventJob?.cancel()
         eventJob = null
+        noiseTransport = null
     }
 
     override suspend fun sendEncrypted(message: String) {

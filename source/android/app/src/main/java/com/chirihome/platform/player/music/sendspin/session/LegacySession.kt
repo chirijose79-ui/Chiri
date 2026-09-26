@@ -79,6 +79,21 @@ class LegacySession(
 
     private var pairFinalizeSent = false
 
+    private fun resetConnectionState() {
+        clockSyncJob?.cancel()
+        clockSyncJob = null
+
+        clientHelloSent = false
+        playerRoleActive = false
+        clientStateAvailable = null
+
+        pairingActivityActive = false
+        pairingMethod = null
+        pairFinalizeSent = false
+
+        clockSynchronizer.reset()
+    }
+
     override val isActive: Boolean
         get() = active.get()
 
@@ -132,8 +147,7 @@ class LegacySession(
             }
 
             is InboundTransportEvent.Disconnected -> {
-                clockSyncJob?.cancel()
-                clockSyncJob = null
+                resetConnectionState()
 
                 active.set(false)
 
