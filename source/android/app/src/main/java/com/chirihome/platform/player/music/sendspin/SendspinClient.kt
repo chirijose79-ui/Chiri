@@ -134,7 +134,10 @@ class SendspinClient(
 
         try {
             when (event) {
-                is InboundTransportEvent.Connected -> handleConnected()
+                is InboundTransportEvent.Connected -> {
+                    session.handleTransportEvent(event)
+                    handleConnected()
+                }
 
                 is InboundTransportEvent.TextMessage ->
                     handleTextMessage(event.message)
@@ -149,11 +152,15 @@ class SendspinClient(
                     )
                 }
 
-                is InboundTransportEvent.Disconnected ->
+                is InboundTransportEvent.Disconnected -> {
+                    session.handleTransportEvent(event)
                     handleDisconnected(event.cause)
+                }
 
-                is InboundTransportEvent.Error ->
+                is InboundTransportEvent.Error -> {
+                    session.handleTransportEvent(event)
                     handleError(event.cause)
+                }
             }
         } catch (throwable: Throwable) {
             println(

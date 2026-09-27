@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.isActive
 
 class SendspinManager(
     context: Context
@@ -46,6 +46,7 @@ class SendspinManager(
     private var connectionJob: Job? = null
     private var client: SendspinClient? = null
     private var audioSink: AudioStreamManager? = null
+    private var reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
 
     fun start() {
         if (lifecycleJob?.isActive == true) {
@@ -193,27 +194,50 @@ class SendspinManager(
             connectionJob?.cancel()
 
             connectionJob = scope.launch {
-                try {
-                    android.util.Log.d(TAG, "[11] SendspinClient.connect START")
 
-                    sendspinClient.connect()
+                while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                    try {
+                        android.util.Log.d(
+                            TAG,
+                            "[11] SendspinClient.connect START"
+                        )
 
-                    android.util.Log.d(TAG, "[12] SendspinClient.connect RETURNED")
-                } catch (exception: CancellationException) {
+                        sendspinClient.connect()
+
+                        android.util.Log.d(
+                            TAG,
+                            "[12] SendspinClient.connect RETURNED"
+                        )
+
+                    } catch (exception: CancellationException) {
+                        android.util.Log.d(
+                            TAG,
+                            "[13] connect CANCELLED"
+                        )
+                        throw exception
+
+                    } catch (exception: Exception) {
+                        android.util.Log.e(
+                            TAG,
+                            "[13] connect FAILED",
+                            exception
+                        )
+
+                        _state.value =
+                            ConnectionState.Error(exception)
+                    }
+
+                    _state.value = ConnectionState.Disconnected
+
                     android.util.Log.d(
                         TAG,
-                        "[13] connect CANCELLED"
-                    )
-                    throw exception
-                } catch (exception: Exception) {
-                    android.util.Log.e(
-                        TAG,
-                        "[13] connect FAILED",
-                        exception
+                        "[RECONNECT] waiting ${reconnectDelayMs}ms"
                     )
 
-                    _state.value =
-                        ConnectionState.Error(exception)
+                    kotlinx.coroutines.delay(reconnectDelayMs)
+
+                    reconnectDelayMs =
+                        nextReconnectDelay(reconnectDelayMs)
                 }
             }
 
@@ -234,8 +258,10 @@ class SendspinManager(
                             SendspinClient.ConnectionState.Connecting ->
                                 ConnectionState.Connecting
 
-                            SendspinClient.ConnectionState.Connected ->
+                            SendspinClient.ConnectionState.Connected -> {
+                                reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
                                 ConnectionState.Connected
+                            }
                         }
                 }
             }
@@ -340,5 +366,13 @@ class SendspinManager(
 
     companion object {
         private const val TAG = "SendspinManager"
+
+        private const val INITIAL_RECONNECT_DELAY_MS = 1_000L
+        private const val MAX_RECONNECT_DELAY_MS = 30_000L
+
+        private fun nextReconnectDelay(currentDelayMs: Long): Long {
+            return (currentDelayMs * 2)
+                .coerceAtMost(MAX_RECONNECT_DELAY_MS)
+        }
     }
 }
