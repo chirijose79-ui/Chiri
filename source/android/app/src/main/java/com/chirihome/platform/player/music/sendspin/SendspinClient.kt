@@ -137,6 +137,7 @@ class SendspinClient(
                 is InboundTransportEvent.Connected -> {
                     session.handleTransportEvent(event)
                     handleConnected()
+                    _connectionState.value = ConnectionState.Connected
                 }
 
                 is InboundTransportEvent.TextMessage ->

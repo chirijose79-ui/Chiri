@@ -23,8 +23,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CoroutineStart
 
 class SendspinManager(
     context: Context
@@ -196,27 +198,104 @@ class SendspinManager(
             connectionJob = scope.launch {
 
                 while (kotlinx.coroutines.currentCoroutineContext().isActive) {
+
                     try {
+                        _state.value = ConnectionState.Connecting
+
                         android.util.Log.d(
                             TAG,
                             "[11] SendspinClient.connect START"
                         )
 
-                        sendspinClient.connect()
+                        /*
+                         * SendspinClient.connect() permanece suspendido mientras
+                         * el WebSocket está conectado.
+                         *
+                         * Por eso lo ejecutamos en una coroutine hija y observamos
+                         * connectionState en paralelo.
+                         */
+                        val connectJob =
+                            launch(start = CoroutineStart.UNDISPATCHED) {
+                                sendspinClient.connect()
+                            }
+
+                        val connectionResult =
+                            sendspinClient.connectionState
+                                .first { state ->
+                                    state == SendspinClient.ConnectionState.Connected ||
+                                            state == SendspinClient.ConnectionState.Disconnected
+                                }
 
                         android.util.Log.d(
                             TAG,
-                            "[12] SendspinClient.connect RETURNED"
+                            "[STATE] connection result=$connectionResult"
                         )
 
+                        when (connectionResult) {
+
+                            SendspinClient.ConnectionState.Connected -> {
+                                _state.value = ConnectionState.Connected
+
+                                /*
+                                 * La conexión fue establecida realmente.
+                                 * Reiniciamos el backoff solamente aquí.
+                                 */
+                                reconnectDelayMs =
+                                    INITIAL_RECONNECT_DELAY_MS
+
+                                android.util.Log.d(
+                                    TAG,
+                                    "[RECONNECT] connection successful, " +
+                                            "backoff reset to ${reconnectDelayMs}ms"
+                                )
+
+                                /*
+                                 * Esperamos la desconexión real antes de iniciar
+                                 * otro intento.
+                                 */
+                                sendspinClient.connectionState
+                                    .first { state ->
+                                        state ==
+                                                SendspinClient.ConnectionState.Disconnected
+                                    }
+
+                                android.util.Log.d(
+                                    TAG,
+                                    "[RECONNECT] connection lost"
+                                )
+                            }
+
+                            SendspinClient.ConnectionState.Disconnected -> {
+                                _state.value =
+                                    ConnectionState.Disconnected
+
+                                android.util.Log.d(
+                                    TAG,
+                                    "[RECONNECT] connection attempt failed"
+                                )
+                            }
+
+                            else -> Unit
+                        }
+
+                        /*
+                         * connect() termina cuando el WebSocket se desconecta.
+                         * Esperamos a que la coroutine termine antes de aplicar
+                         * el backoff.
+                         */
+                        connectJob.join()
+
                     } catch (exception: CancellationException) {
+
                         android.util.Log.d(
                             TAG,
                             "[13] connect CANCELLED"
                         )
+
                         throw exception
 
                     } catch (exception: Exception) {
+
                         android.util.Log.e(
                             TAG,
                             "[13] connect FAILED",
@@ -227,7 +306,8 @@ class SendspinManager(
                             ConnectionState.Error(exception)
                     }
 
-                    _state.value = ConnectionState.Disconnected
+                    _state.value =
+                        ConnectionState.Disconnected
 
                     android.util.Log.d(
                         TAG,
@@ -259,7 +339,6 @@ class SendspinManager(
                                 ConnectionState.Connecting
 
                             SendspinClient.ConnectionState.Connected -> {
-                                reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS
                                 ConnectionState.Connected
                             }
                         }
