@@ -7,10 +7,13 @@ import com.chirihome.platform.domain.auth.ValidateSessionUseCase
 import com.chirihome.platform.domain.home.HomeUseCase
 import com.chirihome.platform.domain.music.MusicUseCase
 import com.chirihome.platform.network.ApiClient
+import com.chirihome.platform.player.music.sendspin.crypto.JdkNoiseCrypto
+import com.chirihome.platform.player.music.sendspin.crypto.SendspinPairingTokenProvider
 import com.chirihome.platform.repository.auth.AuthRepositoryImpl
 import com.chirihome.platform.repository.home.HomeRepositoryImpl
 import com.chirihome.platform.repository.music.MusicRepositoryImpl
 import com.chirihome.platform.session.SessionManager
+import com.chirihome.platform.storage.SecureSendspinCredentialStorage
 import com.chirihome.platform.storage.SecureSessionStorage
 
 class ChiriApplication : Application() {
@@ -31,6 +34,9 @@ class ChiriApplication : Application() {
         private set
 
     lateinit var musicUseCase: MusicUseCase
+        private set
+
+    lateinit var sendspinPairingTokenProvider: SendspinPairingTokenProvider
         private set
 
     override fun onCreate() {
@@ -76,6 +82,14 @@ class ChiriApplication : Application() {
 
         musicUseCase = MusicUseCase(
             musicRepository = musicRepository
+        )
+
+        val sendspinStorage = SecureSendspinCredentialStorage(this)
+        val sendspinCrypto = JdkNoiseCrypto()
+
+        sendspinPairingTokenProvider = SendspinPairingTokenProvider(
+            storage = sendspinStorage,
+            crypto = sendspinCrypto
         )
     }
 }

@@ -17,7 +17,7 @@ class HomeStatus(BaseModel):
 
 
 class QuickAction(BaseModel):
-    id: Literal["music", "multimedia"]
+    id: Literal["music", "multimedia", "sendspin"]
     enabled: bool
 
 

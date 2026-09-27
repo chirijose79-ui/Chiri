@@ -12,6 +12,7 @@ import com.chirihome.platform.ui.screens.LoginScreen
 import com.chirihome.platform.ui.screens.MusicScreen
 import com.chirihome.platform.ui.screens.MultimediaScreen
 import com.chirihome.platform.ui.screens.PhotosScreen
+import com.chirihome.platform.ui.screens.SendspinScreen
 import com.chirihome.platform.ui.screens.SplashScreen
 import com.chirihome.platform.ui.screens.VideosScreen
 import com.chirihome.platform.ui.music.MusicViewModel
@@ -44,7 +45,10 @@ fun ChiriNavGraph() {
 
         composable(Routes.HOME) {
             HomeScreen(
-                navController = navController
+                navController = navController,
+                onSendspinClick = {
+                    navController.navigate(Routes.SENDSPIN)
+                }
             )
         }
 
@@ -74,6 +78,12 @@ fun ChiriNavGraph() {
 
         composable(Routes.PHOTOS) {
             PhotosScreen()
+        }
+
+        composable(Routes.SENDSPIN) {
+            SendspinScreen(
+                navController = navController
+            )
         }
     }
 }

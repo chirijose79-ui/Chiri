@@ -18,6 +18,10 @@ def get_home_data(current_user: User) -> dict:
                 "id": "multimedia",
                 "enabled": True,
             },
+            {
+                "id": "sendspin",
+                "enabled": True,
+            },
         ],
         "information": {
             "connectivity": "online",

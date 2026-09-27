@@ -35,7 +35,8 @@ import com.chirihome.platform.ui.navigation.Routes
 
 @Composable
 fun HomeScreen(
-    navController: NavController
+    navController: NavController,
+    onSendspinClick: () -> Unit
 ) {
     val application =
         LocalContext.current.applicationContext as ChiriApplication
@@ -70,6 +71,7 @@ fun HomeScreen(
                 onMultimediaClick = {
                     navController.navigate(Routes.MULTIMEDIA)
                 },
+                onSendspinClick = onSendspinClick,
                 onLogout = {
                     viewModel.logout(
                         onSuccess = {
@@ -136,6 +138,7 @@ private fun HomeContent(
     uiState: HomeUiState,
     onMusicClick: () -> Unit,
     onMultimediaClick: () -> Unit,
+    onSendspinClick: () -> Unit,
     onLogout: () -> Unit
 ) {
     val home = uiState.home ?: return
@@ -232,6 +235,18 @@ private fun HomeContent(
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text("Multimedia")
+                                }
+                            }
+
+                        home.quick_actions
+                            .firstOrNull { it.id == "sendspin" }
+                            ?.let { action ->
+                                Button(
+                                    onClick = onSendspinClick,
+                                    enabled = action.enabled,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Sendspin")
                                 }
                             }
                     }

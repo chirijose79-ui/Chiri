@@ -197,7 +197,7 @@ def test_home_response_structure(test_user):
     }
 
     assert isinstance(data["quick_actions"], list)
-    assert len(data["quick_actions"]) == 2
+    assert len(data["quick_actions"]) == 3
 
     for action in data["quick_actions"]:
         assert set(action.keys()) == {
@@ -234,6 +234,7 @@ def test_home_response_values(test_user):
     assert action_ids == {
         "music",
         "multimedia",
+        "sendspin",
     }
 
     for action in data["quick_actions"]:

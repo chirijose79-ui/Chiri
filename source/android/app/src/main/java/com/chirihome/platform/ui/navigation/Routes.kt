@@ -8,4 +8,5 @@ object Routes {
     const val MULTIMEDIA = "multimedia"
     const val VIDEOS = "videos"
     const val PHOTOS = "photos"
+    const val SENDSPIN = "sendspin"
 }
